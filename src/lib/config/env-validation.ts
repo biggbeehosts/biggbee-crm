@@ -135,6 +135,15 @@ export function validateEnvironment(): EnvValidation {
   return { valid: errors.length === 0, errors, warnings };
 }
 
+/**
+ * True only when the n8n webhook is both unauthenticated AND running in a context where that's
+ * not acceptable (production). Shared by env-validation's own N8N_API_KEY check and by Campaign
+ * Readiness, so "is the key required right now" has exactly one definition.
+ */
+export function isN8nApiKeyRequiredButMissing(): boolean {
+  return process.env.NODE_ENV === "production" && !raw("N8N_API_KEY");
+}
+
 /** Deliberately coarse summary -- safe for a public health endpoint. Never lists variables. */
 export function getEnvStatusSummary(): { configured: boolean; errorCount: number; warningCount: number } {
   const { valid, errors, warnings } = validateEnvironment();

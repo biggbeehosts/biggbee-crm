@@ -32,6 +32,8 @@ export interface ReadinessInput {
   dataMode: "mock" | "google-sheets";
   sheetsConnected: boolean;
   knowledgeBaseUpdatedAt: string | null;
+  /** From env-validation's isN8nApiKeyRequiredButMissing() -- true only in production with no key set. */
+  n8nApiKeyRequiredButMissing: boolean;
 }
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -81,7 +83,7 @@ function describeTargeting(campaign: Campaign): string {
 }
 
 export function computeCampaignReadiness(input: ReadinessInput): CampaignReadiness {
-  const { leads, activeCampaign, runCampaignConfigured, dataMode, sheetsConnected, knowledgeBaseUpdatedAt } = input;
+  const { leads, activeCampaign, runCampaignConfigured, dataMode, sheetsConnected, knowledgeBaseUpdatedAt, n8nApiKeyRequiredButMissing } = input;
 
   const eligibleLeads = countEligibleLeads(leads);
   const campaignMatches = activeCampaign ? countCampaignMatches(leads, activeCampaign) : null;
@@ -101,6 +103,18 @@ export function computeCampaignReadiness(input: ReadinessInput): CampaignReadine
           detail: "No Run Campaign webhook is configured",
           blocking: true,
         }
+  );
+
+  checks.push(
+    n8nApiKeyRequiredButMissing
+      ? {
+          id: "n8n-auth",
+          label: "n8n webhook authentication",
+          state: "not-connected",
+          detail: "N8N_API_KEY is not set — the production webhook would be unauthenticated",
+          blocking: true,
+        }
+      : { id: "n8n-auth", label: "n8n webhook authentication", state: "ready", detail: "Configured", blocking: false }
   );
 
   if (dataMode === "mock") {
@@ -192,6 +206,7 @@ export function computeCampaignReadiness(input: ReadinessInput): CampaignReadine
 
   const blockReasons: string[] = [];
   if (!runCampaignConfigured) blockReasons.push("The Run Campaign automation is not connected to n8n.");
+  if (n8nApiKeyRequiredButMissing) blockReasons.push("N8N_API_KEY is required in production but is not set.");
   if (sheetsBlocked) blockReasons.push("Google Sheets is unreachable, so lead data cannot be trusted.");
   if (eligibleLeads === 0) blockReasons.push("There are no eligible leads for a new-lead run.");
 

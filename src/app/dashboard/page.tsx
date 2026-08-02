@@ -20,6 +20,7 @@ import { Badge } from "@/components/ui/badge";
 import { isActionConfigured } from "@/lib/n8n/config";
 import { fetchAutomationStatus } from "@/lib/n8n/client";
 import type { AutomationStatusResult } from "@/lib/n8n/types";
+import { isN8nApiKeyRequiredButMissing } from "@/lib/config/env-validation";
 
 async function getInitialAutomationStatus(): Promise<AutomationStatusResult> {
   if (!isActionConfigured("status")) return { configured: false, status: null };
@@ -62,6 +63,7 @@ export default async function DashboardPage() {
     dataMode: connection.mode,
     sheetsConnected: connection.connected,
     knowledgeBaseUpdatedAt: knowledgeBase.updatedAt,
+    n8nApiKeyRequiredButMissing: isN8nApiKeyRequiredButMissing(),
   });
 
   return (

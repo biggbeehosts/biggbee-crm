@@ -7,13 +7,31 @@ export interface SheetsEnv {
   sheetId: string;
 }
 
+/**
+ * Normalizes a private-key value that may have reached process.env via two different
+ * env-file parsers depending on how the app is run:
+ *  - Next's own dotenv-compatible loader (local dev, `next dev` reading .env.local) and modern
+ *    Docker Compose (v2, godotenv-based `env_file:`) both strip a surrounding quote pair AND
+ *    expand literal "\n" to a real newline themselves -- the value already arrives clean.
+ *  - Older/naive env_file parsers do neither: the literal `"..."` characters AND the literal
+ *    two-character `\n` sequences both survive into process.env untouched.
+ * Since we can't assume which parser touched the value, handle both: strip one matching pair of
+ * surrounding quotes if present, then convert any remaining literal "\n" to a real newline.
+ * Idempotent -- running this on an already-clean value is a no-op.
+ */
+function normalizePrivateKey(raw: string): string {
+  let key = raw.trim();
+  if (key.length >= 2 && ((key.startsWith('"') && key.endsWith('"')) || (key.startsWith("'") && key.endsWith("'")))) {
+    key = key.slice(1, -1);
+  }
+  return key.replace(/\\n/g, "\n");
+}
+
 export function getSheetsEnv(): SheetsEnv {
   return {
     projectId: process.env.GOOGLE_PROJECT_ID ?? "",
     clientEmail: process.env.GOOGLE_CLIENT_EMAIL ?? "",
-    // Sheets/env files store the private key with literal "\n" sequences -- turn them back into
-    // real newlines, otherwise the JWT signer rejects the PEM block.
-    privateKey: (process.env.GOOGLE_PRIVATE_KEY ?? "").replace(/\\n/g, "\n"),
+    privateKey: normalizePrivateKey(process.env.GOOGLE_PRIVATE_KEY ?? ""),
     sheetId: process.env.GOOGLE_SHEET_ID ?? "",
   };
 }

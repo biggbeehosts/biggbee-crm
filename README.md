@@ -76,46 +76,107 @@ are all accepted. Missing columns and malformed cells never crash a page.
 
 ## Production Setup Checklist
 
-A step-by-step run order for going from a fresh clone to a verified, live dashboard. See
-[Connecting Google Sheets](#connecting-google-sheets) above for the detail behind steps 1–6, and
-[n8n automation integration](#n8n-automation-integration) below for step 11.
+This is the **credential-rotation** sequence: it assumes a Google service-account key has been
+exposed at some point (e.g. shared in chat, committed by accident, pasted somewhere logged) and
+walks through replacing it — plus the n8n webhook secret — with fresh values before going live.
+If you're setting this up for the very first time with nothing to rotate, the same steps still
+apply; just start at step 2.
 
-1. Create a Google Cloud project.
-2. Enable the **Google Sheets API** for that project.
-3. Create a service account inside it.
-4. Create and download a JSON key for the service account.
-5. Share the **Bigggbee Email Marketing** spreadsheet with the service account's email address
-   (**Viewer** access is sufficient — see the note below).
-6. Populate `.env.local` with `GOOGLE_PROJECT_ID`, `GOOGLE_CLIENT_EMAIL`, `GOOGLE_PRIVATE_KEY`,
-   and `GOOGLE_SHEET_ID` from that key file.
-7. Set `DATA_MODE=sheets`.
-8. Restart the app — environment variables are only read at startup.
-9. Open **Settings** and check the **Configuration** card. Every `GOOGLE_*` variable should show
-   no errors; use **Test connection** in the Google Sheets card to confirm the sheet is reachable.
-10. Compare **Dashboard → Total Leads** and the **Campaign Readiness** counts against the sheet
-    itself, to confirm the CRM is reading the row count you expect.
-11. Secure the n8n webhook: add Header Auth in n8n (`X-API-KEY`) and set `N8N_API_KEY` here to
-    the same value.
-12. Run a safe first test: set exactly **one** row in the Leads tab to `Status = New` with an
-    address you control, everything else `New`/`Contacted`/etc., then trigger **Run Campaign**
-    from the dashboard and confirm only that lead is processed.
-13. Only after that single-lead test succeeds, restore the real lead set to `Status = New` as
-    appropriate and resume normal use.
+1. **Delete the previously exposed Google service-account key** in Google Cloud Console
+   (IAM & Admin → Service Accounts → the account → Keys tab → delete the exposed key ID). A
+   leaked key is not safe to keep active even if you also add a new one.
+2. **Create a fresh JSON key** for that service account (or a new service account entirely) —
+   Keys → Add Key → Create new key → JSON.
+3. **Confirm the Google Sheets API is enabled** for the project the service account belongs to
+   (Google Cloud Console → APIs & Services → Enabled APIs — look for "Google Sheets API"; if
+   it's not listed, enable it from the API Library).
+4. **Share the spreadsheet** with the *new* key's `client_email` (Viewer access is enough — see
+   the note below). If you deleted the old service account, also remove it from the sheet's
+   share list.
+5. **Add Header Auth to the n8n Run Campaign webhook** — in n8n, open the webhook node →
+   Authentication → Header Auth → create a credential with header name **`X-API-KEY`**.
+6. **Generate a fresh, long, random shared secret** for that credential's value, e.g.:
+   ```bash
+   openssl rand -hex 32
+   # or, without openssl:
+   node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+   ```
+   Never reuse a secret that has previously been exposed.
+7. **Store that same secret as `N8N_API_KEY`** in n8n's Header Auth credential — the value must
+   match exactly what you'll put in the CRM's env file in step 9.
+8. **Import the fresh Google JSON locally** with the credential-import script (never hand-edit
+   the private key into an env file — copy/paste errors there are the #1 cause of "invalid key"
+   failures):
+   ```bash
+   npm run credentials:import -- "C:\path\to\fresh-service-account.json" .env.production
+   ```
+   This updates only `GOOGLE_PROJECT_ID`, `GOOGLE_CLIENT_EMAIL`, and `GOOGLE_PRIVATE_KEY` in
+   `.env.production`, preserves every other line, refuses to touch a tracked `.example` file,
+   verifies the target is gitignored, and never prints the key. See
+   [Phase 3 script docs](#local-credential-import-script) below for details.
+9. **Set `GOOGLE_SHEET_ID` and `N8N_WEBHOOK_RUN_CAMPAIGN`** in `.env.production` by hand (the
+   import script doesn't touch these — they aren't part of the service-account JSON). Also set
+   `N8N_API_KEY` to the exact secret from step 6.
+10. **Test locally**: `npm run typecheck`, `npm run lint`, `npm run build` — all three must pass
+    before anything ships.
+11. **Push only code and `.example` files to GitHub** (`git status` first — confirm no
+    `.env*` file other than the tracked `.example` templates is staged), then `git push`.
+12. **Securely create or update `.env.production` on the VPS** — see
+    [Transferring `.env.production` to the VPS](#transferring-envproduction-to-the-vps) below.
+    Never commit it, never paste its contents into chat, issues, or a commit message.
+13. **Restart only the CRM container** on the VPS (`docker compose up -d --build crm` inside
+    `/docker/biggbee-crm`) — this does not touch Traefik or n8n.
+14. **Verify** `https://crm.biggbees.com/api/health` returns `dataSourceConnected: true`, then
+    open **Settings** on the live site and confirm the Configuration card shows no errors and
+    Google Sheets → Test Connection succeeds.
+15. **Perform a one-lead test using only your own, safe email address**: set exactly one row in
+    the Leads tab to `Status = New` with your own address, everything else left as-is, then
+    trigger **Run Campaign** from the dashboard and confirm only that lead is processed before
+    restoring the real lead set.
 
 Notes:
 
 - **Viewer** access is enough for now — the CRM is read-only against Sheets (see
   [What still requires credentials / follow-up work](#what-still-requires-credentials--follow-up-work)).
   It never requests write/edit access.
-- Never commit the service account JSON key or its private key value anywhere in the repo.
-- `.env.local` is already gitignored — keep it that way, and don't paste its contents into chat,
-  issues, or commit messages.
-- Next.js reads environment variables once at process start; **restart after every change** to
-  `.env.local`.
+- Never commit a service-account JSON key, a private key value, or `N8N_API_KEY` anywhere in the
+  repo — not in code, not in a commit message, not in an issue.
+- `.env.local`, `.env.production`, and `.env.deploy` are all gitignored — keep it that way.
+- Next.js and Docker both read environment variables once at process start; **restart after
+  every change** to any env file.
 - The n8n workflow behind `N8N_WEBHOOK_RUN_CAMPAIGN` must be **Active** — a production webhook
   URL 404s while its workflow is inactive.
 - That webhook's node must be set to **Respond Immediately**. The CRM waits at most 30 seconds
   for a response; the actual campaign (crawling, AI, sending) continues in n8n after that.
+
+### Local credential-import script
+
+`scripts/import-google-service-account.mjs` (pure Node.js — works the same in PowerShell, cmd,
+or any POSIX shell, no Bash required) safely merges a fresh service-account JSON key into a
+local env file:
+
+```bash
+npm run credentials:import -- <path-to-service-account.json> [target-env-file]
+# target-env-file defaults to .env.production
+```
+
+It will refuse to run (with a clear, non-secret error) if: the JSON is malformed or missing
+required fields, the `client_email` doesn't look like a service account address, the private key
+doesn't look like a PEM block, or the target file looks like a tracked `.example` template. On
+success it verifies the target is actually covered by `.gitignore` and prints only the service
+account's email — the private key is never written to the console, including in error messages.
+
+### Transferring `.env.production` to the VPS
+
+Never commit this file. Copy it directly over an encrypted channel, e.g. from this machine:
+
+```bash
+scp .env.production youruser@your-vps-host:/docker/biggbee-crm/.env.production
+```
+
+or paste its contents into a file created directly on the VPS over SSH (`nano .env.production`)
+if you'd rather not transfer the file itself. Either way, confirm its permissions aren't
+world-readable (`chmod 600 .env.production`) once it's in place.
 
 ## n8n automation integration
 
@@ -215,10 +276,12 @@ Design decisions worth knowing:
 ## Scripts
 
 ```bash
-npm run dev     # dev server
-npm run build   # production build (includes type checking)
-npm run lint    # eslint
-npm start       # serve the production build
+npm run dev                 # dev server
+npm run build                # production build (includes type checking)
+npm run typecheck            # tsc --noEmit only
+npm run lint                  # eslint
+npm start                     # serve the production build
+npm run credentials:import   # import a Google service-account JSON into a local env file
 ```
 
-Health check: `GET /api/health` → `{ ok, mode, dataSourceConnected, timestamp }`.
+Health check: `GET /api/health` → `{ ok, mode, dataSourceConnected, envConfigured, timestamp }`.
