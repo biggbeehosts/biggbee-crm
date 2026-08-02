@@ -1,0 +1,60 @@
+import type { DemoRecord } from "@/types";
+
+export const MOCK_DEMO_LIBRARY: DemoRecord[] = [
+  {
+    demoType: "lead generation",
+    publicWatchUrl: "https://res.cloudinary.com/biggbee/video/upload/v1712345678/demos/lead-generation-agent.mp4",
+    publicDownloadUrl: "",
+    fileName: "lead-generation-agent-demo.mp4",
+    thumbnailUrl: "https://res.cloudinary.com/biggbee/video/upload/so_0/v1712345678/demos/lead-generation-agent.jpg",
+    duration: "1:42",
+  },
+  {
+    demoType: "dental",
+    publicWatchUrl: "https://res.cloudinary.com/biggbee/video/upload/v1712345999/demos/dental-receptionist-agent.mp4",
+    publicDownloadUrl: "",
+    fileName: "dental-receptionist-agent-demo.mp4",
+    thumbnailUrl: "https://res.cloudinary.com/biggbee/video/upload/so_0/v1712345999/demos/dental-receptionist-agent.jpg",
+    duration: "2:05",
+  },
+  {
+    demoType: "real estate",
+    publicWatchUrl: "https://res.cloudinary.com/biggbee/video/upload/v1712346111/demos/real-estate-ai-agent.mp4",
+    publicDownloadUrl: "",
+    fileName: "real-estate-ai-agent-demo.mp4",
+    thumbnailUrl: "https://res.cloudinary.com/biggbee/video/upload/so_0/v1712346111/demos/real-estate-ai-agent.jpg",
+    duration: "1:58",
+  },
+  {
+    demoType: "voice",
+    publicWatchUrl: "https://res.cloudinary.com/biggbee/video/upload/v1712346222/demos/ai-voice-agent.mp4",
+    publicDownloadUrl: "",
+    fileName: "ai-voice-agent-demo.mp4",
+    thumbnailUrl: "",
+    duration: "1:37",
+  },
+  {
+    demoType: "receptionist",
+    publicWatchUrl: "https://res.cloudinary.com/biggbee/video/upload/v1712346333/demos/ai-receptionist.mp4",
+    publicDownloadUrl: "https://res.cloudinary.com/biggbee/video/upload/fl_attachment/v1712346333/demos/ai-receptionist.mp4",
+    fileName: "ai-receptionist-demo.mp4",
+    thumbnailUrl: "https://res.cloudinary.com/biggbee/video/upload/so_0/v1712346333/demos/ai-receptionist.jpg",
+    duration: "2:21",
+  },
+  {
+    demoType: "customer support",
+    publicWatchUrl: "not-a-valid-url",
+    publicDownloadUrl: "",
+    fileName: "customer-support-agent-demo.mp4",
+    thumbnailUrl: "",
+    duration: "1:49",
+  },
+  {
+    demoType: "appointment setting",
+    publicWatchUrl: "",
+    publicDownloadUrl: "",
+    fileName: "",
+    thumbnailUrl: "",
+    duration: "",
+  },
+];

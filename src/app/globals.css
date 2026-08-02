@@ -1,0 +1,147 @@
+@import "tailwindcss";
+@plugin "tailwindcss-animate";
+
+/*
+ * Biggbee brand system: dark navy/black base, electric blue accent, subtle glass panels.
+ * Dark mode is the default; :root[data-theme="light"] flips to the light palette.
+ * Tailwind v4 is CSS-first, so brand tokens live here in @theme rather than a JS config.
+ */
+
+:root {
+  --bg-canvas: #05070d;
+  --bg-surface: #0b0f1a;
+  --bg-surface-raised: #0f1420;
+  --bg-panel: rgba(255, 255, 255, 0.03);
+  --border-subtle: rgba(255, 255, 255, 0.08);
+  --border-strong: rgba(255, 255, 255, 0.14);
+  --text-primary: #f4f6fb;
+  --text-secondary: #9aa4b9;
+  --text-tertiary: #6b7386;
+  --accent: #2f7dff;
+  --accent-strong: #4f8fff;
+  --accent-soft: rgba(47, 125, 255, 0.14);
+  --accent-foreground: #f4f8ff;
+  --success: #34d399;
+  --warning: #fbbf24;
+  --danger: #fb7185;
+}
+
+:root[data-theme="light"] {
+  --bg-canvas: #f4f6fb;
+  --bg-surface: #ffffff;
+  --bg-surface-raised: #ffffff;
+  --bg-panel: rgba(15, 23, 42, 0.03);
+  --border-subtle: rgba(15, 23, 42, 0.08);
+  --border-strong: rgba(15, 23, 42, 0.14);
+  --text-primary: #0b0f1a;
+  --text-secondary: #47506b;
+  --text-tertiary: #7a8399;
+  --accent: #2f6fed;
+  --accent-strong: #1d5be0;
+  --accent-soft: rgba(47, 111, 237, 0.1);
+  --accent-foreground: #ffffff;
+  --success: #059669;
+  --warning: #b45309;
+  --danger: #e11d48;
+}
+
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    --bg-canvas: #f4f6fb;
+    --bg-surface: #ffffff;
+    --bg-surface-raised: #ffffff;
+    --bg-panel: rgba(15, 23, 42, 0.03);
+    --border-subtle: rgba(15, 23, 42, 0.08);
+    --border-strong: rgba(15, 23, 42, 0.14);
+    --text-primary: #0b0f1a;
+    --text-secondary: #47506b;
+    --text-tertiary: #7a8399;
+    --accent: #2f6fed;
+    --accent-strong: #1d5be0;
+    --accent-soft: rgba(47, 111, 237, 0.1);
+    --accent-foreground: #ffffff;
+    --success: #059669;
+    --warning: #b45309;
+    --danger: #e11d48;
+  }
+}
+
+@theme inline {
+  --color-canvas: var(--bg-canvas);
+  --color-surface: var(--bg-surface);
+  --color-surface-raised: var(--bg-surface-raised);
+  --color-panel: var(--bg-panel);
+  --color-border-subtle: var(--border-subtle);
+  --color-border-strong: var(--border-strong);
+  --color-text-primary: var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  --color-text-tertiary: var(--text-tertiary);
+  --color-accent: var(--accent);
+  --color-accent-strong: var(--accent-strong);
+  --color-accent-soft: var(--accent-soft);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-danger: var(--danger);
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+}
+
+* {
+  border-color: var(--border-subtle);
+}
+
+html {
+  color-scheme: dark;
+}
+html[data-theme="light"] {
+  color-scheme: light;
+}
+
+body {
+  background: var(--bg-canvas);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+::selection {
+  background: var(--accent-soft);
+  color: var(--accent-foreground);
+}
+
+/* Slim, unobtrusive scrollbars that still work in both themes. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) transparent;
+}
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+*::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border-radius: 999px;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.glass-panel {
+  background: linear-gradient(180deg, var(--bg-panel), transparent);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+.skeleton-shimmer {
+  background: linear-gradient(90deg, var(--bg-panel) 25%, var(--border-subtle) 37%, var(--bg-panel) 63%);
+  background-size: 400% 100%;
+  animation: shimmer 1.6s ease-in-out infinite;
+}

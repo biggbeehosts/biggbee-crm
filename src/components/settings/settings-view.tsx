@@ -1,0 +1,134 @@
+"use client";
+
+import * as React from "react";
+import { useRouter } from "next/navigation";
+import { RefreshCw } from "lucide-react";
+import type { ConnectionStatus } from "@/types";
+import type { EnvValidation } from "@/lib/config/env-validation";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
+import { formatDateTime } from "@/lib/utils/date";
+import { refreshDataAction } from "@/lib/actions/leads";
+import { useUIState } from "@/components/layout/ui-state-provider";
+
+export function SettingsView({ status, env }: { status: ConnectionStatus; env: EnvValidation }) {
+  const router = useRouter();
+  const { theme, toggleTheme } = useUIState();
+  const [testing, setTesting] = React.useState(false);
+  const [testResult, setTestResult] = React.useState<string | null>(null);
+
+  async function testConnection() {
+    setTesting(true);
+    setTestResult(null);
+    await refreshDataAction();
+    const res = await fetch("/api/health");
+    const data = await res.json();
+    setTestResult(
+      data.mode === "mock"
+        ? "Running in mock mode — set DATA_MODE=sheets and add Google credentials in .env.local to connect the live sheet."
+        : data.dataSourceConnected
+          ? "Connected — the Leads sheet is reachable."
+          : "Connection failed — check the service account credentials and that the sheet is shared with the service account email."
+    );
+    router.refresh();
+    setTesting(false);
+  }
+
+  return (
+    <div className="max-w-2xl space-y-6">
+      <Card>
+        <CardHeader>
+          <div>
+            <CardTitle>Google Sheets</CardTitle>
+            <CardDescription>The workflow&apos;s spreadsheet is the only data source for this dashboard</CardDescription>
+          </div>
+          <Badge variant={status.mode === "mock" ? "accent" : status.connected ? "success" : "danger"}>
+            {status.mode === "mock" ? "Mock mode" : status.connected ? "Connected" : "Error"}
+          </Badge>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="flex items-center justify-between text-sm">
+            <span className="text-text-tertiary">Data source</span>
+            <span className="text-xs font-medium text-text-secondary">
+              {status.mode === "mock" ? "Mock data" : "Google Sheets"}
+            </span>
+          </div>
+          <div className="flex items-center justify-between text-sm">
+            <span className="text-text-tertiary">Connection</span>
+            <span className={`text-xs font-medium ${status.connected ? "text-success" : "text-danger"}`}>
+              {status.mode === "mock" ? "Not applicable" : status.connected ? "Connected" : "Failed"}
+            </span>
+          </div>
+          <div className="flex items-center justify-between text-sm">
+            <span className="text-text-tertiary">Spreadsheet ID</span>
+            <span className="font-mono text-xs text-text-secondary">{status.spreadsheetIdMasked || "Not configured"}</span>
+          </div>
+          <div className="flex items-center justify-between text-sm">
+            <span className="text-text-tertiary">Last sync</span>
+            <span className="text-xs text-text-secondary">{status.lastSuccessfulSync ? formatDateTime(status.lastSuccessfulSync) : "—"}</span>
+          </div>
+          {status.error && <p className="text-xs text-danger">{status.error}</p>}
+          <div className="flex items-center gap-2 pt-1">
+            <Button size="sm" variant="secondary" onClick={testConnection} disabled={testing}>
+              <RefreshCw className={testing ? "h-3.5 w-3.5 animate-spin" : "h-3.5 w-3.5"} />
+              Test connection
+            </Button>
+            {testResult && <p className="text-xs text-text-tertiary">{testResult}</p>}
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <div>
+            <CardTitle>Configuration</CardTitle>
+            <CardDescription>Environment check — variable names only, never values</CardDescription>
+          </div>
+          <Badge variant={env.valid ? "success" : "danger"}>{env.valid ? "Ready" : `${env.errors.length} to fix`}</Badge>
+        </CardHeader>
+        <CardContent className="space-y-2">
+          {env.valid && env.warnings.length === 0 && (
+            <p className="text-xs text-text-tertiary">All required variables are set.</p>
+          )}
+          {[...env.errors, ...env.warnings].map((issue) => (
+            <div
+              key={`${issue.variable}-${issue.level}`}
+              className={`rounded-lg border p-2.5 ${
+                issue.level === "error" ? "border-danger/25 bg-danger/10" : "border-warning/25 bg-warning/10"
+              }`}
+            >
+              <p className={`font-mono text-[11px] font-medium ${issue.level === "error" ? "text-danger" : "text-warning"}`}>
+                {issue.variable}
+              </p>
+              <p className="mt-0.5 text-[11px] text-text-secondary">{issue.message}</p>
+            </div>
+          ))}
+          <p className="pt-1 text-[11px] text-text-tertiary">
+            Edit <span className="font-mono">.env.local</span>, then restart the app — environment variables are read at
+            startup.
+          </p>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <div>
+            <CardTitle>Theme</CardTitle>
+            <CardDescription>Stored in this browser only</CardDescription>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <p className="text-sm font-medium text-text-primary">Dark mode</p>
+              <p className="text-xs text-text-tertiary">Default and recommended for the Biggbee visual identity</p>
+            </div>
+            <Switch checked={theme === "dark"} onCheckedChange={toggleTheme} aria-label="Toggle dark mode" />
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
