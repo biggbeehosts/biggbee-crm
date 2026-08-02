@@ -1,0 +1,67 @@
+# Biggbee CRM -- production deployment.
+#
+# This file deploys ONLY the CRM. It does not define, start, or touch Traefik or n8n --
+# it attaches to Traefik's EXISTING external network and lets Traefik's own config route to it.
+#
+# Two separate env files are involved -- kept apart on purpose so deploy-orchestration
+# variables (below) never leak into `next dev`/`next build`, and so this never collides with
+# the app's existing .env.example / .env.local used for local development:
+#   .env.deploy       compose-variable substitution for THIS file (the ${...} references below).
+#                     NOT auto-loaded by `docker compose` -- always pass it explicitly:
+#                       docker compose --env-file .env.deploy config
+#                       docker compose --env-file .env.deploy up -d --build
+#                     See .env.deploy.example.
+#   .env.production   the app's own runtime variables (DATA_MODE, GOOGLE_*, N8N_*), passed into
+#                     the container via env_file: below. See .env.production.example.
+# Neither is committed to git.
+#
+# .env.deploy must define:
+#   TRAEFIK_NETWORK       the name of Traefik's existing external docker network
+#   TRAEFIK_ENTRYPOINT    Traefik's HTTPS entrypoint name (commonly "websecure")
+#   TRAEFIK_CERT_RESOLVER Traefik's certificate resolver name (commonly "letsencrypt")
+#   CRM_HOST               crm.biggbees.com
+#
+# Find the real values with:
+#   docker network ls
+#   docker inspect <traefik_container> --format '{{json .NetworkSettings.Networks}}'
+#   docker inspect <traefik_container> --format '{{range .Args}}{{println .}}{{end}}'
+#     (look for --entrypoints.websecure.* and --certificatesresolvers.<name>.* flags)
+
+services:
+  crm:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: biggbee-crm:latest
+    container_name: biggbee-crm
+    restart: unless-stopped
+    env_file:
+      - .env.production
+    expose:
+      - "3000"
+    # No `ports:` mapping -- the app is reachable only through the Traefik network, never
+    # bound to a host port directly.
+    networks:
+      - traefik
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=${TRAEFIK_NETWORK}"
+
+      - "traefik.http.routers.biggbee-crm.rule=Host(`${CRM_HOST}`)"
+      - "traefik.http.routers.biggbee-crm.entrypoints=${TRAEFIK_ENTRYPOINT}"
+      - "traefik.http.routers.biggbee-crm.tls=true"
+      - "traefik.http.routers.biggbee-crm.tls.certresolver=${TRAEFIK_CERT_RESOLVER}"
+
+      - "traefik.http.services.biggbee-crm.loadbalancer.server.port=3000"
+
+      # Optional but recommended: redirect any plain-HTTP entrypoint to HTTPS.
+      # Uncomment and set TRAEFIK_WEB_ENTRYPOINT (commonly "web") once confirmed.
+      # - "traefik.http.routers.biggbee-crm-insecure.rule=Host(`${CRM_HOST}`)"
+      # - "traefik.http.routers.biggbee-crm-insecure.entrypoints=${TRAEFIK_WEB_ENTRYPOINT}"
+      # - "traefik.http.routers.biggbee-crm-insecure.middlewares=biggbee-crm-https-redirect"
+      # - "traefik.http.middlewares.biggbee-crm-https-redirect.redirectscheme.scheme=https"
+
+networks:
+  traefik:
+    name: ${TRAEFIK_NETWORK}
+    external: true
