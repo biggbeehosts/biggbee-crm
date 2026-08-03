@@ -1,6 +1,7 @@
 import type { LeadStatus, PipelineStage } from "@/types";
 
 const STATUS_ALIASES: Record<string, LeadStatus> = {
+  staged: "Staged",
   new: "New",
   sent: "Sent",
   contacted: "Contacted",
@@ -28,6 +29,7 @@ export function normalizeStatus(input: unknown): LeadStatus {
 }
 
 export const STATUS_COLORS: Record<LeadStatus, { bg: string; text: string; dot: string }> = {
+  Staged: { bg: "bg-cyan-500/15", text: "text-cyan-300", dot: "bg-cyan-400" },
   New: { bg: "bg-slate-500/15", text: "text-slate-300", dot: "bg-slate-400" },
   Sent: { bg: "bg-sky-500/15", text: "text-sky-300", dot: "bg-sky-400" },
   Contacted: { bg: "bg-sky-500/15", text: "text-sky-300", dot: "bg-sky-400" },
@@ -42,6 +44,10 @@ export const STATUS_COLORS: Record<LeadStatus, { bg: string; text: string; dot: 
 };
 
 const PIPELINE_MAP: Record<LeadStatus, PipelineStage> = {
+  // Staged leads are pending review (see the Scraped Leads page) and not yet real pipeline
+  // members -- bucketed with New for the board like "Needs Review" already is, rather than
+  // adding Kanban-level filtering, which is out of scope here.
+  Staged: "New",
   New: "New",
   Sent: "Contacted",
   Contacted: "Contacted",

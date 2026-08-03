@@ -45,6 +45,13 @@ export function normalizeLead(row: Row, index: number): Lead {
     emailStyle: pick(row, "Email Style"),
     confidence,
     campaignId: pick(row, "Campaign ID", "CampaignID") || undefined,
+    campaignName: pick(row, "Campaign Name", "CampaignName") || undefined,
+    leadId: pick(row, "Lead ID", "LeadID") || undefined,
+    location: pick(row, "Location") || undefined,
+    targetService: pick(row, "Target Service", "TargetService") || undefined,
+    source: pick(row, "Source") || undefined,
+    scraperJobId: pick(row, "Scraper Job ID", "ScraperJobID") || undefined,
+    createdAt: pick(row, "Created At", "CreatedAt") || undefined,
     rowNumber: index + 2, // +1 for header row, +1 for 1-based sheet rows
   };
 }

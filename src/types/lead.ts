@@ -1,4 +1,5 @@
 export type LeadStatus =
+  | "Staged"
   | "New"
   | "Sent"
   | "Contacted"
@@ -12,6 +13,7 @@ export type LeadStatus =
   | "Needs Review";
 
 export const LEAD_STATUSES: LeadStatus[] = [
+  "Staged",
   "New",
   "Sent",
   "Contacted",
@@ -77,6 +79,24 @@ export interface Lead {
   /** Stable Campaign ID (Campaigns sheet's ID column) this lead is assigned to. Blank/undefined
    *  until an operator assigns one -- never inferred from industry/business type/status. */
   campaignId?: string;
+  /** Denormalized campaign name at scrape/create time -- display only, campaignId stays the
+   *  source of truth for matching. */
+  campaignName?: string;
+  /** Stable identifier for this lead row -- set on scraped leads; blank for rows created before
+   *  this column existed (never inferred from row position). */
+  leadId?: string;
+  /** Free-text location string as scraped (e.g. "Austin, TX") -- distinct from Country. */
+  location?: string;
+  /** The service/niche the scraper searched for, as opposed to serviceOffered (what was actually
+   *  pitched during outreach). */
+  targetService?: string;
+  /** Where this lead came from -- e.g. "Google Maps", "Instagram", "Manual". Blank for rows
+   *  written before this column existed. */
+  source?: string;
+  /** Scraping Jobs id this lead was produced by, if any. */
+  scraperJobId?: string;
+  /** When this row was created -- set by the scraper/create action; blank for legacy rows. */
+  createdAt?: string;
   /** Row position in the source sheet, used for targeted updates. Absent in mock mode. */
   rowNumber?: number;
 }

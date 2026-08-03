@@ -21,6 +21,20 @@ async function ensureLeadsCampaignIdColumn(): Promise<void> {
   leadsCampaignColumnEnsured = true;
 }
 
+/** Same additive-column pattern as ensureLeadsCampaignIdColumn, for the Change-2 scraper columns
+ *  (Lead ID, Campaign Name, Location, Target Service, Source, Scraper Job ID, Created At). The
+ *  n8n scraper workflows add these themselves on first write too -- this covers the CRM's own
+ *  read/edit paths so a fresh Leads tab that hasn't been scraped into yet still has them. */
+const SCRAPER_LEAD_HEADERS = ["Lead ID", "Campaign Name", "Location", "Target Service", "Source", "Scraper Job ID", "Created At"];
+let leadsScraperColumnsEnsured = false;
+async function ensureLeadsScraperColumns(): Promise<void> {
+  if (leadsScraperColumnsEnsured) return;
+  if (await tabExists(SHEET_TAB_NAMES.leads)) {
+    await ensureTabWithHeaders(SHEET_TAB_NAMES.leads, SCRAPER_LEAD_HEADERS);
+  }
+  leadsScraperColumnsEnsured = true;
+}
+
 /** Always reads fresh (bypasses the 60s cache) -- used immediately before a targeted write so the
  *  row number and optimistic-concurrency check reflect the true current state of the sheet. */
 async function findLeadRowUncached(email: string): Promise<Lead | undefined> {
@@ -46,7 +60,20 @@ function leadToRow(lead: Partial<Lead>): Record<string, string> {
   if (lead.status !== undefined) row.Status = lead.status;
   if (lead.serviceOffered !== undefined) row["Service Offered"] = lead.serviceOffered;
   if (lead.campaignId !== undefined) row["Campaign ID"] = lead.campaignId;
+  if (lead.campaignName !== undefined) row["Campaign Name"] = lead.campaignName;
+  if (lead.leadId !== undefined) row["Lead ID"] = lead.leadId;
+  if (lead.location !== undefined) row.Location = lead.location;
+  if (lead.targetService !== undefined) row["Target Service"] = lead.targetService;
+  if (lead.source !== undefined) row.Source = lead.source;
+  if (lead.scraperJobId !== undefined) row["Scraper Job ID"] = lead.scraperJobId;
+  if (lead.createdAt !== undefined) row["Created At"] = lead.createdAt;
   return row;
+}
+
+const SCRAPER_FIELD_KEYS = ["campaignName", "leadId", "location", "targetService", "source", "scraperJobId", "createdAt"] as const;
+
+function touchesScraperColumns(fields: Partial<Lead>): boolean {
+  return SCRAPER_FIELD_KEYS.some((k) => fields[k] !== undefined);
 }
 
 export interface LeadEditableFields {
@@ -62,6 +89,13 @@ export interface LeadEditableFields {
   status?: LeadStatus;
   /** Assign, change, or (empty string) clear the campaign this lead belongs to. */
   campaignId?: string;
+  campaignName?: string;
+  leadId?: string;
+  location?: string;
+  targetService?: string;
+  source?: string;
+  scraperJobId?: string;
+  createdAt?: string;
 }
 
 export async function createLead(lead: Lead): Promise<void> {
@@ -70,6 +104,7 @@ export async function createLead(lead: Lead): Promise<void> {
     return;
   }
   if (lead.campaignId !== undefined) await ensureLeadsCampaignIdColumn();
+  if (touchesScraperColumns(lead)) await ensureLeadsScraperColumns();
   await appendRow(SHEET_TAB_NAMES.leads, leadToRow(lead));
   invalidateCache();
 }
@@ -80,6 +115,7 @@ export async function updateLeadFields(email: string, fields: LeadEditableFields
     return;
   }
   if (fields.campaignId !== undefined) await ensureLeadsCampaignIdColumn();
+  if (touchesScraperColumns(fields)) await ensureLeadsScraperColumns();
   const current = await findLeadRowUncached(email);
   if (!current?.rowNumber) throw new Error(`Lead "${email}" was not found in the Leads sheet.`);
   await updateRowFields(SHEET_TAB_NAMES.leads, current.rowNumber, leadToRow(fields), { header: "Email", value: current.email });
@@ -88,6 +124,39 @@ export async function updateLeadFields(email: string, fields: LeadEditableFields
 
 export async function updateLeadStatus(email: string, status: LeadStatus): Promise<void> {
   return updateLeadFields(email, { status });
+}
+
+/** Bulk approve/reject from the Scraped Leads review queue. Best-effort per row -- one failure
+ *  (e.g. a row edited/removed elsewhere since the page loaded) doesn't abort the rest; failures
+ *  are returned so the caller can report exactly which emails didn't update. */
+export async function bulkUpdateLeadStatus(emails: string[], status: LeadStatus): Promise<{ updated: string[]; failed: { email: string; error: string }[] }> {
+  const updated: string[] = [];
+  const failed: { email: string; error: string }[] = [];
+  for (const email of emails) {
+    try {
+      await updateLeadStatus(email, status);
+      updated.push(email);
+    } catch (err) {
+      failed.push({ email, error: err instanceof Error ? err.message : "Failed to update status." });
+    }
+  }
+  return { updated, failed };
+}
+
+/** Bulk delete from the Scraped Leads review queue. Same best-effort-per-row contract as
+ *  bulkUpdateLeadStatus. */
+export async function bulkDeleteLeads(emails: string[]): Promise<{ deleted: string[]; failed: { email: string; error: string }[] }> {
+  const deleted: string[] = [];
+  const failed: { email: string; error: string }[] = [];
+  for (const email of emails) {
+    try {
+      await deleteLead(email);
+      deleted.push(email);
+    } catch (err) {
+      failed.push({ email, error: err instanceof Error ? err.message : "Failed to delete lead." });
+    }
+  }
+  return { deleted, failed };
 }
 
 /**

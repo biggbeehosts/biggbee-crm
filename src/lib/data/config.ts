@@ -80,6 +80,9 @@ export const SHEET_TAB_NAMES = {
   // New tab, created on first write via ensureTabWithHeaders() -- not part of the six tabs the
   // n8n workflow maintains, owned entirely by the CRM.
   campaigns: process.env.SHEET_TAB_CAMPAIGNS || "Campaigns",
+  // Scraping job records (Change 2) -- created/updated by the CRM after each scraper run
+  // completes, never written by n8n directly.
+  scrapingJobs: process.env.SHEET_TAB_SCRAPING_JOBS || "Scraping_Jobs",
 } as const;
 
 export const CACHE_TTL_MS = 60_000;

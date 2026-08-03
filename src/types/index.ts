@@ -8,3 +8,4 @@ export * from "./dashboard";
 export * from "./settings";
 export * from "./campaign";
 export * from "./options";
+export * from "./scraper";

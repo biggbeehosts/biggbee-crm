@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { createLead, deleteLead, updateLeadFields, updateLeadStatus } from "@/lib/data/leads-mutations";
+import { bulkDeleteLeads, bulkUpdateLeadStatus, createLead, deleteLead, updateLeadFields, updateLeadStatus } from "@/lib/data/leads-mutations";
 import { getCampaign } from "@/lib/data/campaigns-store";
 import { requireAdmin } from "@/lib/auth/require-admin";
 import { logAudit } from "@/lib/audit/log";
@@ -192,4 +192,52 @@ export async function refreshDataAction(): Promise<ActionResult> {
   refreshAllData();
   revalidatePath("/", "layout");
   return { success: true, message: "Data refreshed." };
+}
+
+// ── Scraped Leads review queue (Change 2) ───────────────────────────────────────────────────
+// Approval changes Staged -> New; only Status = New is eligible for outreach (see
+// src/lib/n8n/actions.ts's runCampaign, which selects by Campaign ID + Status = New). Reject
+// keeps the row (audit trail) rather than deleting it -- Delete is a separate, explicit action.
+
+function revalidateScrapedLeadsPaths() {
+  revalidatePath("/lead-generation/scraped-leads");
+  revalidateLeadPaths();
+}
+
+export interface BulkActionResult extends ActionResult {
+  succeeded: string[];
+  failed: { email: string; error: string }[];
+}
+
+function summarizeBulk(action: string, succeeded: string[], failed: { email: string; error: string }[]): BulkActionResult {
+  const success = failed.length === 0;
+  const message =
+    failed.length === 0
+      ? `${succeeded.length} lead${succeeded.length === 1 ? "" : "s"} ${action}.`
+      : `${succeeded.length} ${action}, ${failed.length} failed: ${failed.map((f) => f.email).join(", ")}`;
+  return { success, message, succeeded, failed };
+}
+
+export async function approveLeadsAction(emails: string[]): Promise<BulkActionResult> {
+  const actor = await requireAdmin();
+  const { updated, failed } = await bulkUpdateLeadStatus(emails, "New");
+  revalidateScrapedLeadsPaths();
+  await logAudit({ actor, action: "lead.bulk_approve", success: failed.length === 0, details: { count: updated.length, failed: failed.length } });
+  return summarizeBulk("approved", updated, failed);
+}
+
+export async function rejectLeadsAction(emails: string[]): Promise<BulkActionResult> {
+  const actor = await requireAdmin();
+  const { updated, failed } = await bulkUpdateLeadStatus(emails, "Not Interested");
+  revalidateScrapedLeadsPaths();
+  await logAudit({ actor, action: "lead.bulk_reject", success: failed.length === 0, details: { count: updated.length, failed: failed.length } });
+  return summarizeBulk("rejected", updated, failed);
+}
+
+export async function bulkDeleteLeadsAction(emails: string[]): Promise<BulkActionResult> {
+  const actor = await requireAdmin();
+  const { deleted, failed } = await bulkDeleteLeads(emails);
+  revalidateScrapedLeadsPaths();
+  await logAudit({ actor, action: "lead.bulk_delete", success: failed.length === 0, details: { count: deleted.length, failed: failed.length } });
+  return summarizeBulk("deleted", deleted, failed);
 }
