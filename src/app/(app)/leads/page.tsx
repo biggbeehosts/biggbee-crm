@@ -1,10 +1,11 @@
 import { getLeads } from "@/lib/data/repository";
+import { getCampaigns } from "@/lib/data/campaigns-store";
 import { getEnabledOptions } from "@/lib/data/options-store";
 import { PageHeader } from "@/components/layout/page-header";
 import { LeadsTable } from "@/components/leads/leads-table";
 
 export default async function LeadsPage({ searchParams }: { searchParams: Promise<{ search?: string }> }) {
-  const [{ search }, leads] = await Promise.all([searchParams, getLeads()]);
+  const [{ search }, leads, campaigns] = await Promise.all([searchParams, getLeads(), getCampaigns()]);
   const addLeadOptions = {
     countries: getEnabledOptions("countries"),
     industries: getEnabledOptions("industries"),
@@ -13,7 +14,7 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
   return (
     <div>
       <PageHeader title="Leads" subtitle={`${leads.length} leads across all Biggbee outbound campaigns`} />
-      <LeadsTable leads={leads} initialSearch={search ?? ""} addLeadOptions={addLeadOptions} />
+      <LeadsTable leads={leads} initialSearch={search ?? ""} addLeadOptions={addLeadOptions} campaigns={campaigns} />
     </div>
   );
 }

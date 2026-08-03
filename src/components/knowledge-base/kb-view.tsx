@@ -10,12 +10,15 @@ import { StatCard } from "@/components/ui/stat-card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { daysSince, formatDateTime, formatRelativeTime } from "@/lib/utils/date";
 import { downloadTextFile } from "@/lib/utils/csv";
+import { useN8nAction } from "@/lib/n8n/hooks";
 import { BookOpen, Check, ChevronDown, ChevronRight, Copy, Download, FileText, Layers, RefreshCw, Search } from "lucide-react";
 
-export function KnowledgeBaseView({ kb }: { kb: KnowledgeBaseRecord }) {
+export function KnowledgeBaseView({ kb, refreshKbConfigured }: { kb: KnowledgeBaseRecord; refreshKbConfigured: boolean }) {
   const [search, setSearch] = React.useState("");
   const [collapsed, setCollapsed] = React.useState<Set<string>>(new Set());
   const [copied, setCopied] = React.useState(false);
+  const { run, pendingAction } = useN8nAction({ refreshKb: refreshKbConfigured });
+  const kbSyncing = pendingAction === "refreshKb";
 
   const age = daysSince(kb.updatedAt);
   const fresh = age !== null && age <= 1;
@@ -61,8 +64,15 @@ export function KnowledgeBaseView({ kb }: { kb: KnowledgeBaseRecord }) {
           <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search within the knowledge base…" className="pl-8" />
         </div>
         <div className="ml-auto flex gap-2">
-          <Button variant="secondary" size="sm" disabled title="The knowledge base is refreshed by the n8n workflow on every run -- a manual trigger endpoint can be added later.">
-            <RefreshCw className="h-3.5 w-3.5" /> Refresh knowledge base
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => run("refreshKb")}
+            disabled={kbSyncing || !refreshKbConfigured}
+            title={refreshKbConfigured ? undefined : "Set N8N_WEBHOOK_REFRESH_KB in .env.production to enable this."}
+          >
+            <RefreshCw className={kbSyncing ? "h-3.5 w-3.5 animate-spin" : "h-3.5 w-3.5"} />
+            {kbSyncing ? "Syncing…" : "Refresh knowledge base"}
           </Button>
           <Button variant="secondary" size="sm" onClick={copyAll}>
             {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}

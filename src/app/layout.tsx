@@ -1,10 +1,8 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
+import { headers } from "next/headers";
 import "./globals.css";
 import { UIStateProvider } from "@/components/layout/ui-state-provider";
-import { AppShell } from "@/components/layout/app-shell";
-import { getConnectionStatus, getLeads } from "@/lib/data/repository";
-import { buildNeedsAttention } from "@/lib/calculations/activity";
 
 const inter = Inter({
   variable: "--font-inter",
@@ -27,20 +25,15 @@ try {
 `;
 
 export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  const [status, leads] = await Promise.all([getConnectionStatus(), getLeads()]);
-  const attentionCount = buildNeedsAttention(leads).length;
+  const nonce = (await headers()).get("x-nonce") ?? undefined;
 
   return (
     <html lang="en" data-theme="dark" className={`${inter.variable} h-full antialiased`} suppressHydrationWarning>
       <head>
-        <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
+        <script nonce={nonce} dangerouslySetInnerHTML={{ __html: themeInitScript }} />
       </head>
       <body className="min-h-full bg-canvas text-text-primary">
-        <UIStateProvider>
-          <AppShell connected={status.connected} mode={status.mode} attentionCount={attentionCount}>
-            {children}
-          </AppShell>
-        </UIStateProvider>
+        <UIStateProvider>{children}</UIStateProvider>
       </body>
     </html>
   );

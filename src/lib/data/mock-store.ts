@@ -22,6 +22,14 @@ export function updateMockLeadStatus(email: string, status: LeadStatus) {
   store = store.map((l) => (l.email === email ? { ...l, status } : l));
 }
 
+export function updateMockLead(email: string, fields: Partial<Lead>) {
+  store = store.map((l) => (l.email === email ? { ...l, ...fields } : l));
+}
+
+export function deleteMockLead(email: string) {
+  store = store.filter((l) => l.email !== email);
+}
+
 export function resetMockLeads() {
   store = MOCK_LEADS.map((l) => ({ ...l }));
 }

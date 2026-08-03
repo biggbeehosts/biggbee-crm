@@ -2,13 +2,18 @@
 
 import Link from "next/link";
 import type { ColumnDef } from "@tanstack/react-table";
-import type { Lead } from "@/types";
+import type { Campaign, Lead } from "@/types";
 import { Checkbox } from "@/components/ui/checkbox";
 import { StatusBadge, ConfidenceBadge } from "@/components/ui/status-badge";
 import { formatDate } from "@/lib/utils/date";
 import { initials } from "@/lib/utils/format";
 
-export const leadsColumns: ColumnDef<Lead>[] = [
+/** Columns depend on the current campaigns list only to resolve a lead's Campaign ID to a
+ *  display name -- the id itself, never the name, is what's persisted (see Lead.campaignId). */
+export function buildLeadsColumns(campaigns: Campaign[]): ColumnDef<Lead>[] {
+  const campaignName = (id?: string) => (id ? (campaigns.find((c) => c.id === id)?.name ?? id) : undefined);
+
+  return [
   {
     id: "select",
     header: ({ table }) => (
@@ -61,6 +66,11 @@ export const leadsColumns: ColumnDef<Lead>[] = [
     header: "Email",
     cell: ({ row }) => <span className="text-text-tertiary">{row.original.email}</span>,
   },
+  {
+    accessorKey: "campaignId",
+    header: "Campaign",
+    cell: ({ row }) => campaignName(row.original.campaignId) || <span className="text-text-tertiary">Unassigned</span>,
+  },
   { accessorKey: "industry", header: "Industry", cell: ({ row }) => row.original.industry || "—" },
   { accessorKey: "businessType", header: "Business Type", cell: ({ row }) => row.original.businessType || "—" },
   { accessorKey: "leadGenerationType", header: "Lead Gen Type", cell: ({ row }) => row.original.leadGenerationType || "—" },
@@ -88,4 +98,5 @@ export const leadsColumns: ColumnDef<Lead>[] = [
     header: "Follow-ups",
     cell: ({ row }) => row.original.followUpCount,
   },
-];
+  ];
+}

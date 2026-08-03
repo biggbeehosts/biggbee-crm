@@ -1,7 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import { getConnectionStatus, getErrors, getKnowledgeBase, getLeadMemory, getLeads, isUsingMockData } from "@/lib/data/repository";
-import { getCampaignsSync } from "@/lib/data/campaigns-store";
+import { getCampaigns } from "@/lib/data/campaigns-store";
 import { getLastSyncAt } from "@/lib/data/cache";
 import { computeDashboardMetrics, leadsByCountry, leadsByIndustry, leadsByService, leadsByStatus } from "@/lib/calculations/dashboard-metrics";
 import { buildActivityFeed } from "@/lib/calculations/activity";
@@ -11,34 +11,25 @@ import { KpiGrid } from "@/components/dashboard/kpi-grid";
 import { DashboardControls } from "@/components/dashboard/dashboard-controls";
 import { RecentActivity } from "@/components/dashboard/recent-activity";
 import { RecentErrors } from "@/components/dashboard/recent-errors";
-import { AutomationCard, type ConfiguredActions } from "@/components/dashboard/automation-card";
-import { CampaignReadinessCard } from "@/components/dashboard/campaign-readiness-card";
+import { type ConfiguredActions } from "@/components/dashboard/automation-card";
+import { CampaignRunPanel } from "@/components/dashboard/campaign-run-panel";
 import { ChartCard } from "@/components/charts/chart-card";
 import { CountBarChart } from "@/components/charts/count-bar-chart";
 import { CountPieChart } from "@/components/charts/count-pie-chart";
 import { Badge } from "@/components/ui/badge";
-import { isActionConfigured } from "@/lib/n8n/config";
-import { fetchAutomationStatus } from "@/lib/n8n/client";
-import type { AutomationStatusResult } from "@/lib/n8n/types";
+import { getAutomationStatusAction, getConfiguredActionsAction } from "@/lib/n8n/actions";
 import { isN8nApiKeyRequiredButMissing } from "@/lib/config/env-validation";
 
-async function getInitialAutomationStatus(): Promise<AutomationStatusResult> {
-  if (!isActionConfigured("status")) return { configured: false, status: null };
-  try {
-    return { configured: true, status: await fetchAutomationStatus() };
-  } catch {
-    return { configured: true, status: null, error: "Could not fetch workflow status from n8n." };
-  }
-}
-
 export default async function DashboardPage() {
-  const [leads, memory, errors, automationStatus, connection, knowledgeBase] = await Promise.all([
+  const [leads, memory, errors, automationStatus, connection, knowledgeBase, campaigns, configuredActionsRaw] = await Promise.all([
     getLeads(),
     getLeadMemory(),
     getErrors(),
-    getInitialAutomationStatus(),
+    getAutomationStatusAction(),
     getConnectionStatus(),
     getKnowledgeBase(),
+    getCampaigns(),
+    getConfiguredActionsAction(),
   ]);
 
   const metrics = computeDashboardMetrics(leads);
@@ -46,25 +37,31 @@ export default async function DashboardPage() {
   const mock = isUsingMockData();
   const lastSync = getLastSyncAt("tab:leads");
 
-  // Which automation actions have a webhook configured. Booleans only -- never the URLs.
+  // Which automation actions are genuinely available. Booleans only -- never URLs or keys.
   const configuredActions: ConfiguredActions = {
-    runCampaign: isActionConfigured("runCampaign"),
-    pauseCampaign: isActionConfigured("pauseCampaign"),
-    resumeCampaign: isActionConfigured("resumeCampaign"),
-    refreshKb: isActionConfigured("refreshKb"),
-    retryFailed: isActionConfigured("retryFailed"),
+    runCampaign: configuredActionsRaw.runCampaign,
+    pauseCampaign: configuredActionsRaw.pauseCampaign,
+    resumeCampaign: configuredActionsRaw.resumeCampaign,
+    refreshKb: configuredActionsRaw.refreshKb,
+    retryFailed: configuredActionsRaw.retryFailed,
   };
 
-  const activeCampaign = getCampaignsSync().find((c) => c.status === "Active") ?? null;
-  const readiness = computeCampaignReadiness({
+  // More than one campaign can be Active at once, so readiness is computed per campaign -- the
+  // operator picks which one to run client-side (see CampaignRunPanel) rather than the CRM
+  // guessing "the" active campaign.
+  const activeCampaigns = campaigns.filter((c) => c.status === "Active");
+  const readinessBase = {
     leads,
-    activeCampaign,
     runCampaignConfigured: configuredActions.runCampaign ?? false,
     dataMode: connection.mode,
     sheetsConnected: connection.connected,
     knowledgeBaseUpdatedAt: knowledgeBase.updatedAt,
     n8nApiKeyRequiredButMissing: isN8nApiKeyRequiredButMissing(),
-  });
+  };
+  const readinessByCampaignId = Object.fromEntries(
+    activeCampaigns.map((c) => [c.id, computeCampaignReadiness({ ...readinessBase, selectedCampaign: c })])
+  );
+  const noSelectionReadiness = computeCampaignReadiness({ ...readinessBase, selectedCampaign: null });
 
   return (
     <div>
@@ -82,12 +79,13 @@ export default async function DashboardPage() {
       <div className="space-y-6">
         <KpiGrid metrics={metrics} />
 
-        <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
-          <div className="xl:col-span-2">
-            <AutomationCard initialStatus={automationStatus} configured={configuredActions} readiness={readiness} />
-          </div>
-          <CampaignReadinessCard readiness={readiness} />
-        </div>
+        <CampaignRunPanel
+          initialStatus={automationStatus}
+          configured={configuredActions}
+          activeCampaigns={activeCampaigns}
+          readinessByCampaignId={readinessByCampaignId}
+          noSelectionReadiness={noSelectionReadiness}
+        />
 
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 xl:grid-cols-4">
           <ChartCard title="Leads by Country">

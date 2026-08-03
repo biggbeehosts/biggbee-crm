@@ -13,7 +13,7 @@ function Field({ label, value }: { label: string; value: React.ReactNode }) {
   );
 }
 
-export function OverviewTab({ lead }: { lead: Lead }) {
+export function OverviewTab({ lead, campaignName }: { lead: Lead; campaignName?: string | null }) {
   const demoHealth = checkDemoUrlHealth(lead.demoWatchUrl);
 
   return (
@@ -23,6 +23,7 @@ export function OverviewTab({ lead }: { lead: Lead }) {
           <CardTitle>Company Details</CardTitle>
         </CardHeader>
         <CardContent className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <Field label="Campaign" value={campaignName ?? (lead.campaignId ? lead.campaignId : undefined)} />
           <Field label="Business Type" value={lead.businessType} />
           <Field label="Lead Generation Type" value={lead.leadGenerationType} />
           <Field label="Industry" value={lead.industry} />

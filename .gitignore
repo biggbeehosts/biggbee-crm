@@ -40,6 +40,10 @@ yarn-error.log*
 # vercel
 .vercel
 
+# local CRM data store (admin account, sessions, audit log, campaigns in local-store mode) --
+# never committed; production uses a Docker named volume instead (see docker-compose.yml).
+/data/
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts

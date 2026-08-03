@@ -27,6 +27,30 @@ export interface TriggerResult {
   message: string;
 }
 
+/**
+ * Body sent to the Run Campaign webhook. campaignId is mandatory and validated server-side
+ * against real campaigns before this is ever built (see triggerN8nAction) -- n8n selects leads by
+ * Campaign ID = campaignId AND Status = New AND not previously contacted, never by industry/
+ * business type/status alone. The remaining fields are targeting notes only (informational for
+ * n8n/the operator), not a selection filter.
+ *
+ * Scraper jobs are not built yet, but will be triggered the same way (a webhook body keyed by
+ * campaignId) -- this shape is the contract they'll reuse, so campaignId lands here now rather
+ * than being bolted on later.
+ */
+export interface RunCampaignPayload {
+  campaignId: string;
+  campaignName: string;
+  country?: string;
+  industry?: string;
+  businessType?: string;
+  leadGenerationType?: string;
+  service?: string;
+  minConfidence?: number;
+  maxLeadsPerRun?: number;
+  dailySendLimit?: number;
+}
+
 export const EMPTY_STATUS: AutomationStatus = {
   state: "unknown",
   lastRun: null,

@@ -1,6 +1,6 @@
 "use client";
 
-import type { ErrorRecord, Lead, LeadMemory } from "@/types";
+import type { Campaign, ErrorRecord, Lead, LeadMemory } from "@/types";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { LeadHeader } from "./lead-header";
 import { OverviewTab } from "./overview-tab";
@@ -10,12 +10,23 @@ import { MemoryTab } from "./memory-tab";
 import { ErrorsTab } from "./errors-tab";
 import { buildLeadTimeline } from "@/lib/calculations/timeline";
 
-export function LeadDetailView({ lead, memory, errors }: { lead: Lead; memory: LeadMemory | undefined; errors: ErrorRecord[] }) {
+export function LeadDetailView({
+  lead,
+  memory,
+  errors,
+  campaigns,
+}: {
+  lead: Lead;
+  memory: LeadMemory | undefined;
+  errors: ErrorRecord[];
+  campaigns: Campaign[];
+}) {
   const timeline = buildLeadTimeline(lead, memory, errors);
+  const campaignName = campaigns.find((c) => c.id === lead.campaignId)?.name ?? null;
 
   return (
     <div>
-      <LeadHeader lead={lead} />
+      <LeadHeader lead={lead} campaigns={campaigns} campaignName={campaignName} />
 
       <Tabs defaultValue="overview">
         <TabsList>
@@ -27,7 +38,7 @@ export function LeadDetailView({ lead, memory, errors }: { lead: Lead; memory: L
         </TabsList>
 
         <TabsContent value="overview">
-          <OverviewTab lead={lead} />
+          <OverviewTab lead={lead} campaignName={campaignName} />
         </TabsContent>
         <TabsContent value="timeline">
           <TimelineTab events={timeline} />

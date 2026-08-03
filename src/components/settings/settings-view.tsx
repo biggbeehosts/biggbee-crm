@@ -2,22 +2,37 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { RefreshCw } from "lucide-react";
-import type { ConnectionStatus } from "@/types";
+import { BookOpen, RefreshCw } from "lucide-react";
+import type { ConnectionStatus, KnowledgeBaseRecord } from "@/types";
 import type { EnvValidation } from "@/lib/config/env-validation";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
-import { formatDateTime } from "@/lib/utils/date";
+import { daysSince, formatDateTime, formatRelativeTime } from "@/lib/utils/date";
 import { refreshDataAction } from "@/lib/actions/leads";
 import { useUIState } from "@/components/layout/ui-state-provider";
+import { useN8nAction } from "@/lib/n8n/hooks";
 
-export function SettingsView({ status, env }: { status: ConnectionStatus; env: EnvValidation }) {
+export function SettingsView({
+  status,
+  env,
+  knowledgeBase,
+  refreshKbConfigured,
+}: {
+  status: ConnectionStatus;
+  env: EnvValidation;
+  knowledgeBase: KnowledgeBaseRecord;
+  refreshKbConfigured: boolean;
+}) {
   const router = useRouter();
   const { theme, toggleTheme } = useUIState();
   const [testing, setTesting] = React.useState(false);
   const [testResult, setTestResult] = React.useState<string | null>(null);
+  const { run, pendingAction } = useN8nAction({ refreshKb: refreshKbConfigured });
+  const kbAge = daysSince(knowledgeBase.updatedAt);
+  const kbFresh = kbAge !== null && kbAge <= 1;
+  const kbSyncing = pendingAction === "refreshKb";
 
   async function testConnection() {
     setTesting(true);
@@ -76,6 +91,37 @@ export function SettingsView({ status, env }: { status: ConnectionStatus; env: E
               Test connection
             </Button>
             {testResult && <p className="text-xs text-text-tertiary">{testResult}</p>}
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <div>
+            <CardTitle>Knowledge Base</CardTitle>
+            <CardDescription>The n8n-crawled biggbees.com content the AI uses as its source of truth</CardDescription>
+          </div>
+          <Badge variant={kbFresh ? "success" : "warning"}>{kbFresh ? "In sync" : knowledgeBase.updatedAt ? "May be stale" : "Never synced"}</Badge>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="flex items-center justify-between text-sm">
+            <span className="text-text-tertiary">Last synced</span>
+            <span className="text-xs text-text-secondary">
+              {knowledgeBase.updatedAt ? `${formatRelativeTime(knowledgeBase.updatedAt)} — ${formatDateTime(knowledgeBase.updatedAt)}` : "Never"}
+            </span>
+          </div>
+          <div className="flex items-center justify-between text-sm">
+            <span className="text-text-tertiary">Sections</span>
+            <span className="text-xs text-text-secondary">{knowledgeBase.sourceCount}</span>
+          </div>
+          <div className="flex items-center gap-2 pt-1">
+            <Button size="sm" variant="secondary" onClick={() => run("refreshKb")} disabled={kbSyncing || !refreshKbConfigured}>
+              <BookOpen className={kbSyncing ? "h-3.5 w-3.5 animate-spin" : "h-3.5 w-3.5"} />
+              {kbSyncing ? "Syncing…" : "Sync now"}
+            </Button>
+            {!refreshKbConfigured && (
+              <p className="text-xs text-text-tertiary">Set N8N_WEBHOOK_REFRESH_KB in .env.production to enable this.</p>
+            )}
           </div>
         </CardContent>
       </Card>

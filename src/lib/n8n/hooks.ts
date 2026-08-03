@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { getAutomationStatusAction, syncCrmAction, triggerN8nAction } from "./actions";
+import { getAutomationStatusAction, syncCrmAction, triggerN8nAction, type TriggerActionParams } from "./actions";
 import type { N8nActionKey } from "./config";
 import type { AutomationStatusResult } from "./types";
 import { useToast } from "@/components/ui/toast";
@@ -73,7 +73,7 @@ export function useN8nAction(configured?: Partial<Record<N8nActionKey, boolean>>
   );
 
   const run = React.useCallback(
-    async (action: N8nActionKey | "sync") => {
+    async (action: N8nActionKey | "sync", params?: TriggerActionParams) => {
       const label = ACTION_LABELS[action] ?? action;
 
       // Never fire (or surface a technical error) for an action with no webhook configured.
@@ -89,7 +89,7 @@ export function useN8nAction(configured?: Partial<Record<N8nActionKey, boolean>>
       inFlightRef.current = action;
       setPendingAction(action);
       try {
-        const result = action === "sync" ? await syncCrmAction() : await triggerN8nAction(action);
+        const result = action === "sync" ? await syncCrmAction() : await triggerN8nAction(action, params);
         toast(result.message, result.success ? "success" : "error");
 
         if (result.success) {

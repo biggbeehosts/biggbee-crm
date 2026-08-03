@@ -1,5 +1,5 @@
 import type { Campaign, Lead } from "@/types";
-import { leadMatchesCampaign } from "./campaign-match";
+import { leadEligibleForCampaignRun } from "./campaign-match";
 import { daysSince } from "@/lib/utils/date";
 
 export type ReadinessState = "ready" | "attention" | "not-connected";
@@ -17,9 +17,10 @@ export interface CampaignReadiness {
   checks: ReadinessCheck[];
   /** Estimated count only -- n8n applies its own cadence/cap rules and makes the final selection. */
   eligibleLeads: number;
-  activeCampaignName: string | null;
+  selectedCampaignName: string | null;
   targetingSummary: string | null;
-  /** How many eligible leads match the active campaign. Informational -- see the note below. */
+  /** How many leads assigned to the selected campaign (by Campaign ID) are eligible for a new-lead
+   *  run right now. Null when no campaign is selected. */
   campaignMatches: number | null;
   canRun: boolean;
   blockReasons: string[];
@@ -27,7 +28,10 @@ export interface CampaignReadiness {
 
 export interface ReadinessInput {
   leads: Lead[];
-  activeCampaign: Campaign | null;
+  /** The campaign the operator explicitly picked to run -- never auto-inferred from "the one
+   *  Active campaign", since more than one campaign can be Active at a time. Run Campaign always
+   *  requires one of these; there is no "run with no campaign" mode. */
+  selectedCampaign: Campaign | null;
   runCampaignConfigured: boolean;
   dataMode: "mock" | "google-sheets";
   sheetsConnected: boolean;
@@ -46,47 +50,41 @@ function hasUsableEmail(lead: Lead): boolean {
 /**
  * Display-only estimate of what a new-lead run picks up: a contactable address and status "New".
  *
- * Deliberately NOT filtered by the active campaign. Campaign targeting is a CRM-side planning
- * layer -- the Run Campaign webhook's payload is discarded by the workflow's "Tag Mode - New"
- * node (includeOtherFields: false), so n8n processes every eligible lead regardless of campaign.
- * Filtering here would block runs that n8n would happily perform.
+ * NOT filtered by the active campaign -- this is the pre-targeting pool. When an active campaign
+ * exists, the Run Campaign button sends its criteria in the webhook body and n8n's
+ * "Prepare Leads For Processing" node applies the same matching logic (see campaign-match.ts) on
+ * top of this pool, so campaignMatches below is what actually gets processed, not just a preview.
  *
- * This is also NOT a reimplementation of the workflow's selection logic -- n8n still owns daily
- * caps, follow-up cadence and same-day dedupe.
+ * This is also NOT a reimplementation of the workflow's full selection logic -- n8n still owns
+ * daily caps, follow-up cadence and same-day dedupe (and now also honors the campaign's own
+ * maxLeadsPerRun/dailySendLimit when set, capped by its own hard safety limits either way).
  */
 export function countEligibleLeads(leads: Lead[]): number {
   return leads.filter((l) => hasUsableEmail(l) && l.status === "New").length;
 }
 
 /**
- * How many eligible leads match the active campaign, for context only.
- *
- * Confidence is assigned BY the AI during a run, so an unscored lead is not excluded by a
- * minConfidence threshold here -- only already-scored leads are.
+ * How many leads assigned to this campaign (by Campaign ID -- never industry/business
+ * type/status alone) are eligible for a new-lead run right now, for context only.
  */
 export function countCampaignMatches(leads: Lead[], campaign: Campaign): number {
-  const targetingOnly: Campaign = { ...campaign, minConfidence: null };
-  return leads.filter((l) => {
-    if (!hasUsableEmail(l) || l.status !== "New") return false;
-    if (!leadMatchesCampaign(l, targetingOnly)) return false;
-    if (campaign.minConfidence !== null && l.confidence !== null && l.confidence < campaign.minConfidence) return false;
-    return true;
-  }).length;
+  return leads.filter((l) => hasUsableEmail(l) && leadEligibleForCampaignRun(l, campaign)).length;
 }
 
+/** Targeting notes recorded on the campaign -- informational only; membership is by Campaign ID. */
 function describeTargeting(campaign: Campaign): string {
   const parts = [campaign.country, campaign.industry, campaign.businessType, campaign.leadGenerationType, campaign.service]
     .map((p) => (p ?? "").trim())
     .filter(Boolean);
   if (campaign.minConfidence !== null) parts.push(`confidence ≥ ${campaign.minConfidence}%`);
-  return parts.length ? parts.join(" · ") : "No targeting filters set";
+  return parts.length ? parts.join(" · ") : "No targeting notes set";
 }
 
 export function computeCampaignReadiness(input: ReadinessInput): CampaignReadiness {
-  const { leads, activeCampaign, runCampaignConfigured, dataMode, sheetsConnected, knowledgeBaseUpdatedAt, n8nApiKeyRequiredButMissing } = input;
+  const { leads, selectedCampaign, runCampaignConfigured, dataMode, sheetsConnected, knowledgeBaseUpdatedAt, n8nApiKeyRequiredButMissing } = input;
 
   const eligibleLeads = countEligibleLeads(leads);
-  const campaignMatches = activeCampaign ? countCampaignMatches(leads, activeCampaign) : null;
+  const campaignMatches = selectedCampaign ? countCampaignMatches(leads, selectedCampaign) : null;
   const missingEmail = leads.filter((l) => !hasUsableEmail(l)).length;
   const alreadyContacted = leads.filter((l) => Boolean(l.lastEmailDate)).length;
   const sheetsBlocked = dataMode === "google-sheets" && !sheetsConnected;
@@ -177,21 +175,26 @@ export function computeCampaignReadiness(input: ReadinessInput): CampaignReadine
     blocking: false,
   });
 
+  const zeroCampaignMatches = selectedCampaign !== null && campaignMatches === 0;
+  // Run Campaign always requires an explicit Campaign ID -- there is no "run with no campaign"
+  // mode, so a missing selection blocks the run exactly like any other unmet precondition.
   checks.push(
-    activeCampaign
+    selectedCampaign
       ? {
           id: "targeting",
-          label: "Campaign targeting",
-          state: "ready",
-          detail: `${activeCampaign.name} — ${campaignMatches} of ${eligibleLeads} eligible match (planning only; n8n runs all eligible)`,
-          blocking: false,
+          label: "Campaign selection",
+          state: zeroCampaignMatches ? "not-connected" : "ready",
+          detail: zeroCampaignMatches
+            ? `${selectedCampaign.name} (${selectedCampaign.id}) — 0 leads assigned by Campaign ID are eligible right now`
+            : `${selectedCampaign.name} (${selectedCampaign.id}) — ${campaignMatches} lead${campaignMatches === 1 ? "" : "s"} assigned by Campaign ID and eligible; n8n selects the same leads`,
+          blocking: zeroCampaignMatches,
         }
       : {
           id: "targeting",
-          label: "Campaign targeting",
-          state: "attention",
-          detail: "No active campaign — n8n uses its own lead selection either way",
-          blocking: false,
+          label: "Campaign selection",
+          state: "not-connected",
+          detail: "No campaign selected — Run Campaign requires a Campaign ID and never falls back to processing all leads",
+          blocking: true,
         }
   );
 
@@ -209,12 +212,14 @@ export function computeCampaignReadiness(input: ReadinessInput): CampaignReadine
   if (n8nApiKeyRequiredButMissing) blockReasons.push("N8N_API_KEY is required in production but is not set.");
   if (sheetsBlocked) blockReasons.push("Google Sheets is unreachable, so lead data cannot be trusted.");
   if (eligibleLeads === 0) blockReasons.push("There are no eligible leads for a new-lead run.");
+  if (!selectedCampaign) blockReasons.push("Select a campaign to run — a Campaign ID is required.");
+  if (zeroCampaignMatches) blockReasons.push(`No leads assigned to "${selectedCampaign!.name}" (${selectedCampaign!.id}) are currently eligible.`);
 
   return {
     checks,
     eligibleLeads,
-    activeCampaignName: activeCampaign?.name ?? null,
-    targetingSummary: activeCampaign ? describeTargeting(activeCampaign) : null,
+    selectedCampaignName: selectedCampaign?.name ?? null,
+    targetingSummary: selectedCampaign ? describeTargeting(selectedCampaign) : null,
     campaignMatches,
     canRun: blockReasons.length === 0,
     blockReasons,

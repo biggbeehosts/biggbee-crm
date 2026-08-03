@@ -18,21 +18,17 @@ export function CampaignSummary({ summary }: { summary: CampaignMatchSummary }) 
       <CardHeader>
         <div>
           <CardTitle>Campaign Summary</CardTitle>
-          <CardDescription>Why leads are included or excluded, top to bottom</CardDescription>
+          <CardDescription>Based on Campaign ID assignment, not industry or business type</CardDescription>
         </div>
       </CardHeader>
       <CardContent className="divide-y divide-border-subtle">
-        <Row label="Available leads" value={summary.availableLeads} />
-        <Row label="Matching campaign" value={summary.matching} tone="accent" />
-        {summary.excludedByStatus > 0 && <Row label="Excluded by status (unsubscribed/spam)" value={summary.excludedByStatus} tone="muted" />}
-        {summary.excludedByCountry > 0 && <Row label="Excluded by country" value={summary.excludedByCountry} tone="muted" />}
-        {summary.excludedByIndustry > 0 && <Row label="Excluded by industry" value={summary.excludedByIndustry} tone="muted" />}
-        {summary.excludedByBusinessType > 0 && <Row label="Excluded by business type" value={summary.excludedByBusinessType} tone="muted" />}
-        {summary.excludedByLeadGenType > 0 && <Row label="Excluded by lead generation type" value={summary.excludedByLeadGenType} tone="muted" />}
-        {summary.excludedByService > 0 && <Row label="Excluded by service" value={summary.excludedByService} tone="muted" />}
+        <Row label="Total leads (all campaigns)" value={summary.availableLeads} />
+        <Row label="Assigned to this campaign" value={summary.assigned} />
+        <Row label="Ready for a new-lead run" value={summary.matching} tone="accent" />
+        {summary.excludedByStatus > 0 && <Row label="Excluded by status (unsubscribed/spam/not New)" value={summary.excludedByStatus} tone="muted" />}
+        {summary.alreadyContacted > 0 && <Row label="Already contacted" value={summary.alreadyContacted} tone="muted" />}
         {summary.belowConfidence > 0 && <Row label="Below confidence threshold" value={summary.belowConfidence} tone="muted" />}
-        {summary.missingRequiredData > 0 && <Row label="Missing required data (unscored)" value={summary.missingRequiredData} tone="muted" />}
-        {summary.missingWebsite > 0 && <Row label="Matching but missing website" value={summary.missingWebsite} tone="muted" />}
+        {summary.missingWebsite > 0 && <Row label="Ready but missing website" value={summary.missingWebsite} tone="muted" />}
       </CardContent>
     </Card>
   );

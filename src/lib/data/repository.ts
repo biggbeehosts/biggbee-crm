@@ -89,7 +89,7 @@ export async function getUnknownSenders(): Promise<UnknownSender[]> {
   if (getDataMode() === "mock") return MOCK_UNKNOWN_SENDERS;
   try {
     const rows = await safeLoadTab("unknownSenders");
-    return rows.map(normalizeUnknownSender).filter((u) => u.fromEmail);
+    return rows.map((row, i) => normalizeUnknownSender(row, i)).filter((u) => u.fromEmail);
   } catch {
     return [];
   }

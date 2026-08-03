@@ -74,6 +74,9 @@ export interface Lead {
   emailStyle?: string;
   /** 0-100, null when the AI has not scored this lead yet. */
   confidence: number | null;
+  /** Stable Campaign ID (Campaigns sheet's ID column) this lead is assigned to. Blank/undefined
+   *  until an operator assigns one -- never inferred from industry/business type/status. */
+  campaignId?: string;
   /** Row position in the source sheet, used for targeted updates. Absent in mock mode. */
   rowNumber?: number;
 }

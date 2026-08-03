@@ -3,95 +3,66 @@ import type { Campaign, CampaignMatchSummary, Lead } from "@/types";
 const STOP_STATUSES = new Set(["Unsubscribed", "Spam"]);
 
 /**
- * Loose bidirectional contains-match so sheet values like "Instagram Lead Generation Agency"
- * match a target of "Lead Generation Agency", and "Instagram DM funnels" matches "Instagram".
- * An unset target always passes (criterion not used).
+ * The ONLY membership test: a lead belongs to a campaign if and only if its Campaign ID matches.
+ * Industry, country, business type, lead-gen type and service on the Campaign record are
+ * targeting notes for the operator (and, later, the scraper) -- they are never used to infer
+ * which leads are "in" a campaign, so mixed industries/services in one spreadsheet can never
+ * cause a lead to be picked up by the wrong campaign.
  */
-function matchesText(leadValue: string | undefined, target: string | undefined): boolean {
-  const t = (target ?? "").trim().toLowerCase();
-  if (!t) return true;
-  const v = (leadValue ?? "").trim().toLowerCase();
-  if (!v) return false;
-  return v.includes(t) || t.includes(v);
+export function leadBelongsToCampaign(lead: Lead, campaign: Campaign): boolean {
+  return Boolean(lead.campaignId) && lead.campaignId === campaign.id;
+}
+
+export function leadsInCampaign(leads: Lead[], campaign: Campaign): Lead[] {
+  return leads.filter((l) => leadBelongsToCampaign(l, campaign));
 }
 
 /**
- * The service criterion is what the campaign WANTS to pitch; lead.serviceOffered is what the AI
- * already selected. A lead the AI hasn't processed yet (empty serviceOffered) still matches --
- * the workflow will pick the service on its run.
+ * Whether an in-campaign lead is currently eligible for a Run Campaign send: Status = New AND not
+ * previously contacted. This is exactly the gate n8n applies itself (see Prepare Leads For
+ * Processing), so the CRM's preview and what actually gets processed never diverge. The
+ * campaign's confidence floor, when set, narrows further -- an unscored lead still passes, since
+ * the AI assigns confidence during the run itself.
  */
-function matchesService(leadValue: string | undefined, target: string | undefined): boolean {
-  const t = (target ?? "").trim().toLowerCase();
-  if (!t) return true;
-  const v = (leadValue ?? "").trim().toLowerCase();
-  if (!v) return true;
-  return v.includes(t) || t.includes(v);
-}
-
-export function leadMatchesCampaign(lead: Lead, campaign: Campaign): boolean {
+export function leadEligibleForCampaignRun(lead: Lead, campaign: Campaign): boolean {
+  if (!leadBelongsToCampaign(lead, campaign)) return false;
   if (STOP_STATUSES.has(lead.status)) return false;
-  if (!matchesText(lead.country, campaign.country)) return false;
-  if (!matchesText(lead.industry, campaign.industry)) return false;
-  if (!matchesText(lead.businessType, campaign.businessType)) return false;
-  if (!matchesText(lead.leadGenerationType, campaign.leadGenerationType)) return false;
-  if (!matchesService(lead.serviceOffered, campaign.service)) return false;
-  if (campaign.minConfidence !== null) {
-    if (lead.confidence === null) return false;
-    if (lead.confidence < campaign.minConfidence) return false;
-  }
+  if (lead.status !== "New") return false;
+  if (lead.lastEmailDate || lead.lastContact) return false;
+  if (campaign.minConfidence !== null && lead.confidence !== null && lead.confidence < campaign.minConfidence) return false;
   return true;
 }
 
+/** Preview list for the Campaigns page -- every lead assigned to this campaign, regardless of
+ *  status, so the operator can see the full membership (not just what would send today). */
 export function filterCampaignLeads(leads: Lead[], campaign: Campaign): Lead[] {
-  return leads.filter((l) => leadMatchesCampaign(l, campaign));
+  return leadsInCampaign(leads, campaign);
 }
 
 /**
- * Funnel breakdown: each excluded lead is counted against the FIRST criterion that rejected it,
- * so the buckets sum to (availableLeads - matching) and read naturally top-to-bottom.
+ * Funnel breakdown over the leads ASSIGNED to this campaign (never the whole pool) -- each
+ * excluded lead is counted against the first reason that excludes it, so the buckets sum to
+ * (assigned - matching).
  */
 export function summarizeCampaignMatch(leads: Lead[], campaign: Campaign): CampaignMatchSummary {
+  const assignedLeads = leadsInCampaign(leads, campaign);
   const summary: CampaignMatchSummary = {
     availableLeads: leads.length,
+    assigned: assignedLeads.length,
     matching: 0,
     excludedByStatus: 0,
-    excludedByCountry: 0,
-    excludedByIndustry: 0,
-    excludedByBusinessType: 0,
-    excludedByLeadGenType: 0,
-    excludedByService: 0,
+    alreadyContacted: 0,
     belowConfidence: 0,
-    missingRequiredData: 0,
     missingWebsite: 0,
   };
 
-  for (const lead of leads) {
-    if (STOP_STATUSES.has(lead.status)) {
+  for (const lead of assignedLeads) {
+    if (STOP_STATUSES.has(lead.status) || lead.status !== "New") {
       summary.excludedByStatus += 1;
       continue;
     }
-    if (!matchesText(lead.country, campaign.country)) {
-      summary.excludedByCountry += 1;
-      continue;
-    }
-    if (!matchesText(lead.industry, campaign.industry)) {
-      summary.excludedByIndustry += 1;
-      continue;
-    }
-    if (!matchesText(lead.businessType, campaign.businessType)) {
-      summary.excludedByBusinessType += 1;
-      continue;
-    }
-    if (!matchesText(lead.leadGenerationType, campaign.leadGenerationType)) {
-      summary.excludedByLeadGenType += 1;
-      continue;
-    }
-    if (!matchesService(lead.serviceOffered, campaign.service)) {
-      summary.excludedByService += 1;
-      continue;
-    }
-    if (campaign.minConfidence !== null && lead.confidence === null) {
-      summary.missingRequiredData += 1;
+    if (lead.lastEmailDate || lead.lastContact) {
+      summary.alreadyContacted += 1;
       continue;
     }
     if (campaign.minConfidence !== null && lead.confidence !== null && lead.confidence < campaign.minConfidence) {

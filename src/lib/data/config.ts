@@ -77,6 +77,9 @@ export const SHEET_TAB_NAMES = {
   errors: process.env.SHEET_TAB_ERRORS || "Errors",
   kbCache: process.env.SHEET_TAB_KB_CACHE || "KB_Cache",
   unknownSenders: process.env.SHEET_TAB_UNKNOWN_SENDERS || "Unknown_Senders",
+  // New tab, created on first write via ensureTabWithHeaders() -- not part of the six tabs the
+  // n8n workflow maintains, owned entirely by the CRM.
+  campaigns: process.env.SHEET_TAB_CAMPAIGNS || "Campaigns",
 } as const;
 
 export const CACHE_TTL_MS = 60_000;

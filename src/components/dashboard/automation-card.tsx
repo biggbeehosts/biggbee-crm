@@ -5,10 +5,12 @@ import { Play, Pause, StepForward, BookOpen, RotateCcw, RefreshCw, Workflow, Act
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Select } from "@/components/ui/select";
 import { useAutomationStatus, useN8nAction } from "@/lib/n8n/hooks";
 import type { N8nActionKey } from "@/lib/n8n/config";
 import type { AutomationStatusResult, WorkflowState } from "@/lib/n8n/types";
 import type { CampaignReadiness } from "@/lib/calculations/campaign-readiness";
+import type { Campaign } from "@/types";
 import { RunCampaignDialog } from "./run-campaign-dialog";
 import { formatDateTime } from "@/lib/utils/date";
 import { useToast } from "@/components/ui/toast";
@@ -85,10 +87,18 @@ export function AutomationCard({
   initialStatus,
   configured,
   readiness,
+  activeCampaigns,
+  selectedCampaignId,
+  onSelectedCampaignChange,
 }: {
   initialStatus: AutomationStatusResult;
   configured: ConfiguredActions;
   readiness: CampaignReadiness;
+  /** Campaigns eligible to run (status Active) -- more than one can be Active at a time, so the
+   *  operator picks explicitly rather than the CRM guessing which one to send. */
+  activeCampaigns: Campaign[];
+  selectedCampaignId: string;
+  onSelectedCampaignChange: (id: string) => void;
 }) {
   const { run, pendingAction, cooldownRemaining, lastRunResult, clearLastRunResult } = useN8nAction(configured);
   const { result: statusResult, refresh: refreshStatus, refreshing: statusRefreshing } = useAutomationStatus(initialStatus);
@@ -103,7 +113,7 @@ export function AutomationCard({
   const runDisabled = !readiness.canRun || pendingAction !== null || runCooldown > 0;
 
   async function confirmRun() {
-    await run("runCampaign");
+    await run("runCampaign", { campaignId: selectedCampaignId });
     setConfirmOpen(false);
   }
 
@@ -165,6 +175,28 @@ export function AutomationCard({
           <Field label="Queue Size" value={status?.queueSize ?? "—"} />
         </div>
 
+        {/* Campaign selection -- Run Campaign always requires an explicit Campaign ID; more than
+            one campaign can be Active at once, so the CRM never guesses which one to send. */}
+        <div className="mt-4">
+          <p className="mb-1.5 text-[11px] font-medium text-text-tertiary">Campaign to run</p>
+          {activeCampaigns.length === 0 ? (
+            <p className="text-xs text-warning">No Active campaigns — activate one on the Campaigns page before running.</p>
+          ) : (
+            <Select
+              value={selectedCampaignId}
+              onChange={(e) => onSelectedCampaignChange(e.target.value)}
+              className="max-w-sm"
+              disabled={pendingAction !== null}
+            >
+              {activeCampaigns.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name} ({c.id})
+                </option>
+              ))}
+            </Select>
+          )}
+        </div>
+
         {/* Primary action */}
         <div className="mt-4 flex flex-wrap items-center gap-3">
           <Button size="lg" onClick={() => setConfirmOpen(true)} disabled={runDisabled}>
@@ -172,9 +204,9 @@ export function AutomationCard({
             {runBusy ? "Starting…" : runCooldown > 0 ? `Run Campaign (${runCooldown}s)` : "Run Campaign"}
           </Button>
           {!readiness.canRun && <span className="text-[11px] text-warning">Blocked — see Campaign Readiness</span>}
-          {readiness.canRun && runCooldown === 0 && !runBusy && (
+          {readiness.canRun && runCooldown === 0 && !runBusy && readiness.campaignMatches !== null && (
             <span className="text-[11px] text-text-tertiary">
-              {readiness.eligibleLeads} eligible lead{readiness.eligibleLeads === 1 ? "" : "s"}
+              {readiness.campaignMatches} lead{readiness.campaignMatches === 1 ? "" : "s"} assigned by Campaign ID and eligible
             </span>
           )}
         </div>

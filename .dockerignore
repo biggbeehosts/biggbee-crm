@@ -2,6 +2,7 @@ node_modules
 .next
 .git
 .gitignore
+data/
 
 # Never let real secrets ride along in the build context. The image never needs any of these --
 # real runtime values are injected by docker-compose's env_file: at container start.

@@ -39,6 +39,11 @@ COPY --from=builder /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 
+# CRM-owned local data (admin account, sessions, audit log) -- a named volume is mounted here at
+# runtime; pre-creating it with the right ownership means Docker copies that ownership onto the
+# volume the first time it's created (empty), instead of the volume defaulting to root:root.
+RUN mkdir -p /app/data && chown nextjs:nodejs /app/data
+
 USER nextjs
 
 EXPOSE 3000

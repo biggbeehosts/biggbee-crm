@@ -2,6 +2,8 @@ import "server-only";
 import type { DemoRecord, ErrorRecord, KnowledgeBaseRecord, Lead, LeadMemory, UnknownSender } from "@/types";
 import { coalesceString, parseNumber, parseStringList, parseYesNo, safeTrim } from "@/lib/utils/fallback";
 import { normalizeStatus } from "@/lib/utils/status";
+import { isInternalSender } from "@/lib/utils/internal-senders";
+import type { UnknownSenderClassification } from "@/types";
 
 type Row = Record<string, string>;
 
@@ -42,6 +44,7 @@ export function normalizeLead(row: Row, index: number): Lead {
     demoDownloadUrl: pick(row, "Demo Download URL"),
     emailStyle: pick(row, "Email Style"),
     confidence,
+    campaignId: pick(row, "Campaign ID", "CampaignID") || undefined,
     rowNumber: index + 2, // +1 for header row, +1 for 1-based sheet rows
   };
 }
@@ -86,12 +89,26 @@ export function normalizeErrorRecord(row: Row, index: number): ErrorRecord {
   };
 }
 
-export function normalizeUnknownSender(row: Row): UnknownSender {
+export function normalizeUnknownSender(row: Row, index: number): UnknownSender {
+  const fromEmail = safeTrim(pick(row, "From Email", "FromEmail")).toLowerCase();
+  const storedClassification = pick(row, "Classification").trim();
+  // Legacy rows (written before the Classification column existed) get classified client-side by
+  // the same allowlist n8n now applies at write time -- so internal mail is hidden from the
+  // Unknown Senders view even for history that predates the fix.
+  const classification: UnknownSenderClassification =
+    storedClassification === "Internal" || storedClassification === "Lead Reply" || storedClassification === "Unknown"
+      ? (storedClassification as UnknownSenderClassification)
+      : isInternalSender(fromEmail)
+        ? "Internal"
+        : "Unknown";
   return {
     timestamp: pick(row, "TimeStamp", "Timestamp") || null,
-    fromEmail: safeTrim(pick(row, "From Email", "FromEmail")).toLowerCase(),
+    fromEmail,
     subject: pick(row, "Subject"),
     snippet: pick(row, "Snippet"),
+    classification,
+    reviewed: parseYesNo(pick(row, "Reviewed")) || classification === "Internal",
+    rowNumber: index + 2,
   };
 }
 

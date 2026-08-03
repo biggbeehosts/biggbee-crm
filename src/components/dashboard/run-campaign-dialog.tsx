@@ -47,27 +47,34 @@ export function RunCampaignDialog({
             <div className="rounded-xl border border-border-subtle bg-panel p-3">
               <p className="text-[11px] font-medium text-text-tertiary">Campaign</p>
               <p className="mt-0.5 truncate text-sm font-medium text-text-primary">
-                {readiness.activeCampaignName ?? "No active campaign"}
+                {readiness.selectedCampaignName ?? "No campaign selected"}
               </p>
             </div>
           </div>
 
           <div>
-            <p className="text-[11px] font-medium text-text-tertiary">Targeting</p>
+            <p className="text-[11px] font-medium text-text-tertiary">Targeting notes</p>
             <p className="mt-0.5 text-xs text-text-secondary">
-              {readiness.targetingSummary ?? "No targeting selected."}
+              {readiness.targetingSummary ?? "No campaign selected."}
             </p>
             {readiness.campaignMatches !== null && (
               <p className="mt-1 text-[11px] text-text-tertiary">
-                {readiness.campaignMatches} of {readiness.eligibleLeads} eligible leads match this targeting.
+                {readiness.campaignMatches} lead{readiness.campaignMatches === 1 ? "" : "s"} assigned to this campaign by Campaign ID are eligible right now.
               </p>
             )}
           </div>
 
           <p className="text-[11px] leading-relaxed text-text-tertiary">
-            Campaign targeting is a planning view inside the CRM — it does not restrict this run. n8n selects leads
-            itself and will process all <strong>{readiness.eligibleLeads}</strong> eligible. It also applies its own
-            daily send cap and follow-up rules, so the number actually contacted may be lower.
+            {readiness.selectedCampaignName ? (
+              <>
+                This Campaign ID is sent to n8n with the trigger — it will only process the{" "}
+                <strong>{readiness.campaignMatches}</strong> assigned, eligible lead{readiness.campaignMatches === 1 ? "" : "s"} shown
+                above (capped further by its own max-leads-per-run and daily send limit). n8n rejects the run if the Campaign ID
+                is missing or unknown — it never falls back to processing unrelated leads.
+              </>
+            ) : (
+              <>Select a campaign above before running — Run Campaign always requires a Campaign ID.</>
+            )}
           </p>
         </div>
 

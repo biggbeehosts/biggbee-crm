@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Pause, Play, Target, Trash2 } from "lucide-react";
+import { Copy, Pause, Play, Target, Trash2 } from "lucide-react";
 import type { Campaign, CampaignMatchSummary, Lead, OptionLists } from "@/types";
 import { filterCampaignLeads, summarizeCampaignMatch } from "@/lib/calculations/campaign-match";
 import { Card, CardContent } from "@/components/ui/card";
@@ -13,7 +13,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { StatusBadge, ConfidenceBadge } from "@/components/ui/status-badge";
 import { CampaignFormDialog } from "./campaign-form-dialog";
 import { CampaignSummary } from "./campaign-summary";
-import { deleteCampaignAction, setCampaignStatusAction } from "@/lib/actions/campaigns";
+import { deleteCampaignAction, duplicateCampaignAction, setCampaignStatusAction } from "@/lib/actions/campaigns";
 import { formatDate } from "@/lib/utils/date";
 import { cn } from "@/lib/utils/cn";
 
@@ -49,6 +49,13 @@ export function CampaignsView({ campaigns, leads, options }: { campaigns: Campai
     setPendingAction(null);
   }
 
+  async function duplicate(campaign: Campaign) {
+    setPendingAction(campaign.id);
+    await duplicateCampaignAction(campaign.id);
+    router.refresh();
+    setPendingAction(null);
+  }
+
   if (campaigns.length === 0) {
     return (
       <EmptyState
@@ -65,7 +72,7 @@ export function CampaignsView({ campaigns, leads, options }: { campaigns: Campai
       <div className="grid grid-cols-1 gap-3 lg:grid-cols-2 xl:grid-cols-3">
         {campaigns.map((campaign) => {
           const isSelected = campaign.id === selectedId;
-          const count = summarizeCampaignMatch(leads, campaign).matching;
+          const count = summarizeCampaignMatch(leads, campaign).assigned;
           const criteria = [campaign.country, campaign.industry, campaign.businessType, campaign.service, campaign.leadGenerationType].filter(Boolean) as string[];
           return (
             <Card
@@ -88,19 +95,29 @@ export function CampaignsView({ campaigns, leads, options }: { campaigns: Campai
                     </Badge>
                   ))
                 ) : (
-                  <Badge variant="outline">All leads</Badge>
+                  <Badge variant="outline">No targeting notes</Badge>
                 )}
                 {campaign.minConfidence !== null && <Badge variant="accent">≥{campaign.minConfidence}%</Badge>}
               </div>
               <div className="mt-3 flex items-center justify-between border-t border-border-subtle pt-2.5">
                 <p className="text-xs text-text-secondary">
-                  <span className="font-semibold text-accent-strong">{count}</span> matching lead{count === 1 ? "" : "s"}
+                  <span className="font-semibold text-accent-strong">{count}</span> lead{count === 1 ? "" : "s"} assigned
                 </p>
                 <div className="flex items-center gap-0.5" onClick={(e) => e.stopPropagation()}>
                   <CampaignFormDialog campaign={campaign} options={options} />
                   <Button variant="ghost" size="sm" onClick={() => toggleStatus(campaign)} disabled={pendingAction === campaign.id}>
                     {campaign.status === "Active" ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}
                     {campaign.status === "Active" ? "Pause" : "Activate"}
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 text-text-tertiary"
+                    onClick={() => duplicate(campaign)}
+                    disabled={pendingAction === campaign.id}
+                    aria-label="Duplicate campaign"
+                  >
+                    <Copy className="h-3.5 w-3.5" />
                   </Button>
                   <Button
                     variant="ghost"
@@ -126,9 +143,9 @@ export function CampaignsView({ campaigns, leads, options }: { campaigns: Campai
           <Card className="xl:col-span-2 overflow-hidden">
             <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border-subtle px-5 py-3.5">
               <div>
-                <p className="text-sm font-semibold text-text-primary">Matching Leads — {selected.name}</p>
+                <p className="text-sm font-semibold text-text-primary">Assigned Leads — {selected.name}</p>
                 <p className="text-xs text-text-tertiary">
-                  {matchingLeads.length} match
+                  {matchingLeads.length} assigned by Campaign ID
                   {selected.maxLeadsPerRun && matchingLeads.length > selected.maxLeadsPerRun
                     ? ` · showing first ${selected.maxLeadsPerRun} (max per run)`
                     : ""}
@@ -140,8 +157,8 @@ export function CampaignsView({ campaigns, leads, options }: { campaigns: Campai
             {cappedLeads.length === 0 ? (
               <EmptyState
                 icon={Target}
-                title="No leads match this campaign"
-                description="Loosen a criterion or lower the confidence threshold to widen the selection."
+                title="No leads assigned to this campaign"
+                description="Assign leads to this campaign from the Leads page (Add Lead or Edit Lead) -- assignment is by Campaign ID, never inferred from industry or business type."
                 className="m-5"
               />
             ) : (

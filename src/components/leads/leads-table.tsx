@@ -14,9 +14,9 @@ import {
   useReactTable,
 } from "@tanstack/react-table";
 import { ArrowUpDown, ChevronLeft, ChevronRight, Columns3, Download, Search, SlidersHorizontal, X } from "lucide-react";
-import type { Lead, LeadStatus } from "@/types";
+import type { Campaign, Lead, LeadStatus } from "@/types";
 import { LEAD_STATUSES } from "@/types";
-import { leadsColumns } from "./columns";
+import { buildLeadsColumns } from "./columns";
 import { AddLeadDialog, type AddLeadOptions } from "./add-lead-dialog";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
@@ -49,10 +49,12 @@ export function LeadsTable({
   leads,
   initialSearch = "",
   addLeadOptions,
+  campaigns = [],
 }: {
   leads: Lead[];
   initialSearch?: string;
   addLeadOptions?: AddLeadOptions;
+  campaigns?: Campaign[];
 }) {
   const router = useRouter();
   const [globalFilter, setGlobalFilter] = React.useState(initialSearch);
@@ -68,12 +70,14 @@ export function LeadsTable({
   const [leadGenTypeFilter, setLeadGenTypeFilter] = React.useState("all");
   const [serviceFilter, setServiceFilter] = React.useState("all");
   const [confidenceFilter, setConfidenceFilter] = React.useState("all");
+  const [campaignFilter, setCampaignFilter] = React.useState("all");
 
   const industries = React.useMemo(() => uniqueSorted(leads.map((l) => l.industry)), [leads]);
   const countries = React.useMemo(() => uniqueSorted(leads.map((l) => l.country)), [leads]);
   const businessTypes = React.useMemo(() => uniqueSorted(leads.map((l) => l.businessType)), [leads]);
   const leadGenTypes = React.useMemo(() => uniqueSorted(leads.map((l) => l.leadGenerationType)), [leads]);
   const services = React.useMemo(() => uniqueSorted(leads.map((l) => l.serviceOffered)), [leads]);
+  const columns = React.useMemo(() => buildLeadsColumns(campaigns), [campaigns]);
 
   const filtered = React.useMemo(() => {
     return leads.filter((lead) => {
@@ -83,6 +87,7 @@ export function LeadsTable({
       if (businessTypeFilter !== "all" && (lead.businessType || "—") !== businessTypeFilter) return false;
       if (leadGenTypeFilter !== "all" && (lead.leadGenerationType || "—") !== leadGenTypeFilter) return false;
       if (serviceFilter !== "all" && (lead.serviceOffered || "—") !== serviceFilter) return false;
+      if (campaignFilter !== "all" && (lead.campaignId || "unassigned") !== campaignFilter) return false;
 
       if (confidenceFilter !== "all") {
         const c = lead.confidence;
@@ -94,11 +99,11 @@ export function LeadsTable({
 
       return true;
     });
-  }, [leads, statusFilter, industryFilter, countryFilter, businessTypeFilter, leadGenTypeFilter, serviceFilter, confidenceFilter]);
+  }, [leads, statusFilter, industryFilter, countryFilter, businessTypeFilter, leadGenTypeFilter, serviceFilter, confidenceFilter, campaignFilter]);
 
   const table = useReactTable({
     data: filtered,
-    columns: leadsColumns,
+    columns,
     state: { sorting, columnVisibility, rowSelection, columnFilters, globalFilter },
     onSortingChange: setSorting,
     onColumnVisibilityChange: setColumnVisibility,
@@ -126,7 +131,8 @@ export function LeadsTable({
     (businessTypeFilter !== "all" ? 1 : 0) +
     (leadGenTypeFilter !== "all" ? 1 : 0) +
     (serviceFilter !== "all" ? 1 : 0) +
-    (confidenceFilter !== "all" ? 1 : 0);
+    (confidenceFilter !== "all" ? 1 : 0) +
+    (campaignFilter !== "all" ? 1 : 0);
 
   function clearFilters() {
     setStatusFilter(new Set());
@@ -136,14 +142,19 @@ export function LeadsTable({
     setLeadGenTypeFilter("all");
     setServiceFilter("all");
     setConfidenceFilter("all");
+    setCampaignFilter("all");
   }
 
   function handleExport() {
-    const rows = table.getFilteredRowModel().rows.map((r) => r.original);
+    const rows = table.getFilteredRowModel().rows.map((r) => ({
+      ...r.original,
+      campaignName: campaigns.find((c) => c.id === r.original.campaignId)?.name || "",
+    }));
     const csv = toCsv(rows, [
       { key: "company", header: "Company" },
       { key: "name", header: "Contact" },
       { key: "email", header: "Email" },
+      { key: "campaignName", header: "Campaign" },
       { key: "industry", header: "Industry" },
       { key: "businessType", header: "Business Type" },
       { key: "country", header: "Country" },
@@ -213,6 +224,18 @@ export function LeadsTable({
                 </div>
               </div>
 
+              <div>
+                <p className="mb-1.5 text-[11px] font-medium text-text-tertiary">Campaign</p>
+                <Select value={campaignFilter} onChange={(e) => setCampaignFilter(e.target.value)}>
+                  <option value="all">All campaigns</option>
+                  <option value="unassigned">Unassigned</option>
+                  {campaigns.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
+                </Select>
+              </div>
               <FilterSelect label="Country" value={countryFilter} onChange={setCountryFilter} options={countries} />
               <FilterSelect label="Industry" value={industryFilter} onChange={setIndustryFilter} options={industries} />
               <FilterSelect label="Business Type" value={businessTypeFilter} onChange={setBusinessTypeFilter} options={businessTypes} />
@@ -261,7 +284,7 @@ export function LeadsTable({
 
         <div className="ml-auto flex items-center gap-2">
           {selectedCount > 0 && <Badge variant="accent">{selectedCount} selected</Badge>}
-          <AddLeadDialog options={addLeadOptions} />
+          <AddLeadDialog options={addLeadOptions} campaigns={campaigns} />
         </div>
       </div>
 
@@ -289,7 +312,7 @@ export function LeadsTable({
           <tbody className="divide-y divide-border-subtle">
             {table.getRowModel().rows.length === 0 ? (
               <tr>
-                <td colSpan={leadsColumns.length} className="py-10">
+                <td colSpan={columns.length} className="py-10">
                   <EmptyState icon={UsersRound} title="No leads match your filters" description="Try adjusting or clearing your filters." action={<Button size="sm" variant="secondary" onClick={clearFilters}>Clear filters</Button>} />
                 </td>
               </tr>

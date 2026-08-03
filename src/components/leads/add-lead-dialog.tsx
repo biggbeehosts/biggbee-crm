@@ -8,13 +8,14 @@ import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { addLeadAction } from "@/lib/actions/leads";
+import type { Campaign } from "@/types";
 
 export interface AddLeadOptions {
   countries: string[];
   industries: string[];
 }
 
-export function AddLeadDialog({ options }: { options?: AddLeadOptions }) {
+export function AddLeadDialog({ options, campaigns = [] }: { options?: AddLeadOptions; campaigns?: Campaign[] }) {
   const router = useRouter();
   const [open, setOpen] = React.useState(false);
   const [pending, setPending] = React.useState(false);
@@ -104,6 +105,17 @@ export function AddLeadDialog({ options }: { options?: AddLeadOptions }) {
               <Label htmlFor="phone">Phone</Label>
               <Input id="phone" name="phone" placeholder="+1 555 555 0100" />
             </div>
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="campaignId">Campaign</Label>
+            <Select id="campaignId" name="campaignId" defaultValue="">
+              <option value="">— Unassigned —</option>
+              {campaigns.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </Select>
           </div>
           {error && <p className="text-xs text-danger">{error}</p>}
           <DialogFooter>

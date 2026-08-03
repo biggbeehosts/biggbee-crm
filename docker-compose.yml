@@ -37,10 +37,16 @@ services:
     restart: unless-stopped
     env_file:
       - .env.production
+    environment:
+      - LOCAL_DATA_DIR=/app/data
     expose:
       - "3000"
     # No `ports:` mapping -- the app is reachable only through the Traefik network, never
     # bound to a host port directly.
+    volumes:
+      # CRM-owned state that has nowhere else durable to live (admin account, sessions, audit
+      # log, and campaigns/settings if Sheets writes aren't in play) -- survives image rebuilds.
+      - crm_data:/app/data
     networks:
       - traefik
     labels:
@@ -60,6 +66,9 @@ services:
       # - "traefik.http.routers.biggbee-crm-insecure.entrypoints=${TRAEFIK_WEB_ENTRYPOINT}"
       # - "traefik.http.routers.biggbee-crm-insecure.middlewares=biggbee-crm-https-redirect"
       # - "traefik.http.middlewares.biggbee-crm-https-redirect.redirectscheme.scheme=https"
+
+volumes:
+  crm_data:
 
 networks:
   traefik:

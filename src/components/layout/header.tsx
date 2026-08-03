@@ -11,13 +11,20 @@ import { Input } from "@/components/ui/input";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { initials } from "@/lib/utils/format";
 import { refreshDataAction } from "@/lib/actions/leads";
+import { logoutAction } from "@/lib/auth/actions";
 
-export function Header({ attentionCount = 0 }: { attentionCount?: number }) {
+export function Header({ attentionCount = 0, adminEmail = "" }: { attentionCount?: number; adminEmail?: string }) {
   const pathname = usePathname();
   const router = useRouter();
   const { theme, toggleTheme, setMobileNavOpen } = useUIState();
   const [refreshing, setRefreshing] = React.useState(false);
+  const [loggingOut, setLoggingOut] = React.useState(false);
   const [search, setSearch] = React.useState("");
+
+  async function handleLogout() {
+    setLoggingOut(true);
+    await logoutAction();
+  }
 
   const current = NAV_ITEMS.find((item) => pathname === item.href || pathname.startsWith(`${item.href}/`));
 
@@ -104,20 +111,20 @@ export function Header({ attentionCount = 0 }: { attentionCount?: number }) {
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button className="ml-1 flex h-8 w-8 items-center justify-center rounded-full bg-accent-soft text-xs font-semibold text-accent-strong">
-              {initials("Biggbee Team")}
+              {initials(adminEmail || "Admin")}
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-56">
-            <DropdownMenuLabel>Biggbee Team</DropdownMenuLabel>
-            <div className="px-2.5 pb-2 text-xs text-text-tertiary">office@biggbees.com</div>
+            <DropdownMenuLabel>Admin</DropdownMenuLabel>
+            <div className="px-2.5 pb-2 text-xs text-text-tertiary">{adminEmail}</div>
             <DropdownMenuSeparator />
             <DropdownMenuItem asChild>
               <Link href="/settings">
                 <SettingsIcon className="h-4 w-4" /> Settings
               </Link>
             </DropdownMenuItem>
-            <DropdownMenuItem>
-              <LogOut className="h-4 w-4" /> Sign out
+            <DropdownMenuItem onSelect={handleLogout} disabled={loggingOut}>
+              <LogOut className="h-4 w-4" /> {loggingOut ? "Signing out…" : "Sign out"}
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
