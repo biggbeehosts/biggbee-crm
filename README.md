@@ -211,6 +211,38 @@ surface as readable toasts, never stack traces. All calls run server-side (`src/
 URLs and the API key never reach the browser. Adding another workflow later is one env var plus
 one entry in `src/lib/n8n/config.ts`.
 
+### Workflow Control (System > Workflow Control)
+
+A dashboard for the n8n side of the system that never requires opening n8n or editing workflow
+JSON for day-to-day changes:
+
+- **Registry** — every scraper agent and fixed system workflow (Outreach, Status, Knowledge
+  Base, Reply Processing) shown as one card: n8n workflow ID, connection status, last
+  verified/succeeded/failed, version hash, linked runs, and a configuration-health summary.
+  Secrets are never in the registry — only references to env var *names* (e.g. `N8N_API_KEY`),
+  resolved server-side.
+- **Actions per card** — Test Connection, Refresh Metadata, View Executions (paginated,
+  sanitized — never shows raw node payloads or credentials), Open in n8n, Activate/Deactivate
+  (via n8n's real `POST /workflows/{id}/activate` / `.../deactivate` endpoints — the previous
+  Pause/Resume implementation incorrectly used `PATCH /workflows/{id} {active}`, which this
+  n8n version rejects), Replace Workflow Assignment, Download Backup, Validate Contract, and
+  View Input/Output Schema.
+- **Replacing an assignment never touches the old n8n workflow** — it only moves the CRM's own
+  pointer and resets the card to "needs validation" until Validate Contract passes again.
+- **Generic scraper contract** — every scraper receives the same payload shape
+  (`{ version, jobId, scraperId, campaignId, requestedCount, source, inputs, campaign }`);
+  adding a new scraper is registry configuration (workflow ID, webhook, form schema, normalizer),
+  never a new CRM page.
+- **One-result dry run** — validates a scraper's contract end-to-end without importing a
+  meaningful batch; always clamped to 1 result server-side regardless of what's requested.
+- **Advanced Workflow Update** — disabled by default (`ADVANCED_WORKFLOW_UPDATES_ENABLED=true`
+  to opt in). Even enabled, it only ever backs up the current workflow, then deploys a proposed
+  JSON as a **new** n8n workflow and repoints the registry — it never overwrites or deletes the
+  workflow in place, and requires typing the current workflow's name to confirm.
+
+See `src/lib/n8n/`, `src/lib/data/workflow-registry-store.ts`, `src/lib/data/scraper-registry-store.ts`,
+and `src/lib/actions/workflow-registry.ts` for the implementation.
+
 ## Pages
 
 | Page | Purpose |
@@ -227,6 +259,7 @@ one entry in `src/lib/n8n/config.ts`.
 | **Errors** | Operations log: severity, filters, expandable JSON, copy; summary panel with top failing nodes |
 | **Knowledge Base** | The cached biggbees.com content the AI uses: sections, search with highlighting, copy, download TXT |
 | **Settings** | Connection status/test, reusable lists manager (countries, industries, services, business types, lead-gen types), appearance |
+| **Workflow Control** (`/system/workflow-control`) | Connect/reassign n8n workflows, activate/deactivate, view executions, validate contracts, one-result dry runs, disabled-by-default Advanced Workflow Update |
 
 ## Architecture
 
