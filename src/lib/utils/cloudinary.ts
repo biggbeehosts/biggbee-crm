@@ -41,6 +41,25 @@ export function checkDemoUrlHealth(url: string | undefined | null): DemoUrlHealt
   return isValidUrl(url) ? "ok" : "invalid";
 }
 
+/**
+ * Demo Library validation badge (Part G): one of five states, checked in priority order so a
+ * demo never shows more than one badge. "missing-file" is distinct from "missing-url" -- a demo
+ * can have a working watch link but nothing indicating a downloadable file exists at all.
+ */
+export function computeDemoValidationStatus(demo: {
+  active: boolean;
+  publicWatchUrl?: string;
+  publicDownloadUrl?: string;
+  fileName?: string;
+}): "healthy" | "missing-url" | "missing-file" | "inactive" | "invalid-mapping" {
+  if (!demo.active) return "inactive";
+  const watchHealth = checkDemoUrlHealth(demo.publicWatchUrl);
+  if (watchHealth === "missing") return "missing-url";
+  if (watchHealth === "invalid") return "invalid-mapping";
+  if (!demo.publicDownloadUrl && !demo.fileName && !deriveCloudinaryDownloadUrl(demo.publicWatchUrl)) return "missing-file";
+  return "healthy";
+}
+
 /** Resolves the best download URL: explicit download URL first, else a derived Cloudinary one. */
 export function resolveDownloadUrl(watchUrl: string | undefined | null, downloadUrl: string | undefined | null): string | null {
   if (downloadUrl && isValidUrl(downloadUrl)) return downloadUrl;
