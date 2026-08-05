@@ -42,9 +42,13 @@ export function normalizeLead(row: Row, index: number): Lead {
     demoType: pick(row, "Demo Type"),
     demoWatchUrl: pick(row, "Demo Watch URL"),
     demoDownloadUrl: pick(row, "Demo Download URL"),
+    demoId: pick(row, "Demo ID", "DemoID") || undefined,
+    demoSent: pick(row, "Demo Sent") ? parseYesNo(pick(row, "Demo Sent")) : undefined,
+    demoSentAt: pick(row, "Demo Sent At") || null,
+    demoMatchReason: pick(row, "Demo Match Reason") || undefined,
     emailStyle: pick(row, "Email Style"),
     confidence,
-    campaignId: pick(row, "Campaign ID", "CampaignID") || undefined,
+    campaignId: pick(row, "Campaign ID", "CampaignID"),
     campaignName: pick(row, "Campaign Name", "CampaignName") || undefined,
     leadId: pick(row, "Lead ID", "LeadID") || undefined,
     location: pick(row, "Location") || undefined,
@@ -76,6 +80,9 @@ export function normalizeLeadMemory(row: Row): LeadMemory {
     interestLevel: pick(row, "Interest Level", "InterestLevel"),
     meetingBooked: parseYesNo(pick(row, "Meeting Booked", "MeetingBooked")),
     demoSent: parseYesNo(pick(row, "Demo Sent", "DemoSent")),
+    demoId: pick(row, "Demo ID", "DemoID") || undefined,
+    demoSentAt: pick(row, "Demo Sent At") || null,
+    demoMatchReason: pick(row, "Demo Match Reason") || undefined,
     lastSummary: pick(row, "Last Summary", "LastSummary"),
     updatedAt: pick(row, "Updated At", "UpdatedAt") || null,
     lastSubject: pick(row, "Last Subject"),
@@ -83,18 +90,39 @@ export function normalizeLeadMemory(row: Row): LeadMemory {
   };
 }
 
-export function normalizeDemoRecord(row: Row): DemoRecord {
+export function normalizeDemoRecord(row: Row, index: number): DemoRecord {
   return {
     // Left blank (never a row-position guess) when the ID column is empty -- see
     // migrateMissingDemoIds in demo-library-mutations.ts, which assigns and persists a real id.
     demoId: pick(row, "Demo ID", "DemoID"),
     name: pick(row, "Demo Name", "DemoName") || undefined,
     demoType: safeTrim(pick(row, "Demo Type")).toLowerCase(),
+    service: pick(row, "Service") || undefined,
+    businessType: pick(row, "Business Type", "BusinessType") || undefined,
+    industry: pick(row, "Industry") || undefined,
+    leadGenerationType: pick(row, "Lead Generation Type", "LeadGenerationType") || undefined,
+    language: pick(row, "Language") || undefined,
+    country: pick(row, "Country") || undefined,
     publicWatchUrl: pick(row, "Public Watch URL"),
     publicDownloadUrl: pick(row, "Public Download URL"),
     fileName: pick(row, "File Name"),
+    mimeType: pick(row, "MIME Type", "MimeType") || undefined,
     thumbnailUrl: pick(row, "Thumbnail URL"),
     duration: pick(row, "Duration"),
+    // Blank/legacy rows (written before this column existed) default to active, so nothing that
+    // worked yesterday silently disappears from matching today.
+    active: parseYesNo(pick(row, "Active"), true),
+    priority: parseNumber(pick(row, "Priority"), 0) ?? 0,
+    isFallback: parseYesNo(pick(row, "Fallback Demo"), false),
+    version: parseNumber(pick(row, "Version"), 1) ?? 1,
+    archived: parseYesNo(pick(row, "Archived"), false),
+    previousVersionId: pick(row, "Previous Version ID") || undefined,
+    storageProvider: pick(row, "Storage Provider") || undefined,
+    storagePublicId: pick(row, "Storage Public ID") || undefined,
+    notes: pick(row, "Notes") || undefined,
+    createdAt: pick(row, "Created At", "CreatedAt") || undefined,
+    updatedAt: pick(row, "Updated At", "UpdatedAt") || undefined,
+    rowNumber: index + 2,
   };
 }
 
@@ -136,8 +164,17 @@ export function normalizeUnknownSender(row: Row, index: number): UnknownSender {
 }
 
 /** KB_Cache is a single logical record (one row, Cache Key = "latest") -- take the freshest row. */
-export function normalizeKnowledgeBase(rows: Row[]): KnowledgeBaseRecord {
-  const row = rows.find((r) => pick(r, "Cache Key", "CacheKey").toLowerCase() === "latest") ?? rows[rows.length - 1];
+/**
+ * Stage 6, Part 8: the KB_Cache tab can hold one row per website, distinguished by Cache Key --
+ * `cacheKey` defaults to "latest" (today's single default site) so every existing caller is
+ * unaffected. Falls back to the tab's last row only when no row matches "latest" at all (legacy
+ * tabs written before Cache Key existed), never for any other requested key -- a genuinely
+ * missing/not-yet-synced site must show as empty, not silently show a different site's content.
+ */
+export function normalizeKnowledgeBase(rows: Row[], cacheKey: string = "latest"): KnowledgeBaseRecord {
+  const row =
+    rows.find((r) => pick(r, "Cache Key", "CacheKey").toLowerCase() === cacheKey.toLowerCase()) ??
+    (cacheKey === "latest" ? rows[rows.length - 1] : undefined);
   const text = row ? pick(row, "KnowledgeBase Text", "KnowledgeBaseText") : "";
   const sections = text
     .split(/\n{2,}(?=### )/)
@@ -149,7 +186,7 @@ export function normalizeKnowledgeBase(rows: Row[]): KnowledgeBaseRecord {
     })
     .filter((s) => s.content);
   return {
-    cacheKey: row ? pick(row, "Cache Key", "CacheKey") || "latest" : "latest",
+    cacheKey: row ? pick(row, "Cache Key", "CacheKey") || cacheKey : cacheKey,
     knowledgeBaseText: text,
     updatedAt: row ? pick(row, "Updated At", "UpdatedAt") || null : null,
     sourceCount: sections.length,

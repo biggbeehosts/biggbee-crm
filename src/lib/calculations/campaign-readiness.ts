@@ -1,5 +1,6 @@
-import type { Campaign, Lead } from "@/types";
+import type { Campaign, DemoRecord, Lead } from "@/types";
 import { leadEligibleForCampaignRun } from "./campaign-match";
+import { resolveCampaignDemo, type DemoMatchResult } from "./demo-match";
 import { daysSince } from "@/lib/utils/date";
 
 export type ReadinessState = "ready" | "attention" | "not-connected";
@@ -22,6 +23,10 @@ export interface CampaignReadiness {
   /** How many leads assigned to the selected campaign (by Campaign ID) are eligible for a new-lead
    *  run right now. Null when no campaign is selected. */
   campaignMatches: number | null;
+  /** Result of resolveCampaignDemo() for the selected campaign -- null when no campaign is
+   *  selected. Shown directly in Campaign Readiness (Part H) so the operator sees exactly which
+   *  demo (if any) would be attached before running. */
+  demoMatch: DemoMatchResult | null;
   canRun: boolean;
   blockReasons: string[];
 }
@@ -38,6 +43,9 @@ export interface ReadinessInput {
   knowledgeBaseUpdatedAt: string | null;
   /** From env-validation's isN8nApiKeyRequiredButMissing() -- true only in production with no key set. */
   n8nApiKeyRequiredButMissing: boolean;
+  /** Live Demo Library, for resolveCampaignDemo() -- same data the n8n workflow itself reads at
+   *  send time, so this preview and the actual run-time decision never diverge. */
+  demos: DemoRecord[];
 }
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -81,10 +89,11 @@ function describeTargeting(campaign: Campaign): string {
 }
 
 export function computeCampaignReadiness(input: ReadinessInput): CampaignReadiness {
-  const { leads, selectedCampaign, runCampaignConfigured, dataMode, sheetsConnected, knowledgeBaseUpdatedAt, n8nApiKeyRequiredButMissing } = input;
+  const { leads, selectedCampaign, runCampaignConfigured, dataMode, sheetsConnected, knowledgeBaseUpdatedAt, n8nApiKeyRequiredButMissing, demos } = input;
 
   const eligibleLeads = countEligibleLeads(leads);
   const campaignMatches = selectedCampaign ? countCampaignMatches(leads, selectedCampaign) : null;
+  const demoMatch = selectedCampaign ? resolveCampaignDemo(selectedCampaign, demos) : null;
   const missingEmail = leads.filter((l) => !hasUsableEmail(l)).length;
   const alreadyContacted = leads.filter((l) => Boolean(l.lastEmailDate)).length;
   const sheetsBlocked = dataMode === "google-sheets" && !sheetsConnected;
@@ -198,6 +207,43 @@ export function computeCampaignReadiness(input: ReadinessInput): CampaignReadine
         }
   );
 
+  // Demo attachment (Part H) -- mirrors resolveCampaignDemo()'s own blocking flag exactly, so
+  // this check can never disagree with what n8n would actually do at send time.
+  if (selectedCampaign && demoMatch) {
+    if (demoMatch.demo) {
+      checks.push({
+        id: "demo",
+        label: "Demo attachment",
+        state: "ready",
+        detail: `"${demoMatch.demo.name || demoMatch.demo.demoType}" will be attached (${demoMatch.reason})`,
+        blocking: false,
+      });
+    } else if (demoMatch.reason === "none") {
+      checks.push({ id: "demo", label: "Demo attachment", state: "ready", detail: "No demo will be attached (Attach Demo off / mode None)", blocking: false });
+    } else if (demoMatch.blocking) {
+      checks.push({
+        id: "demo",
+        label: "Demo attachment",
+        state: "not-connected",
+        detail:
+          demoMatch.reason === "exact-id-missing"
+            ? `Selected demo "${selectedCampaign.demoId}" was not found in the Demo Library`
+            : demoMatch.reason === "exact-id-inactive-or-invalid"
+              ? `Selected demo "${selectedCampaign.demoId}" is inactive or has no working URL`
+              : "Automatic mode found no matching active demo, and this campaign requires a match",
+        blocking: true,
+      });
+    } else {
+      checks.push({
+        id: "demo",
+        label: "Demo attachment",
+        state: "attention",
+        detail: "Automatic mode found no matching active demo — this campaign allows sending without one",
+        blocking: false,
+      });
+    }
+  }
+
   const kbAge = daysSince(knowledgeBaseUpdatedAt);
   checks.push(
     kbAge === null
@@ -214,6 +260,15 @@ export function computeCampaignReadiness(input: ReadinessInput): CampaignReadine
   if (eligibleLeads === 0) blockReasons.push("There are no eligible leads for a new-lead run.");
   if (!selectedCampaign) blockReasons.push("Select a campaign to run — a Campaign ID is required.");
   if (zeroCampaignMatches) blockReasons.push(`No leads assigned to "${selectedCampaign!.name}" (${selectedCampaign!.id}) are currently eligible.`);
+  if (demoMatch?.blocking) {
+    blockReasons.push(
+      demoMatch.reason === "exact-id-missing"
+        ? `Selected demo "${selectedCampaign!.demoId}" was not found in the Demo Library.`
+        : demoMatch.reason === "exact-id-inactive-or-invalid"
+          ? `Selected demo "${selectedCampaign!.demoId}" is inactive or has no working URL.`
+          : `No demo matches "${selectedCampaign!.name}" and it requires one (Require Demo Match is on).`
+    );
+  }
 
   return {
     checks,
@@ -221,6 +276,7 @@ export function computeCampaignReadiness(input: ReadinessInput): CampaignReadine
     selectedCampaignName: selectedCampaign?.name ?? null,
     targetingSummary: selectedCampaign ? describeTargeting(selectedCampaign) : null,
     campaignMatches,
+    demoMatch,
     canRun: blockReasons.length === 0,
     blockReasons,
   };

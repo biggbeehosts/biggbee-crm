@@ -8,7 +8,7 @@ const daysAgo = (n: number) => new Date(Date.now() - n * 86_400_000).toISOString
  * teams, and voice-agent-curious businesses. Includes edge cases on purpose: missing websites,
  * unscored leads, failed sends, and every pipeline stage.
  */
-export const MOCK_LEADS: Lead[] = [
+const RAW_MOCK_LEADS: Omit<Lead, "campaignId">[] = [
   {
     email: "hello@pulsegrowth.co",
     name: "Amara Okafor",
@@ -795,3 +795,9 @@ export const MOCK_LEADS: Lead[] = [
     confidence: null,
   },
 ];
+
+/** Mock mode never had campaign assignment to begin with -- "" is the same legacy/unassigned
+ *  sentinel real Sheet rows written before Stage 6, Part 4 use, so this list's visible behavior
+ *  (unassigned in every campaign-membership view) is unchanged from before campaignId was
+ *  required on the Lead type. */
+export const MOCK_LEADS: Lead[] = RAW_MOCK_LEADS.map((lead) => ({ ...lead, campaignId: "" }));

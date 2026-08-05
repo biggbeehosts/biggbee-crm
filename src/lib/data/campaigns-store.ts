@@ -1,5 +1,5 @@
 import "server-only";
-import type { Campaign, CampaignStatus } from "@/types";
+import type { Campaign, CampaignStatus, DemoSelectionMode } from "@/types";
 import { getDataMode, SHEET_TAB_NAMES } from "./config";
 import { ensureTabWithHeaders, appendRow, updateRowFields, deleteSheetRow, fetchSheetRows, rowsToObjects } from "./sheets-client";
 import { readCollection, writeCollection } from "@/lib/store/json-store";
@@ -23,10 +23,16 @@ const CAMPAIGN_HEADERS = [
   "Max Leads Per Run",
   "Daily Send Limit",
   "Notes",
+  "Attach Demo",
+  "Demo ID",
+  "Demo Selection Mode",
+  "Require Demo Match",
   "Open Tracking Enabled",
   "Click Tracking Enabled",
   "Reply Tracking Enabled",
   "Deliverability Test Enabled",
+  "Language",
+  "Website ID",
   "Created At",
   "Updated At",
 ];
@@ -45,10 +51,16 @@ function toRow(c: Campaign): Record<string, string> {
     "Max Leads Per Run": c.maxLeadsPerRun === null ? "" : String(c.maxLeadsPerRun),
     "Daily Send Limit": c.dailySendLimit === null ? "" : String(c.dailySendLimit),
     Notes: c.notes ?? "",
+    "Attach Demo": c.attachDemo ? "Yes" : "No",
+    "Demo ID": c.demoId ?? "",
+    "Demo Selection Mode": c.demoSelectionMode,
+    "Require Demo Match": c.requireDemoMatch ? "Yes" : "No",
     "Open Tracking Enabled": c.openTrackingEnabled ? "Yes" : "No",
     "Click Tracking Enabled": c.clickTrackingEnabled ? "Yes" : "No",
     "Reply Tracking Enabled": c.replyTrackingEnabled ? "Yes" : "No",
     "Deliverability Test Enabled": c.deliverabilityTestEnabled ? "Yes" : "No",
+    Language: c.language ?? "",
+    "Website ID": c.websiteId ?? "",
     "Created At": c.createdAt,
     "Updated At": c.updatedAt,
   };
@@ -133,6 +145,14 @@ function fromRow(row: Record<string, string>, rowNumber: number): Campaign {
     maxLeadsPerRun: numOrNull(row["Max Leads Per Run"]),
     dailySendLimit: numOrNull(row["Daily Send Limit"]),
     notes: row.Notes || undefined,
+    // Legacy rows written before these columns existed default to "no demo" -- an explicit
+    // operator choice is always required to attach one, never assumed.
+    attachDemo: parseYesNo(row["Attach Demo"], false),
+    demoId: row["Demo ID"] || undefined,
+    demoSelectionMode: (["Exact", "Automatic", "None"] as const).includes(row["Demo Selection Mode"] as DemoSelectionMode)
+      ? (row["Demo Selection Mode"] as DemoSelectionMode)
+      : "None",
+    requireDemoMatch: parseYesNo(row["Require Demo Match"], true),
     // Legacy rows written before Stage 5 default to ON for open/click/reply tracking (matches the
     // product decision that tracking is the norm, not an opt-in extra) and OFF for deliverability
     // testing (an explicit, deliberate action an admin opts into per campaign).
@@ -140,6 +160,8 @@ function fromRow(row: Record<string, string>, rowNumber: number): Campaign {
     clickTrackingEnabled: parseYesNo(row["Click Tracking Enabled"], true),
     replyTrackingEnabled: parseYesNo(row["Reply Tracking Enabled"], true),
     deliverabilityTestEnabled: parseYesNo(row["Deliverability Test Enabled"], false),
+    language: row.Language || undefined,
+    websiteId: row["Website ID"] || undefined,
     createdAt: row["Created At"] || now(),
     updatedAt: row["Updated At"] || now(),
     rowNumber,
@@ -160,6 +182,9 @@ const SEED_CAMPAIGNS: Campaign[] = [
     maxLeadsPerRun: 50,
     dailySendLimit: 200,
     notes: "Target agencies running Instagram lead generation campaigns.",
+    attachDemo: true,
+    demoSelectionMode: "Automatic",
+    requireDemoMatch: true,
     openTrackingEnabled: true,
     clickTrackingEnabled: true,
     replyTrackingEnabled: true,

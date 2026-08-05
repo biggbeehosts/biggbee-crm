@@ -2,28 +2,60 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { Plus, Pencil } from "lucide-react";
-import type { Campaign, OptionLists } from "@/types";
-import { CAMPAIGN_STATUSES } from "@/types";
+import { Plus, Pencil, TriangleAlert } from "lucide-react";
+import type { Campaign, DemoRecord, DemoSelectionMode, OptionLists, WebsiteRegistryEntry } from "@/types";
+import { CAMPAIGN_STATUSES, DEMO_SELECTION_MODES } from "@/types";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input, Label, Textarea } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import { Badge } from "@/components/ui/badge";
 import { saveCampaignAction } from "@/lib/actions/campaigns";
+import { computeDemoValidationStatus } from "@/lib/utils/cloudinary";
 
-/** Options come from the central manageable lists (Settings → Lists), never hardcoded here. */
-export function CampaignFormDialog({ campaign, options }: { campaign?: Campaign; options: OptionLists }) {
+const DEMO_STATUS_LABEL: Record<ReturnType<typeof computeDemoValidationStatus>, string> = {
+  healthy: "Healthy",
+  "missing-url": "Missing URL",
+  "missing-file": "Missing file",
+  inactive: "Inactive",
+  "invalid-mapping": "Invalid mapping",
+};
+
+/** Options come from the central manageable lists (Settings → Lists), never hardcoded here.
+ *  `demos` is the live Demo Library (Part C) -- selecting one persists its Demo ID, never a
+ *  display name, so a demo renamed/deactivated after assignment is still caught correctly. */
+export function CampaignFormDialog({
+  campaign,
+  options,
+  demos,
+  websites = [],
+}: {
+  campaign?: Campaign;
+  options: OptionLists;
+  demos: DemoRecord[];
+  websites?: WebsiteRegistryEntry[];
+}) {
   const router = useRouter();
   const [open, setOpen] = React.useState(false);
   const [pending, setPending] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
+  const [attachDemo, setAttachDemo] = React.useState(campaign?.attachDemo ?? false);
+  const [demoSelectionMode, setDemoSelectionMode] = React.useState<DemoSelectionMode>(campaign?.demoSelectionMode ?? "None");
+  const [demoId, setDemoId] = React.useState(campaign?.demoId ?? "");
+  const [requireDemoMatch, setRequireDemoMatch] = React.useState(campaign?.requireDemoMatch ?? true);
   const [openTrackingEnabled, setOpenTrackingEnabled] = React.useState(campaign?.openTrackingEnabled ?? true);
   const [clickTrackingEnabled, setClickTrackingEnabled] = React.useState(campaign?.clickTrackingEnabled ?? true);
   const [replyTrackingEnabled, setReplyTrackingEnabled] = React.useState(campaign?.replyTrackingEnabled ?? true);
   const [deliverabilityTestEnabled, setDeliverabilityTestEnabled] = React.useState(campaign?.deliverabilityTestEnabled ?? false);
 
+  const selectedDemo = demos.find((d) => d.demoId === demoId);
+
   async function handleSubmit(formData: FormData) {
+    formData.set("attachDemo", attachDemo ? "true" : "false");
+    formData.set("demoSelectionMode", attachDemo ? demoSelectionMode : "None");
+    formData.set("demoId", demoSelectionMode === "Exact" ? demoId : "");
+    formData.set("requireDemoMatch", requireDemoMatch ? "true" : "false");
     formData.set("openTrackingEnabled", openTrackingEnabled ? "true" : "false");
     formData.set("clickTrackingEnabled", clickTrackingEnabled ? "true" : "false");
     formData.set("replyTrackingEnabled", replyTrackingEnabled ? "true" : "false");
@@ -109,6 +141,94 @@ export function CampaignFormDialog({ campaign, options }: { campaign?: Campaign;
               <Label htmlFor="c-notes">Notes</Label>
               <Textarea id="c-notes" name="notes" rows={2} defaultValue={campaign?.notes} placeholder="Target agencies running Instagram lead generation campaigns." />
             </div>
+          </div>
+
+          <div className="space-y-3 rounded-xl border border-border-subtle p-3">
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <p className="text-sm font-medium text-text-primary">Attach demo</p>
+                <p className="text-xs text-text-tertiary">Off disables demo attachment entirely, regardless of mode below.</p>
+              </div>
+              <Switch checked={attachDemo} onCheckedChange={setAttachDemo} aria-label="Attach demo" />
+            </div>
+
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div className="space-y-1.5">
+                <Label htmlFor="c-demo-mode">Demo selection mode</Label>
+                <Select
+                  id="c-demo-mode"
+                  value={demoSelectionMode}
+                  onChange={(e) => setDemoSelectionMode(e.target.value as DemoSelectionMode)}
+                  disabled={!attachDemo}
+                >
+                  {DEMO_SELECTION_MODES.map((m) => (
+                    <option key={m} value={m}>
+                      {m}
+                    </option>
+                  ))}
+                </Select>
+              </div>
+              <div className="flex items-end justify-between gap-2 pb-1">
+                <div>
+                  <p className="text-xs font-medium text-text-primary">Require demo match</p>
+                  <p className="text-[11px] text-text-tertiary">Automatic mode with no match blocks the run instead of sending without one.</p>
+                </div>
+                <Switch checked={requireDemoMatch} onCheckedChange={setRequireDemoMatch} disabled={!attachDemo} aria-label="Require demo match" />
+              </div>
+            </div>
+
+            {attachDemo && demoSelectionMode === "Exact" && (
+              <div className="space-y-1.5">
+                <Label htmlFor="c-demo-id">Demo</Label>
+                <Select id="c-demo-id" value={demoId} onChange={(e) => setDemoId(e.target.value)}>
+                  <option value="">Select a demo…</option>
+                  {demos.map((d) => {
+                    const status = computeDemoValidationStatus(d);
+                    const selectable = status === "healthy" || status === "missing-file";
+                    return (
+                      <option key={d.demoId} value={d.demoId} disabled={!selectable && d.demoId !== campaign?.demoId}>
+                        {d.name || d.demoType} — {d.demoType}
+                        {d.service ? ` · ${d.service}` : ""} ({DEMO_STATUS_LABEL[status]})
+                      </option>
+                    );
+                  })}
+                </Select>
+                {selectedDemo ? (
+                  <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+                    <Badge variant="outline">{selectedDemo.demoId}</Badge>
+                    <Badge variant="outline">{selectedDemo.demoType}</Badge>
+                    {selectedDemo.service && <Badge variant="outline">{selectedDemo.service}</Badge>}
+                    <Badge variant={computeDemoValidationStatus(selectedDemo) === "healthy" ? "success" : "warning"}>
+                      {DEMO_STATUS_LABEL[computeDemoValidationStatus(selectedDemo)]}
+                    </Badge>
+                    <Badge variant={selectedDemo.publicWatchUrl ? "success" : "warning"}>
+                      {selectedDemo.publicWatchUrl ? "Attachment available" : "No attachment"}
+                    </Badge>
+                  </div>
+                ) : demoId ? (
+                  <p className="flex items-center gap-1 text-[11px] text-danger">
+                    <TriangleAlert className="h-3 w-3" /> Selected demo &quot;{demoId}&quot; was not found in the Demo Library.
+                  </p>
+                ) : null}
+              </div>
+            )}
+          </div>
+
+          <div className="space-y-1.5 rounded-xl border border-border-subtle p-3">
+            <Label htmlFor="c-website">Website / Knowledge Base</Label>
+            <Select id="c-website" name="websiteId" defaultValue={campaign?.websiteId ?? ""}>
+              <option value="">Default (Biggbees.com)</option>
+              {websites
+                .filter((w) => w.active)
+                .map((w) => (
+                  <option key={w.id} value={w.id}>
+                    {w.label}
+                  </option>
+                ))}
+            </Select>
+            <p className="text-xs text-text-tertiary">
+              When set, outreach uses that site&apos;s synced Knowledge Base instead of the default -- see Automation Hub &rarr; Knowledge Base.
+            </p>
           </div>
 
           <div className="space-y-3 rounded-xl border border-border-subtle p-3">

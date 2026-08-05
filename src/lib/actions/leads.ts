@@ -24,13 +24,14 @@ const NewLeadSchema = z.object({
   industry: z.string().optional(),
   country: z.string().optional(),
   phone: z.string().optional(),
-  campaignId: z.string().optional(),
+  campaignId: z.string().min(1, "Select a campaign."),
 });
 
-/** Empty string means "no campaign" (unassigned/cleared); anything else must be a real,
- *  existing campaign id -- never a free-typed value that silently fails to link anything. */
+/** Stage 6, Part 4: every lead must carry a Campaign ID -- blank is never accepted here, and the
+ *  id must be a real, existing campaign, never a free-typed value that silently fails to link
+ *  anything. */
 async function validateCampaignId(campaignId: string | undefined): Promise<string | null> {
-  if (!campaignId) return null;
+  if (!campaignId) return "Select a campaign.";
   const campaign = await getCampaign(campaignId);
   if (!campaign) return `Unknown campaign "${campaignId}".`;
   return null;
@@ -91,7 +92,7 @@ export async function addLeadAction(formData: FormData): Promise<ActionResult> {
     demoDownloadUrl: "",
     emailStyle: "",
     confidence: null,
-    campaignId: parsed.data.campaignId || undefined,
+    campaignId: parsed.data.campaignId,
   };
 
   try {
@@ -131,9 +132,9 @@ const EditLeadSchema = z.object({
   country: z.string().optional(),
   serviceOffered: z.string().optional(),
   status: z.enum(LEAD_STATUSES as [LeadStatus, ...LeadStatus[]]).optional(),
-  // Unlike the other fields, an empty string is meaningful here (clears the assignment), so it's
-  // handled separately from the "skip blank values" loop below rather than folded into it.
-  campaignId: z.string().optional(),
+  // Stage 6, Part 4: a lead's Campaign ID can be reassigned but never cleared to blank, so this
+  // is handled separately from the "skip blank values" loop below rather than folded into it.
+  campaignId: z.string().min(1, "Select a campaign.").optional(),
 });
 
 /** Generic partial-field edit, used by the lead detail page's "Edit" action. */

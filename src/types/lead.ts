@@ -74,18 +74,31 @@ export interface Lead {
   demoVideoName?: string;
   subjectVariant?: string;
   alternativeSubject?: string;
+  /** AI's per-lead suggestion -- informational only since Change 3; never gates whether a demo
+   *  is actually attached (see demoVideoAttached, which reflects the real, campaign-resolved
+   *  decision from resolveCampaignDemo). */
   demoRecommended: boolean;
   demoType?: string;
   demoWatchUrl?: string;
   demoDownloadUrl?: string;
   /** Canonical Demo Library id of the demo actually resolved for this send, if any. */
   demoId?: string;
+  /** True only after the email that carried this demo actually sent successfully -- never set
+   *  merely because a demo was recommended or resolved (see n8n's Log Email Sent, success branch
+   *  only). Distinct from demoVideoAttached (whether the *most recent prepared* email included a
+   *  demo) -- this is the durable, actual-send outcome. */
+  demoSent?: boolean;
+  demoSentAt?: string | null;
+  /** Why this demo (or no demo) was selected -- one of demo-match.ts's DemoMatchReason values,
+   *  e.g. "exact-id", "auto-service-industry", "fallback-demo", "no-match". */
+  demoMatchReason?: string;
   emailStyle?: string;
   /** 0-100, null when the AI has not scored this lead yet. */
   confidence: number | null;
-  /** Stable Campaign ID (Campaigns sheet's ID column) this lead is assigned to. Blank/undefined
-   *  until an operator assigns one -- never inferred from industry/business type/status. */
-  campaignId?: string;
+  /** Stable Campaign ID (Campaigns sheet's ID column) this lead is assigned to (Stage 6, Part 4:
+   *  every lead created through the CRM must carry one). "" is the explicit sentinel for legacy
+   *  rows written before this was enforced -- never inferred from industry/business type/status. */
+  campaignId: string;
   /** Denormalized campaign name at scrape/create time -- display only, campaignId stays the
    *  source of truth for matching. */
   campaignName?: string;

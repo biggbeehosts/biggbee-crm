@@ -6,7 +6,8 @@ import { deleteCampaignById, generateNextCampaignId, getCampaign, upsertCampaign
 import { requireAdmin } from "@/lib/auth/require-admin";
 import { logAudit } from "@/lib/audit/log";
 import { invalidateCache } from "@/lib/data/cache";
-import type { Campaign, CampaignStatus } from "@/types";
+import type { Campaign, CampaignStatus, DemoSelectionMode } from "@/types";
+import { getDemo } from "@/lib/data/demo-library-store";
 import type { ActionResult } from "./leads";
 
 const CampaignSchema = z.object({
@@ -22,10 +23,15 @@ const CampaignSchema = z.object({
   maxLeadsPerRun: z.union([z.number().int().positive(), z.null()]),
   dailySendLimit: z.union([z.number().int().positive(), z.null()]),
   notes: z.string().optional(),
+  attachDemo: z.boolean(),
+  demoSelectionMode: z.enum(["Exact", "Automatic", "None"]),
+  demoId: z.string().optional(),
+  requireDemoMatch: z.boolean(),
   openTrackingEnabled: z.boolean(),
   clickTrackingEnabled: z.boolean(),
   replyTrackingEnabled: z.boolean(),
   deliverabilityTestEnabled: z.boolean(),
+  websiteId: z.string().optional(),
 });
 
 function numOrNull(v: FormDataEntryValue | null): number | null {
@@ -51,14 +57,29 @@ export async function saveCampaignAction(formData: FormData): Promise<ActionResu
     maxLeadsPerRun: numOrNull(formData.get("maxLeadsPerRun")),
     dailySendLimit: numOrNull(formData.get("dailySendLimit")),
     notes: String(formData.get("notes") || ""),
+    attachDemo: formData.get("attachDemo") === "on" || formData.get("attachDemo") === "true",
+    demoSelectionMode: String(formData.get("demoSelectionMode") || "None"),
+    demoId: String(formData.get("demoId") || "") || undefined,
+    requireDemoMatch: formData.get("requireDemoMatch") === "on" || formData.get("requireDemoMatch") === "true",
     openTrackingEnabled: formData.get("openTrackingEnabled") === "on" || formData.get("openTrackingEnabled") === "true",
     clickTrackingEnabled: formData.get("clickTrackingEnabled") === "on" || formData.get("clickTrackingEnabled") === "true",
     replyTrackingEnabled: formData.get("replyTrackingEnabled") === "on" || formData.get("replyTrackingEnabled") === "true",
     deliverabilityTestEnabled: formData.get("deliverabilityTestEnabled") === "on" || formData.get("deliverabilityTestEnabled") === "true",
+    websiteId: String(formData.get("websiteId") || "") || undefined,
   });
 
   if (!parsed.success) {
     return { success: false, message: parsed.error.issues[0]?.message ?? "Invalid campaign data." };
+  }
+
+  // Exact mode requires a real, active Demo ID up front -- never persisted as "Exact" with a
+  // blank/dangling id that would silently block outreach later without the operator knowing why.
+  if (parsed.data.attachDemo && parsed.data.demoSelectionMode === "Exact") {
+    const demoId = (parsed.data.demoId ?? "").trim();
+    if (!demoId) return { success: false, message: "Exact mode requires selecting a demo." };
+    const demo = await getDemo(demoId);
+    if (!demo) return { success: false, message: `Unknown demo "${demoId}".` };
+    if (!demo.active) return { success: false, message: `"${demo.name || demo.demoType}" is inactive — choose an active demo or a different mode.` };
   }
 
   try {
@@ -79,10 +100,15 @@ export async function saveCampaignAction(formData: FormData): Promise<ActionResu
       maxLeadsPerRun: parsed.data.maxLeadsPerRun,
       dailySendLimit: parsed.data.dailySendLimit,
       notes: parsed.data.notes,
+      attachDemo: parsed.data.attachDemo,
+      demoSelectionMode: parsed.data.demoSelectionMode as DemoSelectionMode,
+      demoId: parsed.data.demoSelectionMode === "Exact" ? parsed.data.demoId : undefined,
+      requireDemoMatch: parsed.data.requireDemoMatch,
       openTrackingEnabled: parsed.data.openTrackingEnabled,
       clickTrackingEnabled: parsed.data.clickTrackingEnabled,
       replyTrackingEnabled: parsed.data.replyTrackingEnabled,
       deliverabilityTestEnabled: parsed.data.deliverabilityTestEnabled,
+      websiteId: parsed.data.websiteId,
       createdAt: existing?.createdAt ?? new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };

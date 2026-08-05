@@ -23,6 +23,7 @@ const EVENT_LABELS: Partial<Record<AnalyticsEventType, { label: string; tone: Ti
   delivery_failed: { label: "Delivery failed", tone: "danger" },
   hard_bounce: { label: "Hard bounce", tone: "danger" },
   soft_bounce: { label: "Soft bounce", tone: "warning" },
+  deferred: { label: "Delivery deferred (temporary)", tone: "warning" },
   open: { label: "Email opened (estimated)", tone: "default" },
   click: { label: "Link clicked", tone: "default" },
   unsubscribe: { label: "Unsubscribed", tone: "warning" },
@@ -45,6 +46,14 @@ function eventDescription(event: AnalyticsEvent): string | undefined {
   return undefined;
 }
 
+/** True video-watch analytics need the hosting provider's own telemetry (Cloudinary, etc.), which
+ *  isn't integrated -- a click on the demo link is the closest real, non-fabricated signal
+ *  available today, so it's labeled distinctly rather than claimed as "viewed". */
+function labelFor(e: AnalyticsEvent, meta: { label: string; tone: TimelineEvent["tone"] }): string {
+  if (e.type === "click" && e.demoId) return "Demo link clicked";
+  return meta.label;
+}
+
 function analyticsEventsToTimeline(events: AnalyticsEvent[]): TimelineEvent[] {
   return events
     .map((e) => {
@@ -52,7 +61,7 @@ function analyticsEventsToTimeline(events: AnalyticsEvent[]): TimelineEvent[] {
       if (!meta) return null;
       const entry: TimelineEvent = {
         id: `evt-${e.id}`,
-        label: meta.label,
+        label: labelFor(e, meta),
         description: eventDescription(e),
         timestamp: e.timestamp,
         tone: meta.tone,
@@ -145,6 +154,7 @@ const CAMPAIGN_EVENT_LABELS: Partial<Record<AnalyticsEventType, { label: string;
   lead_approved: { label: "Lead approved", tone: "success" },
   lead_rejected: { label: "Lead rejected", tone: "warning" },
   hard_bounce: { label: "Hard bounce", tone: "danger" },
+  deferred: { label: "Delivery deferred (temporary)", tone: "warning" },
   complaint: { label: "Spam complaint", tone: "danger" },
   unsubscribe: { label: "Unsubscribe", tone: "warning" },
   positive_reply: { label: "Positive reply", tone: "success" },

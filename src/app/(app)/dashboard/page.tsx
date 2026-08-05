@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 
 import { getConnectionStatus, getErrors, getKnowledgeBase, getLeadMemory, getLeads, isUsingMockData } from "@/lib/data/repository";
 import { getCampaigns } from "@/lib/data/campaigns-store";
+import { getDemoLibrary } from "@/lib/data/demo-library-store";
 import { getLastSyncAt } from "@/lib/data/cache";
 import { computeDashboardMetrics, leadsByCountry, leadsByIndustry, leadsByService, leadsByStatus } from "@/lib/calculations/dashboard-metrics";
 import { buildActivityFeed } from "@/lib/calculations/activity";
@@ -21,7 +22,7 @@ import { getAutomationStatusAction, getConfiguredActionsAction } from "@/lib/n8n
 import { isN8nApiKeyRequiredButMissing } from "@/lib/config/env-validation";
 
 export default async function DashboardPage() {
-  const [leads, memory, errors, automationStatus, connection, knowledgeBase, campaigns, configuredActionsRaw] = await Promise.all([
+  const [leads, memory, errors, automationStatus, connection, knowledgeBase, campaigns, configuredActionsRaw, demos] = await Promise.all([
     getLeads(),
     getLeadMemory(),
     getErrors(),
@@ -30,6 +31,7 @@ export default async function DashboardPage() {
     getKnowledgeBase(),
     getCampaigns(),
     getConfiguredActionsAction(),
+    getDemoLibrary(),
   ]);
 
   const metrics = computeDashboardMetrics(leads);
@@ -57,6 +59,7 @@ export default async function DashboardPage() {
     sheetsConnected: connection.connected,
     knowledgeBaseUpdatedAt: knowledgeBase.updatedAt,
     n8nApiKeyRequiredButMissing: isN8nApiKeyRequiredButMissing(),
+    demos,
   };
   const readinessByCampaignId = Object.fromEntries(
     activeCampaigns.map((c) => [c.id, computeCampaignReadiness({ ...readinessBase, selectedCampaign: c })])

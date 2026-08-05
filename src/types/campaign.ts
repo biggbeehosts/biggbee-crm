@@ -2,6 +2,10 @@ export type CampaignStatus = "Active" | "Paused" | "Draft";
 
 export const CAMPAIGN_STATUSES: CampaignStatus[] = ["Active", "Paused", "Draft"];
 
+export type DemoSelectionMode = "Exact" | "Automatic" | "None";
+
+export const DEMO_SELECTION_MODES: DemoSelectionMode[] = ["Exact", "Automatic", "None"];
+
 /** Readable, stable Campaign ID format -- e.g. CMP-000001. Assigned once, on creation, and never
  *  changes when a campaign is renamed or edited. */
 export const CAMPAIGN_ID_PATTERN = /^CMP-\d{6,}$/;
@@ -23,11 +27,27 @@ export interface Campaign {
   businessType?: string;
   service?: string;
   leadGenerationType?: string;
+  /** Targeting language, e.g. "English", "Spanish" -- matched against DemoRecord.language in the
+   *  demo-selection cascade (Stage 6, Part 7) and, once linked, against the Website Registry's
+   *  knowledge base for this campaign. */
+  language?: string;
   /** 0-100; null = no confidence requirement. */
   minConfidence: number | null;
   maxLeadsPerRun: number | null;
   dailySendLimit: number | null;
   notes?: string;
+  /** Whether this campaign attaches a demo at all -- false short-circuits selection entirely
+   *  regardless of demoSelectionMode/demoId (see resolveCampaignDemo). */
+  attachDemo: boolean;
+  /** Persisted Demo ID, never a display name -- resolved against the live Demo Library at run
+   *  time, not cached/denormalized, so a demo edited or deactivated after assignment is caught. */
+  demoId?: string;
+  demoSelectionMode: DemoSelectionMode;
+  /** Automatic mode with no match, or Exact mode with an invalid Demo ID: true blocks the run
+   *  entirely; false allows sending without a demo (logged, never silent). Exact-mode-invalid is
+   *  always blocking regardless of this flag -- an explicitly assigned demo disappearing is
+   *  never treated as "no preference." */
+  requireDemoMatch: boolean;
   /** Stage 5 tracking toggles (Part C). n8n's Prepare Final Email node reads these (via the same
    *  Campaigns-sheet lookup it already does for demo resolution) to decide whether to inject the
    *  tracking pixel / wrap links for this campaign's sends. Default true/true/true/false per
@@ -36,6 +56,10 @@ export interface Campaign {
   clickTrackingEnabled: boolean;
   replyTrackingEnabled: boolean;
   deliverabilityTestEnabled: boolean;
+  /** Optional link to a Website Registry entry (Stage 6, Part 8/9) -- when set, the outreach AI
+   *  uses that site's knowledge base instead of the default (Biggbee's own); when unset, behavior
+   *  is unchanged from before this field existed (falls back to the default KB). */
+  websiteId?: string;
   createdAt: string;
   updatedAt: string;
   /** Row position in the Campaigns sheet tab, used for targeted updates. Absent in mock mode. */

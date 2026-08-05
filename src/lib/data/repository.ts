@@ -1,9 +1,9 @@
 import "server-only";
-import type { DemoRecord, ErrorRecord, KnowledgeBaseRecord, Lead, LeadMemory, UnknownSender } from "@/types";
-import { MOCK_DEMO_LIBRARY, MOCK_ERRORS, MOCK_KNOWLEDGE_BASE, MOCK_LEAD_MEMORY, MOCK_UNKNOWN_SENDERS } from "@/lib/mock";
+import type { ErrorRecord, KnowledgeBaseRecord, Lead, LeadMemory, UnknownSender } from "@/types";
+import { MOCK_ERRORS, MOCK_KNOWLEDGE_BASE, MOCK_LEAD_MEMORY, MOCK_UNKNOWN_SENDERS } from "@/lib/mock";
 import { getDataMode, SHEET_TAB_NAMES, getSheetsEnv, maskSheetId, getMissingSheetsEnv } from "./config";
 import { fetchSheetRows, rowsToObjects } from "./sheets-client";
-import { normalizeDemoRecord, normalizeErrorRecord, normalizeKnowledgeBase, normalizeLead, normalizeLeadMemory, normalizeUnknownSender } from "./normalize";
+import { normalizeErrorRecord, normalizeKnowledgeBase, normalizeLead, normalizeLeadMemory, normalizeUnknownSender } from "./normalize";
 import { getCached, getLastSyncAt, invalidateCache } from "./cache";
 import { getMockLeads } from "./mock-store";
 import type { ConnectionStatus } from "@/types";
@@ -53,16 +53,6 @@ export async function getLeadMemory(): Promise<LeadMemory[]> {
   }
 }
 
-export async function getDemoLibrary(): Promise<DemoRecord[]> {
-  if (getDataMode() === "mock") return MOCK_DEMO_LIBRARY;
-  try {
-    const rows = await safeLoadTab("demoLibrary");
-    return rows.map(normalizeDemoRecord).filter((d) => d.demoType || d.publicWatchUrl || d.fileName);
-  } catch {
-    return [];
-  }
-}
-
 export async function getErrors(): Promise<ErrorRecord[]> {
   if (getDataMode() === "mock") return MOCK_ERRORS;
   try {
@@ -73,15 +63,20 @@ export async function getErrors(): Promise<ErrorRecord[]> {
   }
 }
 
-const EMPTY_KB: KnowledgeBaseRecord = { cacheKey: "latest", knowledgeBaseText: "", updatedAt: null, sourceCount: 0, sections: [] };
+function emptyKb(cacheKey: string): KnowledgeBaseRecord {
+  return { cacheKey, knowledgeBaseText: "", updatedAt: null, sourceCount: 0, sections: [] };
+}
 
-export async function getKnowledgeBase(): Promise<KnowledgeBaseRecord> {
-  if (getDataMode() === "mock") return MOCK_KNOWLEDGE_BASE;
+/** cacheKey defaults to "latest" -- the pre-Stage-6 default site -- so every existing caller is
+ *  unaffected. Stage 6, Part 8 callers pass a specific website's cacheKey to read that site's KB
+ *  instead. */
+export async function getKnowledgeBase(cacheKey: string = "latest"): Promise<KnowledgeBaseRecord> {
+  if (getDataMode() === "mock") return cacheKey === "latest" ? MOCK_KNOWLEDGE_BASE : emptyKb(cacheKey);
   try {
     const rows = await safeLoadTab("kbCache");
-    return normalizeKnowledgeBase(rows);
+    return normalizeKnowledgeBase(rows, cacheKey);
   } catch {
-    return EMPTY_KB;
+    return emptyKb(cacheKey);
   }
 }
 

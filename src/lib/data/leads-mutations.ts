@@ -35,6 +35,19 @@ async function ensureLeadsScraperColumns(): Promise<void> {
   leadsScraperColumnsEnsured = true;
 }
 
+/** Same additive-column pattern, for the Change-3 demo tracking columns (Demo ID, Demo Sent,
+ *  Demo Sent At, Demo Match Reason). n8n's "Log Email Sent" node writes these itself on the
+ *  actual-send-success branch -- this covers the CRM's own read/edit paths. */
+const DEMO_LEAD_HEADERS = ["Demo ID", "Demo Sent", "Demo Sent At", "Demo Match Reason"];
+let leadsDemoColumnsEnsured = false;
+async function ensureLeadsDemoColumns(): Promise<void> {
+  if (leadsDemoColumnsEnsured) return;
+  if (await tabExists(SHEET_TAB_NAMES.leads)) {
+    await ensureTabWithHeaders(SHEET_TAB_NAMES.leads, DEMO_LEAD_HEADERS);
+  }
+  leadsDemoColumnsEnsured = true;
+}
+
 /** Stage 5 (Part A/B/C/D/F) tracking columns. n8n's Log Email Sent node writes Message ID/
  *  Tracking Token itself on send; the pixel/click endpoints and bounce-detection branch write the
  *  rest. This covers the CRM's own read/edit paths the same way ensureLeadsDemoColumns does. */
@@ -94,6 +107,10 @@ function leadToRow(lead: Partial<Lead>): Record<string, string> {
   if (lead.source !== undefined) row.Source = lead.source;
   if (lead.scraperJobId !== undefined) row["Scraper Job ID"] = lead.scraperJobId;
   if (lead.createdAt !== undefined) row["Created At"] = lead.createdAt;
+  if (lead.demoId !== undefined) row["Demo ID"] = lead.demoId;
+  if (lead.demoSent !== undefined) row["Demo Sent"] = lead.demoSent ? "Yes" : "No";
+  if (lead.demoSentAt !== undefined) row["Demo Sent At"] = lead.demoSentAt ?? "";
+  if (lead.demoMatchReason !== undefined) row["Demo Match Reason"] = lead.demoMatchReason;
   if (lead.messageId !== undefined) row["Message ID"] = lead.messageId;
   if (lead.trackingToken !== undefined) row["Tracking Token"] = lead.trackingToken;
   if (lead.n8nExecutionId !== undefined) row["N8N Execution Id"] = lead.n8nExecutionId;
@@ -111,6 +128,7 @@ function leadToRow(lead: Partial<Lead>): Record<string, string> {
 }
 
 const SCRAPER_FIELD_KEYS = ["campaignName", "leadId", "location", "targetService", "source", "scraperJobId", "createdAt"] as const;
+const DEMO_FIELD_KEYS = ["demoId", "demoSent", "demoSentAt", "demoMatchReason"] as const;
 const TRACKING_FIELD_KEYS = [
   "messageId",
   "trackingToken",
@@ -129,6 +147,10 @@ const TRACKING_FIELD_KEYS = [
 
 function touchesScraperColumns(fields: Partial<Lead>): boolean {
   return SCRAPER_FIELD_KEYS.some((k) => fields[k] !== undefined);
+}
+
+function touchesDemoColumns(fields: Partial<Lead>): boolean {
+  return DEMO_FIELD_KEYS.some((k) => fields[k] !== undefined);
 }
 
 function touchesTrackingColumns(fields: Partial<Lead>): boolean {
@@ -155,11 +177,10 @@ export interface LeadEditableFields {
   source?: string;
   scraperJobId?: string;
   createdAt?: string;
-  /** Demo Library fields (Change 3) -- accepted here so the Stage 5 n8n-event webhook's
-   *  "demo_sent" branch type-checks; the Sheets column write path for these lives in Demo
-   *  Library's own additive-column migration, not here. */
+  demoId?: string;
   demoSent?: boolean;
   demoSentAt?: string | null;
+  demoMatchReason?: string;
   messageId?: string;
   trackingToken?: string;
   n8nExecutionId?: string;
@@ -182,6 +203,7 @@ export async function createLead(lead: Lead): Promise<void> {
   }
   if (lead.campaignId !== undefined) await ensureLeadsCampaignIdColumn();
   if (touchesScraperColumns(lead)) await ensureLeadsScraperColumns();
+  if (touchesDemoColumns(lead)) await ensureLeadsDemoColumns();
   if (touchesTrackingColumns(lead)) await ensureLeadsTrackingColumns();
   await appendRow(SHEET_TAB_NAMES.leads, leadToRow(lead));
   invalidateCache();
@@ -194,6 +216,7 @@ export async function updateLeadFields(email: string, fields: LeadEditableFields
   }
   if (fields.campaignId !== undefined) await ensureLeadsCampaignIdColumn();
   if (touchesScraperColumns(fields)) await ensureLeadsScraperColumns();
+  if (touchesDemoColumns(fields)) await ensureLeadsDemoColumns();
   if (touchesTrackingColumns(fields)) await ensureLeadsTrackingColumns();
   const current = await findLeadRowUncached(email);
   if (!current?.rowNumber) throw new Error(`Lead "${email}" was not found in the Leads sheet.`);
