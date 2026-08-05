@@ -45,6 +45,20 @@ export function getN8nApiKey(): string {
   return (process.env.N8N_API_KEY ?? "").trim();
 }
 
+/** "Open in n8n" link target (Part B) -- N8N_BASE_URL is a hostname, not a secret, so it's safe
+ *  to hand a fully-formed link to the browser; the API keys never travel this way. Returns null
+ *  when N8N_BASE_URL or the workflow ID isn't set, so the button can be hidden/disabled honestly. */
+export function getN8nEditorUrl(workflowId: string): string | null {
+  const base = getN8nBaseUrl();
+  if (!base || !workflowId.trim()) return null;
+  return `${base}/workflow/${encodeURIComponent(workflowId)}`;
+}
+
+/** Part F: the Advanced Workflow Update section is disabled by default -- opt in explicitly. */
+export function isAdvancedUpdatesEnabled(): boolean {
+  return (process.env.ADVANCED_WORKFLOW_UPDATES_ENABLED ?? "").trim().toLowerCase() === "true";
+}
+
 /** Joins a bare path onto N8N_BASE_URL, or passes a full URL through unchanged. Shared by the
  *  fixed action webhooks above and by scraper-agent webhook resolution below. */
 function joinOrPassThrough(raw: string): string | null {
