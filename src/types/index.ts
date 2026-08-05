@@ -11,3 +11,4 @@ export * from "./options";
 export * from "./scraper";
 export * from "./analytics-event";
 export * from "./deliverability";
+export * from "./website-registry";
