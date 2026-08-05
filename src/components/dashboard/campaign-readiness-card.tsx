@@ -1,6 +1,7 @@
 import { CheckCircle2, AlertTriangle, PlugZap, ShieldCheck } from "lucide-react";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { IconBadge } from "@/components/ui/icon-badge";
 import type { CampaignReadiness, ReadinessState } from "@/lib/calculations/campaign-readiness";
 
 const STATE_META: Record<ReadinessState, { label: string; icon: typeof CheckCircle2; tone: string; badge: "success" | "warning" | "outline" }> = {
@@ -14,9 +15,7 @@ export function CampaignReadinessCard({ readiness }: { readiness: CampaignReadin
     <Card>
       <CardHeader>
         <div className="flex items-center gap-2.5">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-panel text-text-secondary">
-            <ShieldCheck className="h-4 w-4" />
-          </div>
+          <IconBadge icon={ShieldCheck} />
           <div>
             <CardTitle>Campaign Readiness</CardTitle>
             <CardDescription>Checks run against the data already in the CRM</CardDescription>

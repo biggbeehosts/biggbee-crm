@@ -1,5 +1,6 @@
 import type { LucideIcon } from "lucide-react";
 import { Card } from "./card";
+import { IconBadge, type IconBadgeTone } from "./icon-badge";
 import { cn } from "@/lib/utils/cn";
 
 interface StatCardProps {
@@ -8,28 +9,16 @@ interface StatCardProps {
   icon?: LucideIcon;
   hint?: string;
   trend?: { value: number; positive?: boolean };
-  tone?: "default" | "accent" | "success" | "warning" | "danger";
+  tone?: IconBadgeTone;
   className?: string;
 }
-
-const TONE_ICON: Record<NonNullable<StatCardProps["tone"]>, string> = {
-  default: "bg-panel text-text-secondary",
-  accent: "bg-accent-soft text-accent-strong",
-  success: "bg-success/10 text-success",
-  warning: "bg-warning/10 text-warning",
-  danger: "bg-danger/10 text-danger",
-};
 
 export function StatCard({ label, value, icon: Icon, hint, trend, tone = "default", className }: StatCardProps) {
   return (
     <Card className={cn("p-5", className)}>
       <div className="flex items-start justify-between">
         <p className="text-xs font-medium text-text-tertiary">{label}</p>
-        {Icon && (
-          <div className={cn("flex h-8 w-8 items-center justify-center rounded-lg", TONE_ICON[tone])}>
-            <Icon className="h-4 w-4" />
-          </div>
-        )}
+        {Icon && <IconBadge icon={Icon} tone={tone} />}
       </div>
       <p className="mt-2 text-2xl font-semibold tracking-tight text-text-primary">{value}</p>
       {(hint || trend) && (

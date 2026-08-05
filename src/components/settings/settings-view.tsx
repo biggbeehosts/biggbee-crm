@@ -2,28 +2,38 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { BookOpen, RefreshCw } from "lucide-react";
+import { BookOpen, RefreshCw, Sheet, ShieldCheck, Workflow, Palette } from "lucide-react";
 import type { ConnectionStatus, KnowledgeBaseRecord } from "@/types";
 import type { EnvValidation } from "@/lib/config/env-validation";
+import type { N8nActionKey } from "@/lib/n8n/config";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
+import { IconBadge } from "@/components/ui/icon-badge";
 import { daysSince, formatDateTime, formatRelativeTime } from "@/lib/utils/date";
 import { refreshDataAction } from "@/lib/actions/leads";
 import { useUIState } from "@/components/layout/ui-state-provider";
 import { useN8nAction } from "@/lib/n8n/hooks";
+
+interface N8nActionStatus {
+  action: N8nActionKey;
+  label: string;
+  configured: boolean;
+}
 
 export function SettingsView({
   status,
   env,
   knowledgeBase,
   refreshKbConfigured,
+  n8nActions,
 }: {
   status: ConnectionStatus;
   env: EnvValidation;
   knowledgeBase: KnowledgeBaseRecord;
   refreshKbConfigured: boolean;
+  n8nActions: N8nActionStatus[];
 }) {
   const router = useRouter();
   const { theme, toggleTheme } = useUIState();
@@ -55,9 +65,12 @@ export function SettingsView({
     <div className="max-w-2xl space-y-6">
       <Card>
         <CardHeader>
-          <div>
-            <CardTitle>Google Sheets</CardTitle>
-            <CardDescription>The workflow&apos;s spreadsheet is the only data source for this dashboard</CardDescription>
+          <div className="flex items-center gap-2.5">
+            <IconBadge icon={Sheet} tone="accent" />
+            <div>
+              <CardTitle>Google Sheets</CardTitle>
+              <CardDescription>The workflow&apos;s spreadsheet is the only data source for this dashboard</CardDescription>
+            </div>
           </div>
           <Badge variant={status.mode === "mock" ? "accent" : status.connected ? "success" : "danger"}>
             {status.mode === "mock" ? "Mock mode" : status.connected ? "Connected" : "Error"}
@@ -97,9 +110,12 @@ export function SettingsView({
 
       <Card>
         <CardHeader>
-          <div>
-            <CardTitle>Knowledge Base</CardTitle>
-            <CardDescription>The n8n-crawled biggbees.com content the AI uses as its source of truth</CardDescription>
+          <div className="flex items-center gap-2.5">
+            <IconBadge icon={BookOpen} tone="accent" />
+            <div>
+              <CardTitle>Knowledge Base</CardTitle>
+              <CardDescription>The n8n-crawled biggbees.com content the AI uses as its source of truth</CardDescription>
+            </div>
           </div>
           <Badge variant={kbFresh ? "success" : "warning"}>{kbFresh ? "In sync" : knowledgeBase.updatedAt ? "May be stale" : "Never synced"}</Badge>
         </CardHeader>
@@ -128,9 +144,12 @@ export function SettingsView({
 
       <Card>
         <CardHeader>
-          <div>
-            <CardTitle>Configuration</CardTitle>
-            <CardDescription>Environment check — variable names only, never values</CardDescription>
+          <div className="flex items-center gap-2.5">
+            <IconBadge icon={ShieldCheck} />
+            <div>
+              <CardTitle>Configuration</CardTitle>
+              <CardDescription>Environment check — variable names only, never values</CardDescription>
+            </div>
           </div>
           <Badge variant={env.valid ? "success" : "danger"}>{env.valid ? "Ready" : `${env.errors.length} to fix`}</Badge>
         </CardHeader>
@@ -160,9 +179,36 @@ export function SettingsView({
 
       <Card>
         <CardHeader>
-          <div>
-            <CardTitle>Theme</CardTitle>
-            <CardDescription>Stored in this browser only</CardDescription>
+          <div className="flex items-center gap-2.5">
+            <IconBadge icon={Workflow} tone="accent" />
+            <div>
+              <CardTitle>n8n Automation</CardTitle>
+              <CardDescription>Which workflow webhooks are connected — never the URLs or the API key</CardDescription>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-1.5">
+          {n8nActions.map(({ action, label, configured }) => (
+            <div key={action} className="flex items-center justify-between rounded-lg px-2.5 py-1.5 text-sm">
+              <span className="text-text-secondary">{label}</span>
+              <Badge variant={configured ? "success" : "outline"}>{configured ? "Connected" : "Not connected"}</Badge>
+            </div>
+          ))}
+          <p className="pt-1 text-[11px] text-text-tertiary">
+            Set the corresponding <span className="font-mono">N8N_WEBHOOK_*</span> variable to connect an action — see the README&apos;s
+            n8n integration section.
+          </p>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <div className="flex items-center gap-2.5">
+            <IconBadge icon={Palette} />
+            <div>
+              <CardTitle>Theme</CardTitle>
+              <CardDescription>Stored in this browser only</CardDescription>
+            </div>
           </div>
         </CardHeader>
         <CardContent>

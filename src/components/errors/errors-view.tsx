@@ -134,6 +134,7 @@ export function ErrorsView({ errors }: { errors: ErrorRecord[] }) {
                 <div key={err.id}>
                   <button
                     onClick={() => setExpanded(isOpen ? null : err.id)}
+                    aria-expanded={isOpen}
                     className="flex w-full items-start gap-3 px-4 py-3 text-left transition-colors hover:bg-panel"
                   >
                     {isOpen ? (

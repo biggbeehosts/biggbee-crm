@@ -98,6 +98,7 @@ export function KnowledgeBaseView({ kb, refreshKbConfigured }: { kb: KnowledgeBa
               <Card key={section.title} className="overflow-hidden">
                 <button
                   onClick={() => toggle(section.title)}
+                  aria-expanded={!isCollapsed}
                   className="flex w-full items-center gap-2.5 px-5 py-3.5 text-left transition-colors hover:bg-panel"
                 >
                   {isCollapsed ? <ChevronRight className="h-4 w-4 text-text-tertiary" /> : <ChevronDown className="h-4 w-4 text-text-tertiary" />}

@@ -6,6 +6,7 @@ import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/ca
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
+import { IconBadge } from "@/components/ui/icon-badge";
 import { useAutomationStatus, useN8nAction } from "@/lib/n8n/hooks";
 import type { N8nActionKey } from "@/lib/n8n/config";
 import type { AutomationStatusResult, WorkflowState } from "@/lib/n8n/types";
@@ -142,9 +143,7 @@ export function AutomationCard({
     <Card>
       <CardHeader>
         <div className="flex items-center gap-2.5">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-accent-soft text-accent-strong">
-            <Workflow className="h-4 w-4" />
-          </div>
+          <IconBadge icon={Workflow} tone="accent" />
           <div>
             <CardTitle>Automation</CardTitle>
             <CardDescription>The n8n outreach workflow — controlled from here, executed in n8n</CardDescription>

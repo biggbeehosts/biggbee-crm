@@ -43,7 +43,7 @@ export function Header({ attentionCount = 0, adminEmail = "" }: { attentionCount
 
   return (
     <header className="sticky top-0 z-20 flex h-16 shrink-0 items-center gap-3 border-b border-border-subtle bg-surface/80 px-4 backdrop-blur-md lg:px-6">
-      <Button variant="ghost" size="icon" className="lg:hidden" onClick={() => setMobileNavOpen(true)}>
+      <Button variant="ghost" size="icon" className="lg:hidden" onClick={() => setMobileNavOpen(true)} aria-label="Open navigation menu">
         <Menu className="h-5 w-5" />
       </Button>
 
@@ -75,17 +75,17 @@ export function Header({ attentionCount = 0, adminEmail = "" }: { attentionCount
       </form>
 
       <div className="flex items-center gap-1.5">
-        <Button variant="ghost" size="icon" onClick={handleRefresh} title="Refresh data">
+        <Button variant="ghost" size="icon" onClick={handleRefresh} title="Refresh data" aria-label="Refresh data">
           <RefreshCw className={refreshing ? "h-4 w-4 animate-spin" : "h-4 w-4"} />
         </Button>
 
-        <Button variant="ghost" size="icon" onClick={toggleTheme} title="Toggle theme">
+        <Button variant="ghost" size="icon" onClick={toggleTheme} title="Toggle theme" aria-label="Toggle theme">
           {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
         </Button>
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon" className="relative" title="Needs attention">
+            <Button variant="ghost" size="icon" className="relative" title="Needs attention" aria-label={`Needs attention${attentionCount > 0 ? ` (${attentionCount})` : ""}`}>
               <Bell className="h-4 w-4" />
               {attentionCount > 0 && (
                 <span className="absolute right-1 top-1 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-danger text-[9px] font-bold text-white">
@@ -110,7 +110,7 @@ export function Header({ attentionCount = 0, adminEmail = "" }: { attentionCount
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <button className="ml-1 flex h-8 w-8 items-center justify-center rounded-full bg-accent-soft text-xs font-semibold text-accent-strong">
+            <button className="ml-1 flex h-8 w-8 items-center justify-center rounded-full bg-accent-soft text-xs font-semibold text-accent-strong" aria-label="Account menu">
               {initials(adminEmail || "Admin")}
             </button>
           </DropdownMenuTrigger>

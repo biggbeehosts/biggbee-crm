@@ -19,9 +19,21 @@ const STAGE_ACCENT: Record<PipelineStage, string> = {
   Unsubscribed: "border-t-zinc-500",
 };
 
+/** Count badge tone per stage, so the number reads at a glance instead of all looking identical. */
+const STAGE_BADGE: Record<PipelineStage, "outline" | "accent" | "warning" | "success" | "danger"> = {
+  New: "outline",
+  Contacted: "accent",
+  Interested: "warning",
+  "Meeting Booked": "accent",
+  Customer: "success",
+  Failed: "danger",
+  Unsubscribed: "outline",
+};
+
 export function KanbanBoard({ leads }: { leads: Lead[] }) {
   const [localLeads, setLocalLeads] = React.useState(leads);
   const [draggingEmail, setDraggingEmail] = React.useState<string | null>(null);
+  const [savingEmail, setSavingEmail] = React.useState<string | null>(null);
   const [dragOverStage, setDragOverStage] = React.useState<PipelineStage | null>(null);
   const [notice, setNotice] = React.useState<string | null>(null);
 
@@ -49,12 +61,14 @@ export function KanbanBoard({ leads }: { leads: Lead[] }) {
 
     const previousStatus = current.status;
     setLocalLeads((prev) => prev.map((l) => (l.email === email ? { ...l, status: stage } : l)));
+    setSavingEmail(email);
 
     const result = await updateLeadStatusAction(email, stage);
     if (!result.success) {
       setLocalLeads((prev) => prev.map((l) => (l.email === email ? { ...l, status: previousStatus } : l)));
       setNotice(result.message);
     }
+    setSavingEmail(null);
   }
 
   return (
@@ -89,17 +103,17 @@ export function KanbanBoard({ leads }: { leads: Lead[] }) {
             >
               <div className="flex items-center justify-between px-3 py-2.5">
                 <p className="text-xs font-semibold text-text-primary">{stage}</p>
-                <Badge>{items.length}</Badge>
+                <Badge variant={STAGE_BADGE[stage]}>{items.length}</Badge>
               </div>
               <div className="flex-1 space-y-2 overflow-y-auto px-3 pb-3" style={{ minHeight: 120, maxHeight: 560 }}>
                 {items.map((lead) => (
                   <div
                     key={lead.email}
-                    draggable
+                    draggable={savingEmail !== lead.email}
                     onDragStart={() => setDraggingEmail(lead.email)}
                     onDragEnd={() => setDraggingEmail(null)}
                   >
-                    <KanbanCard lead={lead} dragging={draggingEmail === lead.email} />
+                    <KanbanCard lead={lead} dragging={draggingEmail === lead.email} saving={savingEmail === lead.email} />
                   </div>
                 ))}
                 {items.length === 0 && <p className="py-6 text-center text-[11px] text-text-tertiary">No leads in this stage</p>}

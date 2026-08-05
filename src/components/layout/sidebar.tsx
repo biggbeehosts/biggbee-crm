@@ -72,6 +72,7 @@ export function Sidebar({ connected, mode }: { connected: boolean; mode: "mock" 
 
         <button
           onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+          aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
           className="flex w-full items-center justify-center gap-2 rounded-lg border border-border-subtle py-1.5 text-xs font-medium text-text-tertiary transition-colors hover:bg-panel hover:text-text-primary"
         >
           {sidebarCollapsed ? <ChevronsRight className="h-3.5 w-3.5" /> : <ChevronsLeft className="h-3.5 w-3.5" />}
