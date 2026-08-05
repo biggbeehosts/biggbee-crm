@@ -2,6 +2,16 @@ export type ScraperAgentStatus = "Active" | "Disabled" | "Maintenance";
 
 export const SCRAPER_AGENT_STATUSES: ScraperAgentStatus[] = ["Active", "Disabled", "Maintenance"];
 
+/** Stage 6, Part 1/9: which Automation Hub sub-page this agent belongs under. "Lead Source" is
+ *  every agent that scrapes/imports leads (Google Maps, Instagram, ...); "AI Agent" is every
+ *  other automation registered the same way (voice agent, cold calling, appointment booking,
+ *  ...). Both kinds share one store/type/form -- this field is purely a display split, never a
+ *  behavioral one. Defaults to "Lead Source" for every agent registered before this field existed
+ *  (see backfill() in scraper-registry-store.ts), so existing agents are unaffected. */
+export type ScraperAgentCategory = "Lead Source" | "AI Agent";
+
+export const SCRAPER_AGENT_CATEGORIES: ScraperAgentCategory[] = ["Lead Source", "AI Agent"];
+
 /**
  * How the CRM learns a run has finished. "sync-response" covers every scraper today: the start
  * webhook blocks (n8n's default webhook behavior, same as the existing Run Campaign webhook) and
@@ -13,6 +23,26 @@ export type ScraperStatusMethod = "sync-response" | "poll-admin-api" | "webhook-
 export type ScraperResultMethod = "sheet" | "poll-admin-api" | "webhook-callback";
 
 export type ScraperAuthType = "header-auth" | "none";
+
+/** Shared vocabulary with WorkflowIntegration (src/types/workflow-registry.ts) -- a scraper
+ *  agent IS the Scraper-purpose entry in the Change 4 workflow registry, so these fields live
+ *  directly on ScraperAgent instead of a second, easily-drifting store. All new fields are
+ *  optional/backfilled at read time (see scraper-registry-store.ts) so pre-Change-4 agent
+ *  records keep working with no migration step. */
+export type WorkflowConnectionStatus = "connected" | "error" | "unknown" | "unconfigured";
+
+/** One historical workflow assignment -- what Replace Assignment and the Advanced "deploy as new
+ *  version" action append to, and what Rollback reads from. The n8n workflow a version points
+ *  away from is never edited or deleted (Parts C/F). */
+export interface ScraperVersionEntry {
+  n8nWorkflowId: string;
+  startWebhookPath: string;
+  startWebhookEnvVar?: string;
+  versionHash: string | null;
+  note: string;
+  createdAt: string;
+  createdBy: string;
+}
 
 export type ScraperFieldType =
   | "text"
@@ -61,6 +91,17 @@ export interface ScraperAgent {
   /** lucide-react icon name, looked up through a fixed allowlist -- never dynamically imported. */
   icon: string;
   status: ScraperAgentStatus;
+  /** Stage 6, Part 1/9 -- see ScraperAgentCategory doc comment. */
+  category: ScraperAgentCategory;
+  /** Stage 6, Part 2 registry capability flags -- informational, shown as badges in the Automation
+   *  Hub / Scraper Registry cards. supportsCampaigns is true for every agent today (campaign
+   *  selection is already hard-required in the run payload); the other three describe whether the
+   *  agent's own flow includes a review-before-import step, a bulk approve/reject action, and
+   *  duplicate-lead detection respectively -- set per agent, never assumed. */
+  supportsCampaigns: boolean;
+  supportsPreview: boolean;
+  supportsApproval: boolean;
+  supportsDuplicateDetection: boolean;
   n8nWorkflowId: string;
   startWebhookPath: string;
   /** Optional alternative to startWebhookPath: the name of an env var (e.g.
@@ -75,6 +116,20 @@ export interface ScraperAgent {
   /** Which normalized Lead fields this scraper can populate -- informational, shown in the UI. */
   supportedFields: string[];
   formSchema: ScraperFormSchema;
+  /** Change 4 registry fields -- see WorkflowConnectionStatus doc comment above. Defaulted at
+   *  read time for records created before this change. */
+  connectionStatus: WorkflowConnectionStatus;
+  lastVerifiedAt: string | null;
+  lastSuccessfulExecution: string | null;
+  lastFailedExecution: string | null;
+  lastErrorSummary?: string;
+  currentVersionHash: string | null;
+  /** Field names the CRM guarantees to send / expects back -- shown read-only in the Workflow
+   *  Control card (Part B "View Input/Output Schema"); the actual contract is enforced in code
+   *  (see ScraperRunPayload / contract-validation.ts), not driven by this list. */
+  expectedInputSchema: string[];
+  expectedOutputSchema: string[];
+  versionHistory: ScraperVersionEntry[];
   createdAt: string;
   updatedAt: string;
 }
@@ -120,18 +175,39 @@ export interface ScrapingJob {
   createdBy: string;
   /** Row position in the Scraping_Jobs sheet tab, used for targeted updates. Absent in mock mode. */
   rowNumber?: number;
+  /** True for a Part C/J.10 one-result validation run -- clamped to requestedCount 1 by the
+   *  server action regardless of what was asked for. Kept in run history like any other job,
+   *  just labeled, so a dry run is never confused with a real production run. */
+  isDryRun?: boolean;
 }
 
-/** Body sent to a scraper's start webhook -- matches the RunCampaignPayload contract's already-
- *  anticipated shape (see n8n/types.ts). n8n validates campaignId, executes the scraper,
- *  normalizes results, and writes them into the Leads sheet with Status = Staged before this
- *  call's HTTP response (which carries the counts below) ever returns. */
+/**
+ * Body sent to a scraper's start webhook. This is the Part D generic scraper execution
+ * contract -- every scraper receives the same shape, so the n8n side stays one generic,
+ * configuration-driven workflow rather than one bespoke workflow per source. `source`,
+ * `version` and `campaign` are additive on top of the fields the already-live Google Maps /
+ * Instagram workflows were verified against in Change 2 (scraperId, campaignId, jobId,
+ * requestedCount, inputs) -- n8n ignores unknown fields, so adding these never breaks an
+ * existing, already-verified webhook.
+ */
 export interface ScraperRunPayload {
+  version: 1;
+  jobId: string;
   scraperId: string;
   campaignId: string;
-  jobId: string;
   requestedCount: number;
+  /** The scraper's sourceLabel, slugified (e.g. "google-maps") -- lets one generic n8n workflow
+   *  branch on source without needing a different webhook per scraper. */
+  source: string;
   inputs: Record<string, unknown>;
+  /** Targeting context copied from the live Campaign record at call time (never cached/denormalized
+   *  onto the agent) -- informational for the n8n workflow/operator, not a lead-selection filter. */
+  campaign: {
+    targetService: string | null;
+    industry: string | null;
+    businessType: string | null;
+    leadGenerationType: string | null;
+  };
 }
 
 export interface ScraperRunResult {

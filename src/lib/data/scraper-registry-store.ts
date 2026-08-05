@@ -1,5 +1,5 @@
 import "server-only";
-import type { ScraperAgent } from "@/types";
+import type { ScraperAgent, ScraperVersionEntry, WorkflowConnectionStatus } from "@/types";
 import { readCollection, writeCollection } from "@/lib/store/json-store";
 
 /**
@@ -25,6 +25,11 @@ const SEED_AGENTS: ScraperAgent[] = [
     description: "Finds local businesses on Google Maps by category and location via the Apify Google Maps actor.",
     icon: "MapPin",
     status: "Active",
+    category: "Lead Source",
+    supportsCampaigns: true,
+    supportsPreview: true,
+    supportsApproval: true,
+    supportsDuplicateDetection: true,
     n8nWorkflowId: "xY88FLKziuAcHEmI",
     startWebhookPath: "webhook/biggbee/scrape-google-maps",
     statusMethod: "sync-response",
@@ -34,6 +39,14 @@ const SEED_AGENTS: ScraperAgent[] = [
     maxAllowedLeads: 200,
     sourceLabel: "Google Maps",
     supportedFields: ["company", "email", "phone", "website", "country", "location", "industry", "businessType"],
+    connectionStatus: "unknown",
+    lastVerifiedAt: null,
+    lastSuccessfulExecution: null,
+    lastFailedExecution: null,
+    currentVersionHash: null,
+    expectedInputSchema: ["version", "jobId", "scraperId", "campaignId", "requestedCount", "source", "inputs", "campaign"],
+    expectedOutputSchema: ["jobId", "campaignId", "status", "scrapedCount", "importedCount", "error"],
+    versionHistory: [],
     formSchema: [
       { key: "campaignId", label: "Campaign", type: "campaign-selector", required: true, helpText: "Every scraped lead is tagged with this Campaign ID." },
       { key: "category", label: "Business category / service", type: "text", required: true, placeholder: "Dental clinics" },
@@ -54,6 +67,11 @@ const SEED_AGENTS: ScraperAgent[] = [
     description: "Discovers Instagram business profiles by niche and location, then enriches each via the Apify Instagram profile actor.",
     icon: "Camera",
     status: "Active",
+    category: "Lead Source",
+    supportsCampaigns: true,
+    supportsPreview: true,
+    supportsApproval: true,
+    supportsDuplicateDetection: true,
     n8nWorkflowId: "XsrhokyTGbYVHnGN",
     startWebhookPath: "webhook/biggbee/scrape-instagram",
     statusMethod: "sync-response",
@@ -63,6 +81,14 @@ const SEED_AGENTS: ScraperAgent[] = [
     maxAllowedLeads: 100,
     sourceLabel: "Instagram",
     supportedFields: ["name", "email", "phone", "website", "location", "country"],
+    connectionStatus: "unknown",
+    lastVerifiedAt: null,
+    lastSuccessfulExecution: null,
+    lastFailedExecution: null,
+    currentVersionHash: null,
+    expectedInputSchema: ["version", "jobId", "scraperId", "campaignId", "requestedCount", "source", "inputs", "campaign"],
+    expectedOutputSchema: ["jobId", "campaignId", "status", "scrapedCount", "importedCount", "error"],
+    versionHistory: [],
     formSchema: [
       { key: "campaignId", label: "Campaign", type: "campaign-selector", required: true, helpText: "Every scraped lead is tagged with this Campaign ID." },
       { key: "niche", label: "Niche / service", type: "text", required: true, placeholder: "Lead generation agencies" },
@@ -80,8 +106,36 @@ const SEED_AGENTS: ScraperAgent[] = [
   },
 ];
 
+/** Fills in Change-4 registry fields for agent records written before this change existed --
+ *  lets the JSON store keep working with no explicit migration step. */
+function backfill(raw: ScraperAgent): ScraperAgent {
+  // Cast to Partial: records written before Change 4 satisfy the *old* shape at runtime, not the
+  // full current ScraperAgent type -- these fields may genuinely be missing from disk even
+  // though TS assumes the type is complete.
+  const agent = raw as Partial<ScraperAgent>;
+  return {
+    connectionStatus: "unknown",
+    lastVerifiedAt: null,
+    lastSuccessfulExecution: null,
+    lastFailedExecution: null,
+    currentVersionHash: null,
+    expectedInputSchema: ["version", "jobId", "scraperId", "campaignId", "requestedCount", "source", "inputs", "campaign"],
+    expectedOutputSchema: ["jobId", "campaignId", "status", "scrapedCount", "importedCount", "error"],
+    versionHistory: [],
+    // Stage 6, Part 1/2/9 fields -- backfilled for agents registered before these existed so
+    // nothing on disk needs a migration step.
+    category: "Lead Source",
+    supportsCampaigns: true,
+    supportsPreview: false,
+    supportsApproval: false,
+    supportsDuplicateDetection: false,
+    ...agent,
+  } as ScraperAgent;
+}
+
 async function getAll(): Promise<ScraperAgent[]> {
-  return readCollection<ScraperAgent[]>(COLLECTION, SEED_AGENTS);
+  const raw = readCollection<ScraperAgent[]>(COLLECTION, SEED_AGENTS);
+  return raw.map(backfill);
 }
 
 async function saveAll(agents: ScraperAgent[]): Promise<void> {
@@ -133,4 +187,73 @@ export async function updateScraperAgent(id: string, fields: Partial<Omit<Scrape
 export async function deleteScraperAgent(id: string): Promise<void> {
   const all = await getAll();
   await saveAll(all.filter((a) => a.id !== id));
+}
+
+/** Records the outcome of Test Connection / Refresh Metadata / a completed run -- never touches
+ *  webhook/workflow assignment fields, so this is always safe to call from a read-only check. */
+export async function recordScraperVerification(
+  id: string,
+  result: { connectionStatus: WorkflowConnectionStatus; currentVersionHash?: string | null; error?: string }
+): Promise<ScraperAgent> {
+  return updateScraperAgent(id, {
+    connectionStatus: result.connectionStatus,
+    lastVerifiedAt: now(),
+    currentVersionHash: result.currentVersionHash ?? undefined,
+    lastErrorSummary: result.error,
+  });
+}
+
+export async function recordScraperExecutionOutcome(id: string, success: boolean): Promise<void> {
+  const all = await getAll();
+  const existing = all.find((a) => a.id === id);
+  if (!existing) return;
+  await updateScraperAgent(id, success ? { lastSuccessfulExecution: now() } : { lastFailedExecution: now() });
+}
+
+/**
+ * Part C/F: "Replacing a workflow assignment must not edit or delete the old n8n workflow." This
+ * only ever changes the CRM's own pointer (n8nWorkflowId/webhook) and appends the previous
+ * assignment to versionHistory -- it never calls the n8n API against the old workflow at all.
+ */
+export async function replaceScraperAssignment(
+  id: string,
+  next: { n8nWorkflowId: string; startWebhookPath: string; startWebhookEnvVar?: string },
+  actor: string,
+  note: string
+): Promise<ScraperAgent> {
+  const existing = await getScraperAgent(id);
+  if (!existing) throw new Error(`Scraper agent "${id}" was not found.`);
+  const previousEntry: ScraperVersionEntry = {
+    n8nWorkflowId: existing.n8nWorkflowId,
+    startWebhookPath: existing.startWebhookPath,
+    startWebhookEnvVar: existing.startWebhookEnvVar,
+    versionHash: existing.currentVersionHash,
+    note,
+    createdAt: now(),
+    createdBy: actor,
+  };
+  return updateScraperAgent(id, {
+    n8nWorkflowId: next.n8nWorkflowId,
+    startWebhookPath: next.startWebhookPath,
+    startWebhookEnvVar: next.startWebhookEnvVar,
+    connectionStatus: "unknown",
+    lastVerifiedAt: null,
+    currentVersionHash: null,
+    versionHistory: [previousEntry, ...existing.versionHistory],
+  });
+}
+
+/** Rolls back to a prior entry in versionHistory -- reassigns the pointer only, never deletes the
+ *  version history entry itself (so a second rollback / audit trail stays intact). */
+export async function rollbackScraperAssignment(id: string, versionIndex: number, actor: string): Promise<ScraperAgent> {
+  const existing = await getScraperAgent(id);
+  if (!existing) throw new Error(`Scraper agent "${id}" was not found.`);
+  const target = existing.versionHistory[versionIndex];
+  if (!target) throw new Error("That version history entry no longer exists.");
+  return replaceScraperAssignment(
+    id,
+    { n8nWorkflowId: target.n8nWorkflowId, startWebhookPath: target.startWebhookPath, startWebhookEnvVar: target.startWebhookEnvVar },
+    actor,
+    `Rolled back to version from ${target.createdAt}`
+  );
 }

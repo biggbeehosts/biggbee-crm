@@ -48,8 +48,15 @@ export function ScraperAgentCard({
     if (result.success) router.refresh();
   }
 
+  const capabilities = [
+    agent.supportsCampaigns && "Campaigns",
+    agent.supportsPreview && "Preview",
+    agent.supportsApproval && "Approval",
+    agent.supportsDuplicateDetection && "Duplicate detection",
+  ].filter((c): c is string => Boolean(c));
+
   return (
-    <Card className="flex flex-col gap-4 p-5">
+    <Card id={`scraper-${agent.id}`} className="flex scroll-mt-20 flex-col gap-4 p-5">
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-start gap-3">
           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-accent-soft text-accent-strong">
@@ -64,6 +71,16 @@ export function ScraperAgentCard({
       </div>
 
       <p className="text-xs text-text-secondary">{agent.description}</p>
+
+      {capabilities.length > 0 && (
+        <div className="flex flex-wrap gap-1.5">
+          {capabilities.map((c) => (
+            <Badge key={c} variant="outline">
+              {c}
+            </Badge>
+          ))}
+        </div>
+      )}
 
       <div className="grid grid-cols-3 gap-2 rounded-lg bg-panel px-3 py-2.5 text-center">
         <div>

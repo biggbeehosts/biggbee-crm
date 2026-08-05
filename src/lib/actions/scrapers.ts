@@ -2,14 +2,15 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import type { ScraperAgentStatus, ScraperFieldType, ScraperFormField, ScraperRunResult, ScrapingJobStatus } from "@/types";
-import { SCRAPER_AGENT_STATUSES } from "@/types";
+import type { ScraperAgentCategory, ScraperAgentStatus, ScraperFieldType, ScraperFormField, ScraperRunResult, ScrapingJobStatus } from "@/types";
+import { SCRAPER_AGENT_CATEGORIES, SCRAPER_AGENT_STATUSES } from "@/types";
 import {
   createScraperAgent,
   deleteScraperAgent,
   getScraperAgent,
   getScraperAgents,
   updateScraperAgent,
+  recordScraperExecutionOutcome,
 } from "@/lib/data/scraper-registry-store";
 import { createScrapingJob, deleteScrapingJob, generateJobId, getScrapingJob, updateScrapingJob } from "@/lib/data/scraping-jobs-store";
 import { getCampaign } from "@/lib/data/campaigns-store";
@@ -18,6 +19,18 @@ import { isAllowedN8nHost } from "@/lib/n8n/config";
 import { requireAdmin } from "@/lib/auth/require-admin";
 import { logAudit } from "@/lib/audit/log";
 import { recordEvent } from "@/lib/data/analytics-events-store";
+
+/** Part D generic scraper contract -- every scraper agent guarantees the same input/output shape,
+ *  shown read-only in the Workflow Control card and used to seed new agents. */
+const GENERIC_SCRAPER_INPUT_SCHEMA = ["version", "jobId", "scraperId", "campaignId", "requestedCount", "source", "inputs", "campaign"];
+const GENERIC_SCRAPER_OUTPUT_SCHEMA = ["jobId", "campaignId", "status", "scrapedCount", "importedCount", "error"];
+
+function slugifySource(label: string): string {
+  return label
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
 
 export interface ActionResult {
   success: boolean;
@@ -28,6 +41,9 @@ function revalidateLeadGenPaths() {
   revalidatePath("/lead-generation/scrapers");
   revalidatePath("/lead-generation/scraping-jobs");
   revalidatePath("/lead-generation/scraped-leads");
+  revalidatePath("/automation-hub/lead-sources");
+  revalidatePath("/automation-hub/ai-agents");
+  revalidatePath("/automation-hub");
   revalidatePath("/leads");
   revalidatePath("/dashboard");
 }
@@ -65,6 +81,11 @@ const AgentSchema = z.object({
   maxAllowedLeads: z.coerce.number().int().min(1, "Maximum lead limit must be at least 1"),
   supportedFields: z.array(z.string()).default([]),
   formSchema: z.array(FormFieldSchema).default([]),
+  category: z.enum(SCRAPER_AGENT_CATEGORIES as [ScraperAgentCategory, ...ScraperAgentCategory[]]).default("Lead Source"),
+  supportsCampaigns: z.boolean().default(true),
+  supportsPreview: z.boolean().default(false),
+  supportsApproval: z.boolean().default(false),
+  supportsDuplicateDetection: z.boolean().default(false),
 });
 
 /** Guards Part B's "do not allow arbitrary browser-supplied external URLs to be invoked
@@ -103,6 +124,11 @@ function parseAgentForm(formData: FormData) {
       .map((s) => s.trim())
       .filter(Boolean),
     formSchema,
+    category: formData.get("category") || undefined,
+    supportsCampaigns: formData.get("supportsCampaigns") === "on" || formData.get("supportsCampaigns") === "true",
+    supportsPreview: formData.get("supportsPreview") === "on" || formData.get("supportsPreview") === "true",
+    supportsApproval: formData.get("supportsApproval") === "on" || formData.get("supportsApproval") === "true",
+    supportsDuplicateDetection: formData.get("supportsDuplicateDetection") === "on" || formData.get("supportsDuplicateDetection") === "true",
   });
 }
 
@@ -132,6 +158,14 @@ export async function createScraperAgentAction(formData: FormData): Promise<Acti
       statusMethod: "sync-response",
       resultMethod: "sheet",
       authType: "header-auth",
+      connectionStatus: "unconfigured",
+      lastVerifiedAt: null,
+      lastSuccessfulExecution: null,
+      lastFailedExecution: null,
+      currentVersionHash: null,
+      expectedInputSchema: GENERIC_SCRAPER_INPUT_SCHEMA,
+      expectedOutputSchema: GENERIC_SCRAPER_OUTPUT_SCHEMA,
+      versionHistory: [],
     });
     revalidateLeadGenPaths();
     await logAudit({ actor, action: "scraper_agent.create", target: agent.id, success: true, details: { name: agent.name, slug: agent.slug } });
@@ -225,12 +259,16 @@ function statusFromResult(result: ScraperRunResult): ScrapingJobStatus {
  * record, calls the scraper's start webhook, and finalizes the job from its synchronous response.
  * This never triggers outreach -- it only produces Status = Staged rows in the Leads sheet (the
  * scraper's own n8n workflow enforces that, validated again here client-side before the call).
+ *
+ * `dryRun` (Part C/J.10) clamps requestedCount to 1 regardless of what was asked for and tags the
+ * job record so it's never confused with a real production run in the Scraping Jobs list.
  */
 export async function startScrapingJobAction(
   scraperId: string,
   campaignId: string,
   requestedCount: number,
-  inputs: Record<string, unknown>
+  inputs: Record<string, unknown>,
+  dryRun = false
 ): Promise<StartScrapingJobResult> {
   const actor = await requireAdmin();
 
@@ -252,10 +290,11 @@ export async function startScrapingJobAction(
     return { success: false, message: `Campaign "${campaign.name}" is ${campaign.status}, not Active. Activate it before scraping into it.` };
   }
 
-  const count = Math.trunc(requestedCount);
+  let count = Math.trunc(requestedCount);
   if (!Number.isFinite(count) || count < 1) {
     return { success: false, message: "Number of leads/profiles must be at least 1." };
   }
+  if (dryRun) count = 1;
   if (count > agent.maxAllowedLeads) {
     return { success: false, message: `${agent.name} allows at most ${agent.maxAllowedLeads} per run.` };
   }
@@ -278,21 +317,42 @@ export async function startScrapingJobAction(
     startedAt,
     completedAt: null,
     createdBy: actor,
+    isDryRun: dryRun,
   });
-  await logAudit({ actor, action: "scraping_job.start", target: jobId, success: true, details: { scraperId: agent.id, campaignId: campaign.id, requestedCount: count } });
+  await logAudit({
+    actor,
+    action: dryRun ? "scraping_job.dry_run_start" : "scraping_job.start",
+    target: jobId,
+    success: true,
+    details: { scraperId: agent.id, campaignId: campaign.id, requestedCount: count },
+  });
   revalidateLeadGenPaths();
   recordEvent({
     type: "scraper_started",
     campaignId: campaign.id,
     source: "crm",
     timestamp: startedAt,
-    metadata: { scraperId: agent.id, scraperName: agent.name, jobId, requestedCount: count },
+    metadata: { scraperId: agent.id, scraperName: agent.name, jobId, requestedCount: count, isDryRun: dryRun },
     isUnique: true,
     isBotOrScanner: false,
-    isTestEvent: false,
+    isTestEvent: dryRun,
   }).catch(() => {});
 
-  const result = await runScraper(agent, { scraperId: agent.id, campaignId: campaign.id, jobId, requestedCount: count, inputs });
+  const result = await runScraper(agent, {
+    version: 1,
+    jobId,
+    scraperId: agent.id,
+    campaignId: campaign.id,
+    requestedCount: count,
+    source: slugifySource(agent.sourceLabel),
+    inputs,
+    campaign: {
+      targetService: campaign.service || null,
+      industry: campaign.industry || null,
+      businessType: campaign.businessType || null,
+      leadGenerationType: campaign.leadGenerationType || null,
+    },
+  });
 
   await updateScrapingJob(jobId, {
     status: statusFromResult(result),
@@ -304,7 +364,14 @@ export async function startScrapingJobAction(
     errorSummary: result.errors?.join("; ") || (result.success ? undefined : result.message),
     completedAt: new Date().toISOString(),
   });
-  await logAudit({ actor, action: "scraping_job.complete", target: jobId, success: result.success, details: { message: result.message, importedCount: result.importedCount } });
+  await recordScraperExecutionOutcome(agent.id, result.success);
+  await logAudit({
+    actor,
+    action: dryRun ? "scraping_job.dry_run_complete" : "scraping_job.complete",
+    target: jobId,
+    success: result.success,
+    details: { message: result.message, importedCount: result.importedCount },
+  });
   revalidateLeadGenPaths();
   recordEvent({
     type: result.success ? "scraper_completed" : "scraper_failed",
@@ -315,10 +382,17 @@ export async function startScrapingJobAction(
     metadata: { scraperId: agent.id, scraperName: agent.name, jobId, importedCount: result.importedCount, message: result.message },
     isUnique: true,
     isBotOrScanner: false,
-    isTestEvent: false,
+    isTestEvent: dryRun,
   }).catch(() => {});
 
   return { success: result.success, message: result.message, jobId };
+}
+
+/** Part C/J.10: exactly the same call path as a real run, but always clamped to one result --
+ *  used to validate a scraper's contract end-to-end (input accepted, output shape returned)
+ *  without importing a meaningful batch of leads. */
+export async function dryRunScraperTestAction(scraperId: string, campaignId: string, inputs: Record<string, unknown>): Promise<StartScrapingJobResult> {
+  return startScrapingJobAction(scraperId, campaignId, 1, inputs, true);
 }
 
 /** Replays a completed/failed job's original scraperId/campaignId/requestedCount/inputs as a

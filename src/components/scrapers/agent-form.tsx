@@ -3,7 +3,8 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { Plus, Settings2, Trash2 } from "lucide-react";
-import type { ScraperAgent, ScraperFieldType, ScraperFormField } from "@/types";
+import type { ScraperAgent, ScraperAgentCategory, ScraperFieldType, ScraperFormField } from "@/types";
+import { SCRAPER_AGENT_CATEGORIES } from "@/types";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
@@ -69,7 +70,18 @@ function FieldBuilderRow({ field, onChange, onRemove }: { field: ScraperFormFiel
   );
 }
 
-export function AgentForm({ agent, trigger }: { agent?: ScraperAgent; trigger?: React.ReactNode }) {
+export function AgentForm({
+  agent,
+  trigger,
+  defaultCategory = "Lead Source",
+}: {
+  agent?: ScraperAgent;
+  trigger?: React.ReactNode;
+  /** Pre-selects the category for a brand-new agent -- e.g. the AI Agents hub page passes
+   *  "AI Agent" so "Add Agent" there doesn't default to "Lead Source". Ignored when editing an
+   *  existing agent (its own category always wins). */
+  defaultCategory?: ScraperAgentCategory;
+}) {
   const router = useRouter();
   const { toast } = useToast();
   const [open, setOpen] = React.useState(false);
@@ -79,6 +91,11 @@ export function AgentForm({ agent, trigger }: { agent?: ScraperAgent; trigger?: 
   const [name, setName] = React.useState(agent?.name ?? "");
   const [slug, setSlug] = React.useState(agent?.slug ?? "");
   const [slugTouched, setSlugTouched] = React.useState(Boolean(agent));
+  const [category, setCategory] = React.useState<ScraperAgentCategory>(agent?.category ?? defaultCategory);
+  const [supportsCampaigns, setSupportsCampaigns] = React.useState(agent?.supportsCampaigns ?? true);
+  const [supportsPreview, setSupportsPreview] = React.useState(agent?.supportsPreview ?? false);
+  const [supportsApproval, setSupportsApproval] = React.useState(agent?.supportsApproval ?? false);
+  const [supportsDuplicateDetection, setSupportsDuplicateDetection] = React.useState(agent?.supportsDuplicateDetection ?? false);
 
   function handleOpenChange(next: boolean) {
     setOpen(next);
@@ -87,6 +104,11 @@ export function AgentForm({ agent, trigger }: { agent?: ScraperAgent; trigger?: 
       setName(agent?.name ?? "");
       setSlug(agent?.slug ?? "");
       setSlugTouched(Boolean(agent));
+      setCategory(agent?.category ?? defaultCategory);
+      setSupportsCampaigns(agent?.supportsCampaigns ?? true);
+      setSupportsPreview(agent?.supportsPreview ?? false);
+      setSupportsApproval(agent?.supportsApproval ?? false);
+      setSupportsDuplicateDetection(agent?.supportsDuplicateDetection ?? false);
       setError(null);
     }
   }
@@ -95,6 +117,11 @@ export function AgentForm({ agent, trigger }: { agent?: ScraperAgent; trigger?: 
     setPending(true);
     setError(null);
     formData.set("formSchemaJson", JSON.stringify(fields.filter((f) => f.key && f.label)));
+    formData.set("category", category);
+    formData.set("supportsCampaigns", supportsCampaigns ? "true" : "false");
+    formData.set("supportsPreview", supportsPreview ? "true" : "false");
+    formData.set("supportsApproval", supportsApproval ? "true" : "false");
+    formData.set("supportsDuplicateDetection", supportsDuplicateDetection ? "true" : "false");
 
     const result = agent ? await updateScraperAgentAction(agent.id, formData) : await createScraperAgentAction(formData);
     setPending(false);
@@ -112,7 +139,7 @@ export function AgentForm({ agent, trigger }: { agent?: ScraperAgent; trigger?: 
       <DialogTrigger asChild>
         {trigger ?? (
           <Button size="sm">
-            <Plus className="h-3.5 w-3.5" /> Add Scraper Agent
+            <Plus className="h-3.5 w-3.5" /> {defaultCategory === "AI Agent" ? "Add AI Agent" : "Add Scraper Agent"}
           </Button>
         )}
       </DialogTrigger>
@@ -157,6 +184,43 @@ export function AgentForm({ agent, trigger }: { agent?: ScraperAgent; trigger?: 
           <div className="space-y-1.5">
             <Label htmlFor="a-description">Description *</Label>
             <Input id="a-description" name="description" required defaultValue={agent?.description} />
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="a-category">Automation Hub section *</Label>
+            <Select id="a-category" value={category} onChange={(e) => setCategory(e.target.value as ScraperAgentCategory)}>
+              {SCRAPER_AGENT_CATEGORIES.map((c) => (
+                <option key={c} value={c}>
+                  {c}
+                </option>
+              ))}
+            </Select>
+            <p className="text-xs text-text-tertiary">
+              &quot;Lead Source&quot; scrapes/imports leads (Google Maps, Instagram, ...). &quot;AI Agent&quot; is any other automation (voice agent,
+              cold calling, appointment booking, ...) — both register the same way, just shown under different Automation Hub sub-pages.
+            </p>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label>Capabilities</Label>
+            <div className="grid grid-cols-2 gap-2">
+              <label className="flex items-center gap-1.5 text-xs text-text-secondary">
+                <Checkbox checked={supportsCampaigns} onCheckedChange={(v) => setSupportsCampaigns(Boolean(v))} />
+                Supports campaigns
+              </label>
+              <label className="flex items-center gap-1.5 text-xs text-text-secondary">
+                <Checkbox checked={supportsPreview} onCheckedChange={(v) => setSupportsPreview(Boolean(v))} />
+                Supports preview
+              </label>
+              <label className="flex items-center gap-1.5 text-xs text-text-secondary">
+                <Checkbox checked={supportsApproval} onCheckedChange={(v) => setSupportsApproval(Boolean(v))} />
+                Supports approval
+              </label>
+              <label className="flex items-center gap-1.5 text-xs text-text-secondary">
+                <Checkbox checked={supportsDuplicateDetection} onCheckedChange={(v) => setSupportsDuplicateDetection(Boolean(v))} />
+                Supports duplicate detection
+              </label>
+            </div>
           </div>
 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
