@@ -41,9 +41,16 @@ export function EmailPreviewDrawer({ lead, open, onOpenChange }: { lead: Lead | 
 
               <div>
                 <p className="text-[11px] font-medium text-text-tertiary">Demo</p>
-                <p className="mt-0.5 text-sm text-text-primary">
-                  {lead.demoVideoAttached ? lead.demoVideoName || "Included" : lead.demoRecommended ? "Recommended but not available" : "Not applicable"}
+                <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                  <Badge variant={lead.demoSent ? "success" : "outline"}>{lead.demoSent ? "Sent" : "Not sent"}</Badge>
+                  {lead.demoId && <Badge variant="outline">{lead.demoId}</Badge>}
+                  {lead.demoVideoAttached && <Badge variant="accent">Attached</Badge>}
+                </div>
+                <p className="mt-1.5 text-sm text-text-primary">
+                  {lead.demoVideoName || lead.demoType || (lead.demoRecommended ? "Recommended but not available" : "Not applicable")}
                 </p>
+                {lead.demoSentAt && <p className="mt-0.5 text-xs text-text-tertiary">Sent at {formatDateTime(lead.demoSentAt)}</p>}
+                {lead.demoMatchReason && <p className="mt-0.5 text-xs text-text-tertiary">Match reason: {lead.demoMatchReason}</p>}
               </div>
 
               <div>

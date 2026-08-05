@@ -13,6 +13,10 @@ import { getCampaigns } from "@/lib/data/campaigns-store";
 import { getInboxPlacementTests } from "@/lib/data/deliverability-store";
 import type { ActionResult } from "./leads";
 
+/** Shown instead of a number for any metric SMTP sending structurally cannot confirm -- see
+ *  campaign-analytics-card.tsx's doc comment (Stage 5 completion, Priority 6). */
+const UNAVAILABLE = "Unavailable until provider integration";
+
 /** Part N: "mark events as test" -- groups the selected ids by month shard (each event carries its
  *  own timestamp from the already-fetched admin table) since the underlying store keys by shard. */
 export async function markEventsAsTestAction(events: { id: string; timestamp: string }[]): Promise<ActionResult> {
@@ -101,7 +105,7 @@ export async function exportCampaignAnalyticsCsvAction(campaignId: string): Prom
     ["Leads approved", snapshot.kpis.approvedLeads],
     ["Emails attempted", snapshot.kpis.emailsAttempted],
     ["Emails sent", snapshot.kpis.emailsSent],
-    ["Confirmed delivered", snapshot.kpis.confirmedDelivered],
+    ["Delivered", snapshot.kpis.confirmedDelivered > 0 ? snapshot.kpis.confirmedDelivered : UNAVAILABLE],
     ["Estimated unique opens", snapshot.kpis.estimatedUniqueOpens],
     ["Unique clicks", snapshot.kpis.uniqueClicks],
     ["Replies", snapshot.kpis.replies],
@@ -109,10 +113,12 @@ export async function exportCampaignAnalyticsCsvAction(campaignId: string): Prom
     ["Meetings", snapshot.kpis.meetings],
     ["Demos sent", snapshot.kpis.demosSent],
     ["Hard bounces", snapshot.kpis.hardBounces],
+    ["Soft bounces", snapshot.kpis.softBounces],
+    ["Deferred", snapshot.kpis.deferred],
     ["Complaints", snapshot.kpis.complaints],
     ["Unsubscribes", snapshot.kpis.unsubscribes],
-    ["Inbox placement rate", snapshot.kpis.inboxPlacementRate === null ? "Not tested" : snapshot.kpis.inboxPlacementRate],
-    ["Spam placement rate", snapshot.kpis.spamPlacementRate === null ? "Not tested" : snapshot.kpis.spamPlacementRate],
+    ["Estimated inbox placement rate", snapshot.kpis.inboxPlacementRate === null ? UNAVAILABLE : snapshot.kpis.inboxPlacementRate],
+    ["Estimated spam placement rate", snapshot.kpis.spamPlacementRate === null ? UNAVAILABLE : snapshot.kpis.spamPlacementRate],
     ["Last activity", snapshot.lastActivityAt ?? ""],
   ];
   const csv = ["Metric,Value", ...rows.map(([label, value]) => `"${label}","${String(value).replace(/"/g, '""')}"`)].join("\n");

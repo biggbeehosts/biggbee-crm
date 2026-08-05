@@ -36,6 +36,7 @@ const EVENT_TYPES_ACCEPTED = [
   "complaint",
   "hard_bounce",
   "soft_bounce",
+  "deferred",
   "send_attempted",
   "sent",
   "delivery_confirmed",
@@ -130,11 +131,17 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   // (written directly by n8n in the same reply-path branch, or by the same "Log Email
   // Sent"/"Log Email Failed" nodes for send outcomes) is the real gate, not this webhook.
   if (email) {
-    if (type === "hard_bounce") {
+    if (type === "sent" && n8nExecutionId) {
+      updateLeadFields(email, { n8nExecutionId }).catch(() => {});
+    } else if (type === "hard_bounce") {
       updateLeadFields(email, { bounceType: "Hard", bouncedAt: at, suppressedReason: "Hard bounce" }).catch(() => {});
       logAudit({ actor: "system", action: "lead.suppressed", target: email, success: true, details: { reason: "Hard bounce", campaignId, n8nExecutionId } }).catch(() => {});
     } else if (type === "soft_bounce") {
       updateLeadFields(email, { bounceType: "Soft" }).catch(() => {});
+    } else if (type === "deferred") {
+      // Temporary/greylist DSN -- not suppressed, just recorded for visibility (see
+      // Match Sender to Lead's DEFERRED_PATTERNS, split out from soft-bounce patterns).
+      updateLeadFields(email, { bounceType: "Deferred", bouncedAt: at }).catch(() => {});
     } else if (type === "complaint") {
       updateLeadFields(email, { complaintAt: at, suppressedReason: "Complaint" }).catch(() => {});
       logAudit({ actor: "system", action: "lead.suppressed", target: email, success: true, details: { reason: "Complaint", campaignId, n8nExecutionId } }).catch(() => {});

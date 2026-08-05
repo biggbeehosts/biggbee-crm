@@ -89,6 +89,8 @@ export interface TrackingKpis {
   meetings: number;
   demosSent: number;
   hardBounces: number;
+  softBounces: number;
+  deferred: number;
   complaints: number;
   unsubscribes: number;
   inboxPlacementRate: number | null;
@@ -196,6 +198,8 @@ export function computeTrackingSnapshot(
     meetings: countType(filteredEvents, "meeting_booked"),
     demosSent: countType(filteredEvents, "demo_sent"),
     hardBounces: countType(filteredEvents, "hard_bounce"),
+    softBounces: countType(filteredEvents, "soft_bounce"),
+    deferred: countType(filteredEvents, "deferred"),
     complaints: countType(filteredEvents, "complaint"),
     unsubscribes: countType(filteredEvents, "unsubscribe"),
     inboxPlacementRate: deliverability.inboxPlacementRate,

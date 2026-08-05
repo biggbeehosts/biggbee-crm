@@ -6,6 +6,7 @@ import { Card } from "@/components/ui/card";
 import { Select } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { StatusBadge, ConfidenceBadge } from "@/components/ui/status-badge";
+import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { EmailPreviewDrawer } from "./email-preview-drawer";
 import { formatDate } from "@/lib/utils/date";
@@ -106,6 +107,7 @@ export function OutreachTable({ leads }: { leads: Lead[] }) {
                   <th className="px-4 py-2.5 font-medium">Style</th>
                   <th className="px-4 py-2.5 font-medium">Subject</th>
                   <th className="px-4 py-2.5 font-medium">Demo</th>
+                  <th className="px-4 py-2.5 font-medium">Demo Sent</th>
                   <th className="px-4 py-2.5 font-medium">Follow-up</th>
                   <th className="px-4 py-2.5 font-medium">Confidence</th>
                   <th className="px-4 py-2.5 font-medium">Status</th>
@@ -120,6 +122,15 @@ export function OutreachTable({ leads }: { leads: Lead[] }) {
                     <td className="px-4 py-2.5 text-text-secondary">{lead.emailStyle || "—"}</td>
                     <td className="max-w-[220px] truncate px-4 py-2.5 text-text-secondary">{lead.lastEmailSubject || "—"}</td>
                     <td className="px-4 py-2.5 text-text-secondary">{lead.demoType || "—"}</td>
+                    <td className="px-4 py-2.5">
+                      {lead.demoSent ? (
+                        <Badge variant="success">Sent</Badge>
+                      ) : lead.demoId || lead.demoMatchReason ? (
+                        <Badge variant="outline">Not sent</Badge>
+                      ) : (
+                        <span className="text-text-tertiary">—</span>
+                      )}
+                    </td>
                     <td className="px-4 py-2.5 text-text-secondary">{lead.followUpCount}</td>
                     <td className="px-4 py-2.5">
                       <ConfidenceBadge value={lead.confidence} />

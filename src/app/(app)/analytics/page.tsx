@@ -2,7 +2,7 @@ export const dynamic = "force-dynamic";
 
 import { getLeads } from "@/lib/data/repository";
 import { getCampaigns } from "@/lib/data/campaigns-store";
-import { getDemoLibrary } from "@/lib/data/repository";
+import { getDemoLibrary } from "@/lib/data/demo-library-store";
 import { getEvents } from "@/lib/data/analytics-events-store";
 import { getInboxPlacementTests } from "@/lib/data/deliverability-store";
 import {
@@ -18,7 +18,7 @@ import {
 import { computeTrackingSnapshot, dimensionOptions, type TrackingFilter } from "@/lib/calculations/tracking-metrics";
 import { deliverabilityByProvider, spamPlacementByCampaign, summarizeDeliverability } from "@/lib/calculations/deliverability-metrics";
 import { NOT_CONNECTED_MESSAGE } from "@/lib/deliverability/provider-adapter";
-import { formatPercent } from "@/lib/utils/format";
+import { formatPercent, percentageOf } from "@/lib/utils/format";
 import { PageHeader } from "@/components/layout/page-header";
 import { ChartCard } from "@/components/charts/chart-card";
 import { OutreachVolumeChart } from "@/components/charts/outreach-volume-chart";
@@ -43,6 +43,11 @@ import {
   MailWarning,
   Inbox,
 } from "lucide-react";
+
+/** Shown instead of a number for any metric SMTP sending structurally cannot confirm (no ESP
+ *  webhook/DSN receipt, no seed-mailbox provider connected) -- never a fabricated 0 or estimate
+ *  standing in for real data (Stage 5 completion, Priority 6). */
+const UNAVAILABLE = "Unavailable until provider integration";
 
 interface SearchParams {
   range?: string;
@@ -145,7 +150,12 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
         <StatCard label="Approved Leads" value={snapshot.kpis.approvedLeads} icon={Send} />
         <StatCard label="Emails Attempted" value={snapshot.kpis.emailsAttempted} icon={Send} />
         <StatCard label="Emails Sent" value={snapshot.kpis.emailsSent} icon={Send} tone="accent" />
-        <StatCard label="Confirmed Delivered" value={snapshot.kpis.confirmedDelivered} icon={Send} hint="Only when the provider confirms — see Deliverability" />
+        <StatCard
+          label="Delivered"
+          value={snapshot.kpis.confirmedDelivered > 0 ? snapshot.kpis.confirmedDelivered : UNAVAILABLE}
+          icon={Send}
+          hint="SMTP has no delivery receipt — see Deliverability"
+        />
         <StatCard
           label="Estimated Unique Opens"
           value={snapshot.kpis.estimatedUniqueOpens}
@@ -157,17 +167,25 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
         <StatCard label="Positive Replies" value={snapshot.kpis.positiveReplies} icon={Reply} tone="success" />
         <StatCard label="Meetings" value={snapshot.kpis.meetings} icon={CalendarCheck} tone="success" />
         <StatCard label="Demos Sent" value={snapshot.kpis.demosSent} icon={Clapperboard} />
-        <StatCard label="Hard Bounces" value={snapshot.kpis.hardBounces} icon={MailWarning} tone="danger" />
+        <StatCard
+          label="Bounced"
+          value={snapshot.kpis.hardBounces + snapshot.kpis.softBounces}
+          icon={MailWarning}
+          tone="danger"
+          hint={`${snapshot.kpis.hardBounces} hard / ${snapshot.kpis.softBounces} soft`}
+        />
+        <StatCard label="Bounce Rate" value={formatPercent(percentageOf(snapshot.kpis.hardBounces + snapshot.kpis.softBounces, snapshot.kpis.emailsSent || 1))} icon={MailWarning} />
+        <StatCard label="Deferred" value={snapshot.kpis.deferred} icon={MailWarning} hint="Temporary — not suppressed" />
         <StatCard label="Complaints" value={snapshot.kpis.complaints} icon={ShieldAlert} tone="danger" />
         <StatCard label="Unsubscribes" value={snapshot.kpis.unsubscribes} icon={Ban} />
         <StatCard
-          label="Inbox Placement Rate"
-          value={snapshot.kpis.inboxPlacementRate === null ? "Not tested" : formatPercent(snapshot.kpis.inboxPlacementRate! * 100)}
+          label="Estimated Inbox Placement"
+          value={snapshot.kpis.inboxPlacementRate === null ? UNAVAILABLE : formatPercent(snapshot.kpis.inboxPlacementRate! * 100)}
           icon={Inbox}
         />
         <StatCard
-          label="Spam Placement Rate"
-          value={snapshot.kpis.spamPlacementRate === null ? "Not tested" : formatPercent(snapshot.kpis.spamPlacementRate! * 100)}
+          label="Estimated Spam Placement"
+          value={snapshot.kpis.spamPlacementRate === null ? UNAVAILABLE : formatPercent(snapshot.kpis.spamPlacementRate! * 100)}
           icon={ShieldAlert}
           tone={snapshot.kpis.spamPlacementRate ? "danger" : "default"}
         />

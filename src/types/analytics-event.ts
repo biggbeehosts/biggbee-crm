@@ -14,6 +14,7 @@ export type AnalyticsEventType =
   | "delivery_failed"
   | "hard_bounce"
   | "soft_bounce"
+  | "deferred"
   | "open"
   | "click"
   | "unsubscribe"
@@ -44,6 +45,7 @@ export const ANALYTICS_EVENT_TYPES: AnalyticsEventType[] = [
   "delivery_failed",
   "hard_bounce",
   "soft_bounce",
+  "deferred",
   "open",
   "click",
   "unsubscribe",

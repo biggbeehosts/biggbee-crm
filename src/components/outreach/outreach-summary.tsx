@@ -7,7 +7,9 @@ export function OutreachSummary({ leads, errors }: { leads: Lead[]; errors: Erro
   const sent = leads.filter((l) => l.lastEmailDate && l.status !== "Failed").length;
   const failed = leads.filter((l) => l.status === "Failed").length;
   const validationFailed = errors.filter((e) => e.source === "AI Output Validation" || e.source === "Lead Validation").length;
-  const demoIncluded = leads.filter((l) => l.demoVideoAttached).length;
+  // Actual successful sends only (Part F) -- l.demoSent is set by n8n only after the email that
+  // carried the demo actually sent, never merely because a demo was resolved/prepared.
+  const demoIncluded = leads.filter((l) => l.demoSent).length;
   const scored = leads.filter((l) => l.confidence !== null);
   const avgConfidence = scored.length ? Math.round(scored.reduce((s, l) => s + (l.confidence ?? 0), 0) / scored.length) : null;
 
@@ -16,7 +18,7 @@ export function OutreachSummary({ leads, errors }: { leads: Lead[]; errors: Erro
       <StatCard label="Sent" value={formatNumber(sent)} icon={Send} tone="success" />
       <StatCard label="Failed" value={formatNumber(failed)} icon={XCircle} tone={failed > 0 ? "danger" : "default"} />
       <StatCard label="Validation Failed" value={formatNumber(validationFailed)} icon={ShieldAlert} tone={validationFailed > 0 ? "warning" : "default"} />
-      <StatCard label="Demo Included" value={`${formatNumber(demoIncluded)} (${formatPercent(percentageOf(demoIncluded, sent || 1))})`} icon={Clapperboard} />
+      <StatCard label="Demo Sent" value={`${formatNumber(demoIncluded)} (${formatPercent(percentageOf(demoIncluded, sent || 1))})`} icon={Clapperboard} />
       <StatCard label="Avg. Confidence" value={avgConfidence !== null ? `${avgConfidence}%` : "—"} icon={Gauge} tone="accent" />
     </div>
   );
