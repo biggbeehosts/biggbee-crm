@@ -62,7 +62,7 @@ function FieldBuilderRow({ field, onChange, onRemove }: { field: ScraperFormFiel
         onChange={(e) => onChange({ ...field, min: e.target.value === "" ? undefined : Number(e.target.value) })}
       />
       <div className="flex items-center justify-end sm:col-span-1">
-        <Button type="button" variant="ghost" size="sm" onClick={onRemove}>
+        <Button type="button" variant="ghost" size="sm" onClick={onRemove} aria-label="Remove field">
           <Trash2 className="h-3.5 w-3.5 text-danger" />
         </Button>
       </div>

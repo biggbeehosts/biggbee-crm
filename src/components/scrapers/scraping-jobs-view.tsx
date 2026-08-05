@@ -107,7 +107,7 @@ export function ScrapingJobsView({ jobs, executionUrls }: { jobs: ScrapingJob[];
                         </Button>
                       </a>
                     )}
-                    <Button size="sm" variant="ghost" onClick={() => router.refresh()}>
+                    <Button size="sm" variant="ghost" onClick={() => router.refresh()} aria-label="Refresh status">
                       <RefreshCw className="h-3.5 w-3.5" />
                     </Button>
                     {canCancel && (
@@ -120,7 +120,7 @@ export function ScrapingJobsView({ jobs, executionUrls }: { jobs: ScrapingJob[];
                         <RotateCcw className="h-3.5 w-3.5" /> {job.status === "Draft" ? "Start" : "Retry"}
                       </Button>
                     )}
-                    <Button size="sm" variant="ghost" className="text-danger hover:text-danger" onClick={() => remove(job)} disabled={pending}>
+                    <Button size="sm" variant="ghost" className="text-danger hover:text-danger" onClick={() => remove(job)} disabled={pending} aria-label="Delete job">
                       <Trash2 className="h-3.5 w-3.5" />
                     </Button>
                   </div>

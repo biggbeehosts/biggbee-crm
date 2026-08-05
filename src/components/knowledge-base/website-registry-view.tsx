@@ -107,7 +107,7 @@ export function WebsiteRegistryView({
                       </Button>
                       <WebsiteEditTrigger site={site} />
                       {!site.isDefault && (
-                        <Button variant="ghost" size="sm" onClick={() => remove(site)} disabled={pending !== null}>
+                        <Button variant="ghost" size="sm" onClick={() => remove(site)} disabled={pending !== null} aria-label="Remove website">
                           <Trash2 className="h-3.5 w-3.5 text-danger" />
                         </Button>
                       )}

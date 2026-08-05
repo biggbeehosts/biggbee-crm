@@ -243,7 +243,7 @@ export function ScrapedLeadsView({
                   <Button size="sm" variant="ghost" onClick={() => rejectOne(lead.email)} disabled={pending || !lead.email}>
                     Reject
                   </Button>
-                  <Button size="sm" variant="ghost" className="text-danger hover:text-danger" onClick={() => deleteOne(lead.email)} disabled={pending}>
+                  <Button size="sm" variant="ghost" className="text-danger hover:text-danger" onClick={() => deleteOne(lead.email)} disabled={pending} aria-label="Delete lead">
                     <Trash2 className="h-3.5 w-3.5" />
                   </Button>
                 </div>
