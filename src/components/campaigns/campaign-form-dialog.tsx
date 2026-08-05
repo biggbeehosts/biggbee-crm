@@ -9,6 +9,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Button } from "@/components/ui/button";
 import { Input, Label, Textarea } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import { saveCampaignAction } from "@/lib/actions/campaigns";
 
 /** Options come from the central manageable lists (Settings → Lists), never hardcoded here. */
@@ -17,8 +18,17 @@ export function CampaignFormDialog({ campaign, options }: { campaign?: Campaign;
   const [open, setOpen] = React.useState(false);
   const [pending, setPending] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
+  const [openTrackingEnabled, setOpenTrackingEnabled] = React.useState(campaign?.openTrackingEnabled ?? true);
+  const [clickTrackingEnabled, setClickTrackingEnabled] = React.useState(campaign?.clickTrackingEnabled ?? true);
+  const [replyTrackingEnabled, setReplyTrackingEnabled] = React.useState(campaign?.replyTrackingEnabled ?? true);
+  const [deliverabilityTestEnabled, setDeliverabilityTestEnabled] = React.useState(campaign?.deliverabilityTestEnabled ?? false);
 
   async function handleSubmit(formData: FormData) {
+    formData.set("openTrackingEnabled", openTrackingEnabled ? "true" : "false");
+    formData.set("clickTrackingEnabled", clickTrackingEnabled ? "true" : "false");
+    formData.set("replyTrackingEnabled", replyTrackingEnabled ? "true" : "false");
+    formData.set("deliverabilityTestEnabled", deliverabilityTestEnabled ? "true" : "false");
+
     setPending(true);
     setError(null);
     const result = await saveCampaignAction(formData);
@@ -100,6 +110,27 @@ export function CampaignFormDialog({ campaign, options }: { campaign?: Campaign;
               <Textarea id="c-notes" name="notes" rows={2} defaultValue={campaign?.notes} placeholder="Target agencies running Instagram lead generation campaigns." />
             </div>
           </div>
+
+          <div className="space-y-3 rounded-xl border border-border-subtle p-3">
+            <div>
+              <p className="text-sm font-medium text-text-primary">Tracking</p>
+              <p className="text-xs text-text-tertiary">
+                Open/click tracking add a pixel and wrapped links to this campaign&apos;s emails. Estimated only -- see Analytics for limitations.
+              </p>
+            </div>
+            <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+              <ToggleRow label="Open tracking" checked={openTrackingEnabled} onCheckedChange={setOpenTrackingEnabled} />
+              <ToggleRow label="Click tracking" checked={clickTrackingEnabled} onCheckedChange={setClickTrackingEnabled} />
+              <ToggleRow label="Reply tracking" checked={replyTrackingEnabled} onCheckedChange={setReplyTrackingEnabled} />
+              <ToggleRow
+                label="Deliverability testing"
+                hint="Manual inbox-placement tests only, unless a provider is connected."
+                checked={deliverabilityTestEnabled}
+                onCheckedChange={setDeliverabilityTestEnabled}
+              />
+            </div>
+          </div>
+
           {error && <p className="text-xs text-danger">{error}</p>}
           <DialogFooter>
             <Button type="button" variant="secondary" size="sm" onClick={() => setOpen(false)}>
@@ -112,6 +143,28 @@ export function CampaignFormDialog({ campaign, options }: { campaign?: Campaign;
         </form>
       </DialogContent>
     </Dialog>
+  );
+}
+
+function ToggleRow({
+  label,
+  hint,
+  checked,
+  onCheckedChange,
+}: {
+  label: string;
+  hint?: string;
+  checked: boolean;
+  onCheckedChange: (v: boolean) => void;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-2 rounded-lg bg-panel px-2.5 py-2">
+      <div>
+        <p className="text-xs font-medium text-text-primary">{label}</p>
+        {hint && <p className="text-[11px] text-text-tertiary">{hint}</p>}
+      </div>
+      <Switch checked={checked} onCheckedChange={onCheckedChange} aria-label={label} />
+    </div>
   );
 }
 

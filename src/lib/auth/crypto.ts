@@ -41,3 +41,9 @@ function scryptAsync(password: string, salt: Buffer, opts?: { N: number; r: numb
 export function randomToken(bytes = 32): string {
   return crypto.randomBytes(bytes).toString("hex");
 }
+
+/** SHA-256 hex digest -- used to store emails/IPs as unlinkable hashes on analytics events
+ *  (Stage 5, Part K) instead of the raw value. Not reversible; equality-comparable only. */
+export function sha256Hex(input: string): string {
+  return crypto.createHash("sha256").update(input).digest("hex");
+}

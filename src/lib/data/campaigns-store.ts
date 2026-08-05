@@ -4,6 +4,7 @@ import { getDataMode, SHEET_TAB_NAMES } from "./config";
 import { ensureTabWithHeaders, appendRow, updateRowFields, deleteSheetRow, fetchSheetRows, rowsToObjects } from "./sheets-client";
 import { readCollection, writeCollection } from "@/lib/store/json-store";
 import { logAudit } from "@/lib/audit/log";
+import { parseYesNo } from "@/lib/utils/fallback";
 
 const now = () => new Date().toISOString();
 
@@ -22,6 +23,10 @@ const CAMPAIGN_HEADERS = [
   "Max Leads Per Run",
   "Daily Send Limit",
   "Notes",
+  "Open Tracking Enabled",
+  "Click Tracking Enabled",
+  "Reply Tracking Enabled",
+  "Deliverability Test Enabled",
   "Created At",
   "Updated At",
 ];
@@ -40,6 +45,10 @@ function toRow(c: Campaign): Record<string, string> {
     "Max Leads Per Run": c.maxLeadsPerRun === null ? "" : String(c.maxLeadsPerRun),
     "Daily Send Limit": c.dailySendLimit === null ? "" : String(c.dailySendLimit),
     Notes: c.notes ?? "",
+    "Open Tracking Enabled": c.openTrackingEnabled ? "Yes" : "No",
+    "Click Tracking Enabled": c.clickTrackingEnabled ? "Yes" : "No",
+    "Reply Tracking Enabled": c.replyTrackingEnabled ? "Yes" : "No",
+    "Deliverability Test Enabled": c.deliverabilityTestEnabled ? "Yes" : "No",
     "Created At": c.createdAt,
     "Updated At": c.updatedAt,
   };
@@ -124,6 +133,13 @@ function fromRow(row: Record<string, string>, rowNumber: number): Campaign {
     maxLeadsPerRun: numOrNull(row["Max Leads Per Run"]),
     dailySendLimit: numOrNull(row["Daily Send Limit"]),
     notes: row.Notes || undefined,
+    // Legacy rows written before Stage 5 default to ON for open/click/reply tracking (matches the
+    // product decision that tracking is the norm, not an opt-in extra) and OFF for deliverability
+    // testing (an explicit, deliberate action an admin opts into per campaign).
+    openTrackingEnabled: parseYesNo(row["Open Tracking Enabled"], true),
+    clickTrackingEnabled: parseYesNo(row["Click Tracking Enabled"], true),
+    replyTrackingEnabled: parseYesNo(row["Reply Tracking Enabled"], true),
+    deliverabilityTestEnabled: parseYesNo(row["Deliverability Test Enabled"], false),
     createdAt: row["Created At"] || now(),
     updatedAt: row["Updated At"] || now(),
     rowNumber,
@@ -144,6 +160,10 @@ const SEED_CAMPAIGNS: Campaign[] = [
     maxLeadsPerRun: 50,
     dailySendLimit: 200,
     notes: "Target agencies running Instagram lead generation campaigns.",
+    openTrackingEnabled: true,
+    clickTrackingEnabled: true,
+    replyTrackingEnabled: true,
+    deliverabilityTestEnabled: false,
     createdAt: now(),
     updatedAt: now(),
   },

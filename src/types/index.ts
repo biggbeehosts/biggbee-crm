@@ -9,3 +9,5 @@ export * from "./settings";
 export * from "./campaign";
 export * from "./options";
 export * from "./scraper";
+export * from "./analytics-event";
+export * from "./deliverability";

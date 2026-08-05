@@ -28,6 +28,14 @@ export interface Campaign {
   maxLeadsPerRun: number | null;
   dailySendLimit: number | null;
   notes?: string;
+  /** Stage 5 tracking toggles (Part C). n8n's Prepare Final Email node reads these (via the same
+   *  Campaigns-sheet lookup it already does for demo resolution) to decide whether to inject the
+   *  tracking pixel / wrap links for this campaign's sends. Default true/true/true/false per
+   *  product decision -- tracking on by default, deliverability testing opt-in. */
+  openTrackingEnabled: boolean;
+  clickTrackingEnabled: boolean;
+  replyTrackingEnabled: boolean;
+  deliverabilityTestEnabled: boolean;
   createdAt: string;
   updatedAt: string;
   /** Row position in the Campaigns sheet tab, used for targeted updates. Absent in mock mode. */

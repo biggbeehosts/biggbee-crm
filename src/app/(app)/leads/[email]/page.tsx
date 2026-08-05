@@ -3,6 +3,7 @@ import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { getErrors, getLeadMemory, getLeads } from "@/lib/data/repository";
 import { getCampaigns } from "@/lib/data/campaigns-store";
+import { getEvents } from "@/lib/data/analytics-events-store";
 import { LeadDetailView } from "@/components/lead-detail/lead-detail-view";
 
 export default async function LeadDetailPage({ params }: { params: Promise<{ email: string }> }) {
@@ -16,13 +17,16 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ ema
 
   const leadMemory = memory.find((m) => m.email.toLowerCase() === decodedEmail);
   const leadErrors = errors.filter((e) => (e.leadEmail || "").toLowerCase() === decodedEmail);
+  // All-time, single-lead lookup -- bounded to this one lead's activity, not a dashboard-scale
+  // query, so the wide default range is safe here (Part J: full activity timeline per lead).
+  const leadEvents = await getEvents({ leadId: decodedEmail, from: "2020-01-01T00:00:00.000Z", includeTest: true });
 
   return (
     <div>
       <Link href="/leads" className="mb-4 inline-flex items-center gap-1.5 text-xs font-medium text-text-tertiary hover:text-text-primary">
         <ArrowLeft className="h-3.5 w-3.5" /> Back to Leads
       </Link>
-      <LeadDetailView lead={lead} memory={leadMemory} errors={leadErrors} campaigns={campaigns} />
+      <LeadDetailView lead={lead} memory={leadMemory} errors={leadErrors} campaigns={campaigns} events={leadEvents} />
     </div>
   );
 }

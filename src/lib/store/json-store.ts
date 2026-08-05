@@ -30,6 +30,18 @@ function filePath(collection: string): string {
   return path.join(DATA_DIR, `${collection}.json`);
 }
 
+/** Lists existing collection names whose file starts with `prefix` -- used by
+ *  analytics-events-store.ts to find every monthly shard on disk for a retention purge, without
+ *  needing to guess a date range up front. */
+export function listCollectionKeys(prefix: string): string[] {
+  ensureDir();
+  if (!fs.existsSync(DATA_DIR)) return [];
+  return fs
+    .readdirSync(DATA_DIR)
+    .filter((f) => f.startsWith(prefix) && f.endsWith(".json") && !f.includes(".bad-"))
+    .map((f) => f.slice(0, -".json".length));
+}
+
 /** In-process write queue per collection -- keeps concurrent writes from interleaving/corrupting. */
 const writeQueues = new Map<string, Promise<unknown>>();
 

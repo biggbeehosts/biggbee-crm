@@ -147,6 +147,7 @@ function columnLetter(index: number): string {
 interface SheetMeta {
   sheetId: number;
   headers: string[];
+  columnCount: number;
 }
 
 /** Per-request-ish cache (module-level, short-lived by convention -- callers that mutate should
@@ -167,7 +168,7 @@ async function getSheetMeta(tabName: string): Promise<SheetMeta | null> {
   if (!props || props.sheetId === undefined || props.sheetId === null) return null;
   const headerRes = await sheets.spreadsheets.values.get({ spreadsheetId: env.sheetId, range: `'${tabName}'!A1:BZ1` });
   const headers = ((headerRes.data.values?.[0] as string[] | undefined) ?? []).map((h) => h.trim());
-  const result = { sheetId: props.sheetId, headers };
+  const result = { sheetId: props.sheetId, headers, columnCount: props.gridProperties?.columnCount ?? headers.length };
   metaCache.set(tabName, result);
   return result;
 }
@@ -208,6 +209,26 @@ export async function ensureTabWithHeaders(tabName: string, requiredHeaders: str
   if (missing.length === 0) return;
 
   const startCol = existing.headers.length;
+  const neededColumns = startCol + missing.length;
+  // A sheet's grid has a fixed column count independent of how many columns actually have data --
+  // writing past it 400s. Grow the grid first (append-only, never shrinks) so a tab that's already
+  // full to its allocated width can still receive new trailing columns.
+  if (neededColumns > existing.columnCount) {
+    await sheets.spreadsheets.batchUpdate({
+      spreadsheetId: env.sheetId,
+      requestBody: {
+        requests: [
+          {
+            updateSheetProperties: {
+              properties: { sheetId: existing.sheetId, gridProperties: { columnCount: neededColumns } },
+              fields: "gridProperties.columnCount",
+            },
+          },
+        ],
+      },
+    });
+  }
+
   const range = `'${tabName}'!${columnLetter(startCol)}1`;
   await sheets.spreadsheets.values.update({
     spreadsheetId: env.sheetId,

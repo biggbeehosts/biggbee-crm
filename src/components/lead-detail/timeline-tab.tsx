@@ -1,7 +1,10 @@
+"use client";
+
+import * as React from "react";
 import type { TimelineEvent } from "@/lib/calculations/timeline";
 import { EmptyState } from "@/components/ui/empty-state";
 import { formatDateTime } from "@/lib/utils/date";
-import { History } from "lucide-react";
+import { History, ChevronDown, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 
 const TONE_DOT: Record<TimelineEvent["tone"], string> = {
@@ -12,6 +15,8 @@ const TONE_DOT: Record<TimelineEvent["tone"], string> = {
 };
 
 export function TimelineTab({ events }: { events: TimelineEvent[] }) {
+  const [expanded, setExpanded] = React.useState<string | null>(null);
+
   if (events.length === 0) {
     return <EmptyState icon={History} title="No timeline events yet" description="Activity will appear here once this lead is contacted." />;
   }
@@ -24,6 +29,35 @@ export function TimelineTab({ events }: { events: TimelineEvent[] }) {
           <p className="text-xs text-text-tertiary">{formatDateTime(event.timestamp)}</p>
           <p className="mt-0.5 text-sm font-medium text-text-primary">{event.label}</p>
           {event.description && <p className="mt-0.5 text-xs text-text-secondary">{event.description}</p>}
+          {event.raw && (
+            <div className="mt-1">
+              <button
+                type="button"
+                onClick={() => setExpanded(expanded === event.id ? null : event.id)}
+                className="inline-flex items-center gap-1 text-[11px] font-medium text-text-tertiary hover:text-text-primary"
+              >
+                {expanded === event.id ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+                View raw event
+              </button>
+              {expanded === event.id && (
+                <pre className="mt-1.5 max-w-full overflow-x-auto rounded-md border border-border-subtle bg-surface-raised p-2 text-[10px] text-text-secondary">
+                  {JSON.stringify(
+                    {
+                      source: event.raw.source,
+                      providerEventId: event.raw.providerEventId,
+                      n8nExecutionId: event.raw.n8nExecutionId,
+                      isUnique: event.raw.isUnique,
+                      isBotOrScanner: event.raw.isBotOrScanner,
+                      isTestEvent: event.raw.isTestEvent,
+                      metadata: event.raw.metadata,
+                    },
+                    null,
+                    2
+                  )}
+                </pre>
+              )}
+            </div>
+          )}
         </li>
       ))}
     </ol>

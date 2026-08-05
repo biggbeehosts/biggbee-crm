@@ -52,6 +52,18 @@ export function normalizeLead(row: Row, index: number): Lead {
     source: pick(row, "Source") || undefined,
     scraperJobId: pick(row, "Scraper Job ID", "ScraperJobID") || undefined,
     createdAt: pick(row, "Created At", "CreatedAt") || undefined,
+    messageId: pick(row, "Message ID") || undefined,
+    trackingToken: pick(row, "Tracking Token") || undefined,
+    openCount: parseNumber(pick(row, "Open Count"), 0) ?? 0,
+    firstOpenedAt: pick(row, "First Opened At") || null,
+    lastOpenedAt: pick(row, "Last Opened At") || null,
+    clickCount: parseNumber(pick(row, "Click Count"), 0) ?? 0,
+    firstClickedAt: pick(row, "First Clicked At") || null,
+    lastClickedAt: pick(row, "Last Clicked At") || null,
+    bounceType: pick(row, "Bounce Type") || undefined,
+    bouncedAt: pick(row, "Bounced At") || null,
+    complaintAt: pick(row, "Complaint At") || null,
+    suppressedReason: pick(row, "Suppressed Reason") || undefined,
     rowNumber: index + 2, // +1 for header row, +1 for 1-based sheet rows
   };
 }
@@ -73,6 +85,10 @@ export function normalizeLeadMemory(row: Row): LeadMemory {
 
 export function normalizeDemoRecord(row: Row): DemoRecord {
   return {
+    // Left blank (never a row-position guess) when the ID column is empty -- see
+    // migrateMissingDemoIds in demo-library-mutations.ts, which assigns and persists a real id.
+    demoId: pick(row, "Demo ID", "DemoID"),
+    name: pick(row, "Demo Name", "DemoName") || undefined,
     demoType: safeTrim(pick(row, "Demo Type")).toLowerCase(),
     publicWatchUrl: pick(row, "Public Watch URL"),
     publicDownloadUrl: pick(row, "Public Download URL"),

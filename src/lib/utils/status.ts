@@ -14,7 +14,10 @@ const STATUS_ALIASES: Record<string, LeadStatus> = {
   customer: "Customer",
   won: "Customer",
   failed: "Failed",
-  bounced: "Failed",
+  // Distinct from "Failed" as of Stage 5 (Part F) -- a real hard bounce, not a validation/API
+  // failure. n8n's Prepare Leads For Processing STOP_STATUSES already treats the literal string
+  // "bounced" as suppressing, so this alone stops future sends with no workflow change needed.
+  bounced: "Bounced",
   unsubscribed: "Unsubscribed",
   "do not contact": "Unsubscribed",
   spam: "Spam",
@@ -41,6 +44,7 @@ export const STATUS_COLORS: Record<LeadStatus, { bg: string; text: string; dot: 
   Unsubscribed: { bg: "bg-zinc-600/15", text: "text-zinc-400", dot: "bg-zinc-500" },
   Spam: { bg: "bg-rose-500/15", text: "text-rose-300", dot: "bg-rose-400" },
   "Needs Review": { bg: "bg-orange-500/15", text: "text-orange-300", dot: "bg-orange-400" },
+  Bounced: { bg: "bg-rose-600/15", text: "text-rose-400", dot: "bg-rose-500" },
 };
 
 const PIPELINE_MAP: Record<LeadStatus, PipelineStage> = {
@@ -59,6 +63,7 @@ const PIPELINE_MAP: Record<LeadStatus, PipelineStage> = {
   Unsubscribed: "Unsubscribed",
   Spam: "Unsubscribed",
   "Needs Review": "New",
+  Bounced: "Failed",
 };
 
 export function toPipelineStage(status: LeadStatus): PipelineStage {

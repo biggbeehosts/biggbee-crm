@@ -89,7 +89,12 @@ export async function getUnknownSenders(): Promise<UnknownSender[]> {
   if (getDataMode() === "mock") return MOCK_UNKNOWN_SENDERS;
   try {
     const rows = await safeLoadTab("unknownSenders");
-    return rows.map((row, i) => normalizeUnknownSender(row, i)).filter((u) => u.fromEmail);
+    // Internal/system mail (office@ report loop, DSNs, etc.) is classified but never surfaced as a
+    // prospect "Unknown Sender" -- see normalizeUnknownSender's doc comment; this is the filter it
+    // describes but that was missing here.
+    return rows
+      .map((row, i) => normalizeUnknownSender(row, i))
+      .filter((u) => u.fromEmail && u.classification !== "Internal");
   } catch {
     return [];
   }

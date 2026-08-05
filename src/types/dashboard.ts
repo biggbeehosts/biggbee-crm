@@ -18,6 +18,15 @@ export interface TimeSeriesPoint {
   failed: number;
 }
 
+/** Stage 5, Part H -- daily unique-open/click/reply counts (see tracking-metrics.ts), distinct
+ *  from TimeSeriesPoint's sent/failed shape since it's a different set of series. */
+export interface EngagementTimeSeriesPoint {
+  date: string;
+  opens: number;
+  clicks: number;
+  replies: number;
+}
+
 export interface PipelineCounts {
   New: number;
   Contacted: number;

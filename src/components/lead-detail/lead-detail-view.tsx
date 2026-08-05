@@ -1,6 +1,6 @@
 "use client";
 
-import type { Campaign, ErrorRecord, Lead, LeadMemory } from "@/types";
+import type { AnalyticsEvent, Campaign, ErrorRecord, Lead, LeadMemory } from "@/types";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { LeadHeader } from "./lead-header";
 import { OverviewTab } from "./overview-tab";
@@ -15,13 +15,15 @@ export function LeadDetailView({
   memory,
   errors,
   campaigns,
+  events,
 }: {
   lead: Lead;
   memory: LeadMemory | undefined;
   errors: ErrorRecord[];
   campaigns: Campaign[];
+  events?: AnalyticsEvent[];
 }) {
-  const timeline = buildLeadTimeline(lead, memory, errors);
+  const timeline = buildLeadTimeline(lead, memory, errors, events ?? []);
   const campaignName = campaigns.find((c) => c.id === lead.campaignId)?.name ?? null;
 
   return (

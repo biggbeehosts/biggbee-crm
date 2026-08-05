@@ -3,9 +3,14 @@ import { verifySessionToken } from "@/lib/auth/session";
 
 export const config = {
   matcher: [
-    // Everything except: the health check, static assets, and Next internals. /login and /setup
-    // ARE matched -- they still get CSRF + CSP treatment, just not the auth redirect below.
-    "/((?!api/health|_next/static|_next/image|favicon.ico).*)",
+    // Everything except: the health check, tracking pixel/click endpoints (Stage 5 -- email
+    // clients hit these with zero session cookie, so they must never be redirected to /login or
+    // 401'd; each route validates its own token and is independently rate-limited), the internal
+    // n8n->CRM event endpoint (Stage 5 -- server-to-server, authenticated by its own X-API-KEY
+    // check against N8N_API_KEY, not a browser session), static assets, and Next internals.
+    // /login and /setup ARE matched -- they still get CSRF + CSP treatment, just not the auth
+    // redirect below.
+    "/((?!api/health|api/track|api/internal|_next/static|_next/image|favicon.ico).*)",
   ],
 };
 

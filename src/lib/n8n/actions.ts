@@ -10,6 +10,7 @@ import { getCampaign } from "@/lib/data/campaigns-store";
 import { retryFailedLeads } from "@/lib/data/leads-mutations";
 import { requireAdmin } from "@/lib/auth/require-admin";
 import { logAudit } from "@/lib/audit/log";
+import { recordEvent } from "@/lib/data/analytics-events-store";
 
 /** Which trigger actions the UI may call (status and sync go through their own paths). */
 const TRIGGERABLE: N8nActionKey[] = ["runCampaign", "pauseCampaign", "resumeCampaign", "refreshKb", "retryFailed"];
@@ -100,6 +101,20 @@ export async function triggerN8nAction(action: N8nActionKey, params: TriggerActi
     // n8n writes results to the sheet; drop the cache so the next render shows them.
     refreshAllData();
     revalidatePath("/", "layout");
+    // campaign_started is CRM-authoritative -- this webhook call is the one true trigger moment;
+    // campaign_completed is emitted n8n-side (Build Run Summary -> the n8n-event webhook) once the
+    // run actually finishes, since the CRM has no completion signal of its own to poll.
+    if (action === "runCampaign" && params.campaignId) {
+      recordEvent({
+        type: "campaign_started",
+        campaignId: params.campaignId,
+        source: "crm",
+        timestamp: new Date().toISOString(),
+        isUnique: true,
+        isBotOrScanner: false,
+        isTestEvent: false,
+      }).catch(() => {});
+    }
   }
   return result;
 }

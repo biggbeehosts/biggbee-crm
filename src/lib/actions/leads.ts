@@ -8,6 +8,8 @@ import { requireAdmin } from "@/lib/auth/require-admin";
 import { logAudit } from "@/lib/audit/log";
 import type { Lead, LeadStatus } from "@/types";
 import { LEAD_STATUSES } from "@/types";
+import { recordEvent } from "@/lib/data/analytics-events-store";
+import { sha256Hex } from "@/lib/auth/crypto";
 
 export interface ActionResult {
   success: boolean;
@@ -218,10 +220,29 @@ function summarizeBulk(action: string, succeeded: string[], failed: { email: str
   return { success, message, succeeded, failed };
 }
 
+function recordLeadDecisionEvents(type: "lead_approved" | "lead_rejected", emails: string[]) {
+  const at = new Date().toISOString();
+  for (const email of emails) {
+    const normalized = email.trim().toLowerCase();
+    recordEvent({
+      type,
+      leadId: normalized,
+      emailHash: sha256Hex(normalized),
+      recipientDomain: normalized.split("@")[1],
+      source: "crm",
+      timestamp: at,
+      isUnique: true,
+      isBotOrScanner: false,
+      isTestEvent: false,
+    }).catch(() => {});
+  }
+}
+
 export async function approveLeadsAction(emails: string[]): Promise<BulkActionResult> {
   const actor = await requireAdmin();
   const { updated, failed } = await bulkUpdateLeadStatus(emails, "New");
   revalidateScrapedLeadsPaths();
+  recordLeadDecisionEvents("lead_approved", updated);
   await logAudit({ actor, action: "lead.bulk_approve", success: failed.length === 0, details: { count: updated.length, failed: failed.length } });
   return summarizeBulk("approved", updated, failed);
 }
@@ -230,6 +251,7 @@ export async function rejectLeadsAction(emails: string[]): Promise<BulkActionRes
   const actor = await requireAdmin();
   const { updated, failed } = await bulkUpdateLeadStatus(emails, "Not Interested");
   revalidateScrapedLeadsPaths();
+  recordLeadDecisionEvents("lead_rejected", updated);
   await logAudit({ actor, action: "lead.bulk_reject", success: failed.length === 0, details: { count: updated.length, failed: failed.length } });
   return summarizeBulk("rejected", updated, failed);
 }

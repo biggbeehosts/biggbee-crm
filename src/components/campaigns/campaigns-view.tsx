@@ -6,6 +6,8 @@ import { useRouter } from "next/navigation";
 import { Copy, Pause, Play, Target, Trash2 } from "lucide-react";
 import type { Campaign, CampaignMatchSummary, Lead, OptionLists } from "@/types";
 import { filterCampaignLeads, summarizeCampaignMatch } from "@/lib/calculations/campaign-match";
+import type { TrackingSnapshot } from "@/lib/calculations/tracking-metrics";
+import type { TimelineEvent } from "@/lib/calculations/timeline";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -13,6 +15,9 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { StatusBadge, ConfidenceBadge } from "@/components/ui/status-badge";
 import { CampaignFormDialog } from "./campaign-form-dialog";
 import { CampaignSummary } from "./campaign-summary";
+import { CampaignAnalyticsCard } from "./campaign-analytics-card";
+import { TimelineTab } from "@/components/lead-detail/timeline-tab";
+import { ExportCampaignAnalyticsButton } from "./export-campaign-analytics-button";
 import { deleteCampaignAction, duplicateCampaignAction, setCampaignStatusAction } from "@/lib/actions/campaigns";
 import { formatDate } from "@/lib/utils/date";
 import { cn } from "@/lib/utils/cn";
@@ -23,7 +28,19 @@ const STATUS_TONE: Record<Campaign["status"], "success" | "warning" | "outline">
   Draft: "outline",
 };
 
-export function CampaignsView({ campaigns, leads, options }: { campaigns: Campaign[]; leads: Lead[]; options: OptionLists }) {
+export function CampaignsView({
+  campaigns,
+  leads,
+  options,
+  analyticsByCampaign,
+  timelineByCampaign,
+}: {
+  campaigns: Campaign[];
+  leads: Lead[];
+  options: OptionLists;
+  analyticsByCampaign: Record<string, TrackingSnapshot>;
+  timelineByCampaign: Record<string, { events: TimelineEvent[]; truncatedFrom: number | null }>;
+}) {
   const router = useRouter();
   const [selectedId, setSelectedId] = React.useState<string | null>(campaigns.find((c) => c.status === "Active")?.id ?? campaigns[0]?.id ?? null);
   const [pendingAction, setPendingAction] = React.useState<string | null>(null);
@@ -138,7 +155,15 @@ export function CampaignsView({ campaigns, leads, options }: { campaigns: Campai
 
       {selected && summary && (
         <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
-          <CampaignSummary summary={summary} />
+          <div className="space-y-6">
+            <CampaignSummary summary={summary} />
+            {analyticsByCampaign[selected.id] && (
+              <>
+                <CampaignAnalyticsCard snapshot={analyticsByCampaign[selected.id]} />
+                <ExportCampaignAnalyticsButton campaignId={selected.id} campaignName={selected.name} />
+              </>
+            )}
+          </div>
 
           <Card className="xl:col-span-2 overflow-hidden">
             <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border-subtle px-5 py-3.5">
@@ -204,6 +229,23 @@ export function CampaignsView({ campaigns, leads, options }: { campaigns: Campai
             </CardContent>
           </Card>
         </div>
+      )}
+
+      {selected && timelineByCampaign[selected.id] && (
+        <Card className="overflow-hidden">
+          <div className="border-b border-border-subtle px-5 py-3.5">
+            <p className="text-sm font-semibold text-text-primary">Campaign Timeline — {selected.name}</p>
+            <p className="text-xs text-text-tertiary">
+              Lifecycle, bounces, complaints, and conversion events — not a full send/open/click log (see Campaign Analytics for aggregate rates)
+              {timelineByCampaign[selected.id].truncatedFrom
+                ? ` · showing the most recent 100 of ${timelineByCampaign[selected.id].truncatedFrom}`
+                : ""}
+            </p>
+          </div>
+          <CardContent className="pt-4">
+            <TimelineTab events={timelineByCampaign[selected.id].events} />
+          </CardContent>
+        </Card>
       )}
     </div>
   );

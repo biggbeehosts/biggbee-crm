@@ -14,6 +14,8 @@ import {
   Bot,
   ListChecks,
   UserSearch,
+  Activity,
+  Inbox,
   type LucideIcon,
 } from "lucide-react";
 
@@ -21,7 +23,7 @@ export interface NavItem {
   label: string;
   href: string;
   icon: LucideIcon;
-  group: "Overview" | "Lead Generation" | "Outreach System" | "Operations";
+  group: "Overview" | "Lead Generation" | "Outreach System" | "Operations" | "System";
 }
 
 export const NAV_ITEMS: NavItem[] = [
@@ -40,6 +42,8 @@ export const NAV_ITEMS: NavItem[] = [
   { label: "Errors", href: "/errors", icon: AlertTriangle, group: "Operations" },
   { label: "Knowledge Base", href: "/knowledge-base", icon: BookOpen, group: "Operations" },
   { label: "Settings", href: "/settings", icon: Settings, group: "Operations" },
+  { label: "Tracking", href: "/system/tracking", icon: Activity, group: "System" },
+  { label: "Deliverability", href: "/system/deliverability", icon: Inbox, group: "System" },
 ];
 
-export const NAV_GROUPS: NavItem["group"][] = ["Overview", "Lead Generation", "Outreach System", "Operations"];
+export const NAV_GROUPS: NavItem["group"][] = ["Overview", "Lead Generation", "Outreach System", "Operations", "System"];

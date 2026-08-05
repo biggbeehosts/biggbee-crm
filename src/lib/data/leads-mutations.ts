@@ -35,6 +35,33 @@ async function ensureLeadsScraperColumns(): Promise<void> {
   leadsScraperColumnsEnsured = true;
 }
 
+/** Stage 5 (Part A/B/C/D/F) tracking columns. n8n's Log Email Sent node writes Message ID/
+ *  Tracking Token itself on send; the pixel/click endpoints and bounce-detection branch write the
+ *  rest. This covers the CRM's own read/edit paths the same way ensureLeadsDemoColumns does. */
+const TRACKING_LEAD_HEADERS = [
+  "Message ID",
+  "Tracking Token",
+  "N8N Execution Id",
+  "Open Count",
+  "First Opened At",
+  "Last Opened At",
+  "Click Count",
+  "First Clicked At",
+  "Last Clicked At",
+  "Bounce Type",
+  "Bounced At",
+  "Complaint At",
+  "Suppressed Reason",
+];
+let leadsTrackingColumnsEnsured = false;
+export async function ensureLeadsTrackingColumns(): Promise<void> {
+  if (leadsTrackingColumnsEnsured) return;
+  if (await tabExists(SHEET_TAB_NAMES.leads)) {
+    await ensureTabWithHeaders(SHEET_TAB_NAMES.leads, TRACKING_LEAD_HEADERS);
+  }
+  leadsTrackingColumnsEnsured = true;
+}
+
 /** Always reads fresh (bypasses the 60s cache) -- used immediately before a targeted write so the
  *  row number and optimistic-concurrency check reflect the true current state of the sheet. */
 async function findLeadRowUncached(email: string): Promise<Lead | undefined> {
@@ -67,13 +94,45 @@ function leadToRow(lead: Partial<Lead>): Record<string, string> {
   if (lead.source !== undefined) row.Source = lead.source;
   if (lead.scraperJobId !== undefined) row["Scraper Job ID"] = lead.scraperJobId;
   if (lead.createdAt !== undefined) row["Created At"] = lead.createdAt;
+  if (lead.messageId !== undefined) row["Message ID"] = lead.messageId;
+  if (lead.trackingToken !== undefined) row["Tracking Token"] = lead.trackingToken;
+  if (lead.n8nExecutionId !== undefined) row["N8N Execution Id"] = lead.n8nExecutionId;
+  if (lead.openCount !== undefined) row["Open Count"] = String(lead.openCount);
+  if (lead.firstOpenedAt !== undefined) row["First Opened At"] = lead.firstOpenedAt ?? "";
+  if (lead.lastOpenedAt !== undefined) row["Last Opened At"] = lead.lastOpenedAt ?? "";
+  if (lead.clickCount !== undefined) row["Click Count"] = String(lead.clickCount);
+  if (lead.firstClickedAt !== undefined) row["First Clicked At"] = lead.firstClickedAt ?? "";
+  if (lead.lastClickedAt !== undefined) row["Last Clicked At"] = lead.lastClickedAt ?? "";
+  if (lead.bounceType !== undefined) row["Bounce Type"] = lead.bounceType;
+  if (lead.bouncedAt !== undefined) row["Bounced At"] = lead.bouncedAt ?? "";
+  if (lead.complaintAt !== undefined) row["Complaint At"] = lead.complaintAt ?? "";
+  if (lead.suppressedReason !== undefined) row["Suppressed Reason"] = lead.suppressedReason;
   return row;
 }
 
 const SCRAPER_FIELD_KEYS = ["campaignName", "leadId", "location", "targetService", "source", "scraperJobId", "createdAt"] as const;
+const TRACKING_FIELD_KEYS = [
+  "messageId",
+  "trackingToken",
+  "n8nExecutionId",
+  "openCount",
+  "firstOpenedAt",
+  "lastOpenedAt",
+  "clickCount",
+  "firstClickedAt",
+  "lastClickedAt",
+  "bounceType",
+  "bouncedAt",
+  "complaintAt",
+  "suppressedReason",
+] as const;
 
 function touchesScraperColumns(fields: Partial<Lead>): boolean {
   return SCRAPER_FIELD_KEYS.some((k) => fields[k] !== undefined);
+}
+
+function touchesTrackingColumns(fields: Partial<Lead>): boolean {
+  return TRACKING_FIELD_KEYS.some((k) => fields[k] !== undefined);
 }
 
 export interface LeadEditableFields {
@@ -96,6 +155,24 @@ export interface LeadEditableFields {
   source?: string;
   scraperJobId?: string;
   createdAt?: string;
+  /** Demo Library fields (Change 3) -- accepted here so the Stage 5 n8n-event webhook's
+   *  "demo_sent" branch type-checks; the Sheets column write path for these lives in Demo
+   *  Library's own additive-column migration, not here. */
+  demoSent?: boolean;
+  demoSentAt?: string | null;
+  messageId?: string;
+  trackingToken?: string;
+  n8nExecutionId?: string;
+  openCount?: number;
+  firstOpenedAt?: string | null;
+  lastOpenedAt?: string | null;
+  clickCount?: number;
+  firstClickedAt?: string | null;
+  lastClickedAt?: string | null;
+  bounceType?: string;
+  bouncedAt?: string | null;
+  complaintAt?: string | null;
+  suppressedReason?: string;
 }
 
 export async function createLead(lead: Lead): Promise<void> {
@@ -105,6 +182,7 @@ export async function createLead(lead: Lead): Promise<void> {
   }
   if (lead.campaignId !== undefined) await ensureLeadsCampaignIdColumn();
   if (touchesScraperColumns(lead)) await ensureLeadsScraperColumns();
+  if (touchesTrackingColumns(lead)) await ensureLeadsTrackingColumns();
   await appendRow(SHEET_TAB_NAMES.leads, leadToRow(lead));
   invalidateCache();
 }
@@ -116,6 +194,7 @@ export async function updateLeadFields(email: string, fields: LeadEditableFields
   }
   if (fields.campaignId !== undefined) await ensureLeadsCampaignIdColumn();
   if (touchesScraperColumns(fields)) await ensureLeadsScraperColumns();
+  if (touchesTrackingColumns(fields)) await ensureLeadsTrackingColumns();
   const current = await findLeadRowUncached(email);
   if (!current?.rowNumber) throw new Error(`Lead "${email}" was not found in the Leads sheet.`);
   await updateRowFields(SHEET_TAB_NAMES.leads, current.rowNumber, leadToRow(fields), { header: "Email", value: current.email });

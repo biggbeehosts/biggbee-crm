@@ -17,6 +17,7 @@ import { runScraper, cancelScraperRun } from "@/lib/n8n/scraper-client";
 import { isAllowedN8nHost } from "@/lib/n8n/config";
 import { requireAdmin } from "@/lib/auth/require-admin";
 import { logAudit } from "@/lib/audit/log";
+import { recordEvent } from "@/lib/data/analytics-events-store";
 
 export interface ActionResult {
   success: boolean;
@@ -280,6 +281,16 @@ export async function startScrapingJobAction(
   });
   await logAudit({ actor, action: "scraping_job.start", target: jobId, success: true, details: { scraperId: agent.id, campaignId: campaign.id, requestedCount: count } });
   revalidateLeadGenPaths();
+  recordEvent({
+    type: "scraper_started",
+    campaignId: campaign.id,
+    source: "crm",
+    timestamp: startedAt,
+    metadata: { scraperId: agent.id, scraperName: agent.name, jobId, requestedCount: count },
+    isUnique: true,
+    isBotOrScanner: false,
+    isTestEvent: false,
+  }).catch(() => {});
 
   const result = await runScraper(agent, { scraperId: agent.id, campaignId: campaign.id, jobId, requestedCount: count, inputs });
 
@@ -295,6 +306,17 @@ export async function startScrapingJobAction(
   });
   await logAudit({ actor, action: "scraping_job.complete", target: jobId, success: result.success, details: { message: result.message, importedCount: result.importedCount } });
   revalidateLeadGenPaths();
+  recordEvent({
+    type: result.success ? "scraper_completed" : "scraper_failed",
+    campaignId: campaign.id,
+    n8nExecutionId: result.executionId,
+    source: "crm",
+    timestamp: new Date().toISOString(),
+    metadata: { scraperId: agent.id, scraperName: agent.name, jobId, importedCount: result.importedCount, message: result.message },
+    isUnique: true,
+    isBotOrScanner: false,
+    isTestEvent: false,
+  }).catch(() => {});
 
   return { success: result.success, message: result.message, jobId };
 }

@@ -22,6 +22,10 @@ const CampaignSchema = z.object({
   maxLeadsPerRun: z.union([z.number().int().positive(), z.null()]),
   dailySendLimit: z.union([z.number().int().positive(), z.null()]),
   notes: z.string().optional(),
+  openTrackingEnabled: z.boolean(),
+  clickTrackingEnabled: z.boolean(),
+  replyTrackingEnabled: z.boolean(),
+  deliverabilityTestEnabled: z.boolean(),
 });
 
 function numOrNull(v: FormDataEntryValue | null): number | null {
@@ -47,6 +51,10 @@ export async function saveCampaignAction(formData: FormData): Promise<ActionResu
     maxLeadsPerRun: numOrNull(formData.get("maxLeadsPerRun")),
     dailySendLimit: numOrNull(formData.get("dailySendLimit")),
     notes: String(formData.get("notes") || ""),
+    openTrackingEnabled: formData.get("openTrackingEnabled") === "on" || formData.get("openTrackingEnabled") === "true",
+    clickTrackingEnabled: formData.get("clickTrackingEnabled") === "on" || formData.get("clickTrackingEnabled") === "true",
+    replyTrackingEnabled: formData.get("replyTrackingEnabled") === "on" || formData.get("replyTrackingEnabled") === "true",
+    deliverabilityTestEnabled: formData.get("deliverabilityTestEnabled") === "on" || formData.get("deliverabilityTestEnabled") === "true",
   });
 
   if (!parsed.success) {
@@ -71,6 +79,10 @@ export async function saveCampaignAction(formData: FormData): Promise<ActionResu
       maxLeadsPerRun: parsed.data.maxLeadsPerRun,
       dailySendLimit: parsed.data.dailySendLimit,
       notes: parsed.data.notes,
+      openTrackingEnabled: parsed.data.openTrackingEnabled,
+      clickTrackingEnabled: parsed.data.clickTrackingEnabled,
+      replyTrackingEnabled: parsed.data.replyTrackingEnabled,
+      deliverabilityTestEnabled: parsed.data.deliverabilityTestEnabled,
       createdAt: existing?.createdAt ?? new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
