@@ -45,3 +45,29 @@ export function isSystemNotificationSender(email: string, subject?: string): boo
   if (subject && SYSTEM_SUBJECT_PATTERNS.some((p) => p.test(subject))) return true;
   return false;
 }
+
+/** Domains the CRM's own tooling (or a service it integrates with) sends automated mail from --
+ *  a reply from these is a platform notification, never a prospect, no matter the exact address.
+ *  Matched by domain suffix (subdomains count), never substring, to avoid false positives on
+ *  lookalike prospect domains. Deliberately narrow: only platforms this CRM actually talks to. */
+const KNOWN_PLATFORM_DOMAINS = [
+  "telnyx.com",
+  "github.com",
+  "hostinger.com",
+  "hpanel.hostinger.com",
+  "cloudinary.com",
+  "n8n.io",
+  "n8n.cloud",
+  "apify.com",
+  "google.com",
+  "accounts.google.com",
+];
+
+export function isKnownPlatformSender(email: string): boolean {
+  const normalized = email.trim().toLowerCase();
+  const at = normalized.lastIndexOf("@");
+  if (at < 0) return false;
+  const domain = normalized.slice(at + 1);
+  if (!domain) return false;
+  return KNOWN_PLATFORM_DOMAINS.some((d) => domain === d || domain.endsWith(`.${d}`));
+}

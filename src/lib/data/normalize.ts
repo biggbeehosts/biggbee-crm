@@ -2,7 +2,7 @@ import "server-only";
 import type { DemoRecord, ErrorRecord, KnowledgeBaseRecord, Lead, LeadMemory, UnknownSender } from "@/types";
 import { coalesceString, parseNumber, parseStringList, parseYesNo, safeTrim } from "@/lib/utils/fallback";
 import { normalizeStatus } from "@/lib/utils/status";
-import { isInternalSender } from "@/lib/utils/internal-senders";
+import { isInternalSender, isKnownPlatformSender, isSystemNotificationSender } from "@/lib/utils/internal-senders";
 import type { UnknownSenderClassification } from "@/types";
 
 type Row = Record<string, string>;
@@ -142,20 +142,24 @@ export function normalizeErrorRecord(row: Row, index: number): ErrorRecord {
 
 export function normalizeUnknownSender(row: Row, index: number): UnknownSender {
   const fromEmail = safeTrim(pick(row, "From Email", "FromEmail")).toLowerCase();
+  const subject = pick(row, "Subject");
   const storedClassification = pick(row, "Classification").trim();
-  // Legacy rows (written before the Classification column existed) get classified client-side by
-  // the same allowlist n8n now applies at write time -- so internal mail is hidden from the
-  // Unknown Senders view even for history that predates the fix.
+  // "Internal" and "Lead Reply" are sticky -- a human (or n8n) made that call explicitly, so it's
+  // never recomputed. Everything else (blank, legacy "Unknown", or a stale "System Notification")
+  // is re-evaluated on every read against the current allowlist/pattern list, so classification
+  // quality improves retroactively for old rows too, not just new ones.
   const classification: UnknownSenderClassification =
-    storedClassification === "Internal" || storedClassification === "Lead Reply" || storedClassification === "Unknown"
+    storedClassification === "Internal" || storedClassification === "Lead Reply"
       ? (storedClassification as UnknownSenderClassification)
       : isInternalSender(fromEmail)
         ? "Internal"
-        : "Unknown";
+        : isSystemNotificationSender(fromEmail, subject) || isKnownPlatformSender(fromEmail)
+          ? "System Notification"
+          : "Needs Review";
   return {
     timestamp: pick(row, "TimeStamp", "Timestamp") || null,
     fromEmail,
-    subject: pick(row, "Subject"),
+    subject,
     snippet: pick(row, "Snippet"),
     classification,
     reviewed: parseYesNo(pick(row, "Reviewed")) || classification === "Internal",

@@ -11,22 +11,8 @@ import { Button } from "@/components/ui/button";
 import { StatCard } from "@/components/ui/stat-card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { daysSince, formatDateTime } from "@/lib/utils/date";
+import { severityOf, SEVERITY_BADGE } from "@/lib/calculations/error-severity";
 import { AlertTriangle, Check, ChevronDown, ChevronRight, Copy, Search, ShieldAlert, Users } from "lucide-react";
-
-type Severity = "critical" | "warning" | "info";
-
-function severityOf(err: ErrorRecord): Severity {
-  const source = (err.source ?? "").toLowerCase();
-  if (source.includes("validation")) return "warning";
-  if (source.includes("drive") || source.includes("crawl")) return "info";
-  return "critical";
-}
-
-const SEVERITY_BADGE: Record<Severity, "danger" | "warning" | "default"> = {
-  critical: "danger",
-  warning: "warning",
-  info: "default",
-};
 
 export function ErrorsView({ errors }: { errors: ErrorRecord[] }) {
   const [search, setSearch] = React.useState("");

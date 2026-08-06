@@ -2,31 +2,55 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import type { UnknownSender } from "@/types";
+import type { UnknownSender, UnknownSenderClassification } from "@/types";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { formatDateTime } from "@/lib/utils/date";
-import { Check, Copy, MailQuestion, Search, ShieldAlert, Trash2, UserCheck } from "lucide-react";
+import { Bell, Check, Copy, MailQuestion, Search, ShieldAlert, Trash2, UserCheck } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { deleteSenderRecordAction, markReviewedAction, reclassifySenderAction } from "@/lib/actions/unknown-senders";
+
+// Default queue is only what genuinely needs a decision -- everything else has already been
+// resolved (Internal/System Notification/Lead Reply are all "we know what this is" states).
+const DEFAULT_VISIBLE: UnknownSenderClassification[] = ["Needs Review", "Unknown"];
+
+const CLASSIFICATION_BADGE: Record<UnknownSenderClassification, { label: string; variant: "outline" | "accent" | "default" | "warning" }> = {
+  "Needs Review": { label: "Needs Review", variant: "warning" },
+  Unknown: { label: "Unknown", variant: "default" },
+  "Lead Reply": { label: "Lead Reply", variant: "accent" },
+  Internal: { label: "Internal", variant: "outline" },
+  "System Notification": { label: "System Notification", variant: "outline" },
+};
 
 export function UnknownSendersView({ senders }: { senders: UnknownSender[] }) {
   const router = useRouter();
   const [search, setSearch] = React.useState("");
-  const [showInternal, setShowInternal] = React.useState(false);
+  const [classificationFilter, setClassificationFilter] = React.useState<UnknownSenderClassification | "default" | "all">("default");
   const [pendingKey, setPendingKey] = React.useState<string | null>(null);
 
   const keyOf = (s: UnknownSender) => `${s.fromEmail}-${s.timestamp ?? ""}`;
 
-  const visible = senders.filter((s) => showInternal || s.classification !== "Internal");
+  const counts = React.useMemo(() => {
+    const map = new Map<UnknownSenderClassification, number>();
+    for (const s of senders) map.set(s.classification, (map.get(s.classification) ?? 0) + 1);
+    return map;
+  }, [senders]);
+
+  const visible =
+    classificationFilter === "all"
+      ? senders
+      : classificationFilter === "default"
+        ? senders.filter((s) => DEFAULT_VISIBLE.includes(s.classification))
+        : senders.filter((s) => s.classification === classificationFilter);
   const filtered = visible.filter((s) => {
     if (!search) return true;
     return `${s.fromEmail} ${s.subject} ${s.snippet}`.toLowerCase().includes(search.toLowerCase());
   });
-  const internalCount = senders.length - visible.length;
+  const resolvedCount = senders.length - senders.filter((s) => DEFAULT_VISIBLE.includes(s.classification)).length;
 
   async function copyEmail(email: string) {
     await navigator.clipboard.writeText(email);
@@ -52,6 +76,10 @@ export function UnknownSendersView({ senders }: { senders: UnknownSender[] }) {
     return run(sender, () => reclassifySenderAction(sender.fromEmail, sender.timestamp, "Lead Reply"));
   }
 
+  function markSystemNotification(sender: UnknownSender) {
+    return run(sender, () => reclassifySenderAction(sender.fromEmail, sender.timestamp, "System Notification"));
+  }
+
   function remove(sender: UnknownSender) {
     if (!window.confirm(`Delete this record from ${sender.fromEmail}? This cannot be undone.`)) return;
     return run(sender, () => deleteSenderRecordAction(sender.fromEmail, sender.timestamp));
@@ -64,15 +92,23 @@ export function UnknownSendersView({ senders }: { senders: UnknownSender[] }) {
           <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-text-tertiary" />
           <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search unmatched replies…" className="pl-8" />
         </div>
+        <Select
+          value={classificationFilter}
+          onChange={(e) => setClassificationFilter(e.target.value as typeof classificationFilter)}
+          className="w-56"
+          aria-label="Filter by classification"
+        >
+          <option value="default">Needs a look ({senders.filter((s) => DEFAULT_VISIBLE.includes(s.classification)).length})</option>
+          <option value="all">All classifications ({senders.length})</option>
+          {(Object.keys(CLASSIFICATION_BADGE) as UnknownSenderClassification[]).map((c) => (
+            <option key={c} value={c}>
+              {CLASSIFICATION_BADGE[c].label} ({counts.get(c) ?? 0})
+            </option>
+          ))}
+        </Select>
         <p className="text-xs text-text-tertiary">
-          {filtered.length} of {visible.length}
-          {internalCount > 0 && !showInternal ? ` · ${internalCount} internal hidden` : ""}
+          {filtered.length} shown{classificationFilter === "default" && resolvedCount > 0 ? ` · ${resolvedCount} already resolved (hidden)` : ""}
         </p>
-        {internalCount > 0 && (
-          <Button size="sm" variant="ghost" className="ml-auto" onClick={() => setShowInternal((v) => !v)}>
-            {showInternal ? "Hide internal" : `Show internal (${internalCount})`}
-          </Button>
-        )}
       </div>
 
       <Card className="overflow-hidden">
@@ -93,8 +129,9 @@ export function UnknownSendersView({ senders }: { senders: UnknownSender[] }) {
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
                       <p className="text-sm font-medium text-text-primary">{sender.fromEmail}</p>
-                      {sender.classification === "Internal" && <Badge variant="outline">Internal</Badge>}
-                      {sender.classification === "Lead Reply" && <Badge variant="accent">Lead Reply</Badge>}
+                      <Badge variant={CLASSIFICATION_BADGE[sender.classification].variant}>
+                        {CLASSIFICATION_BADGE[sender.classification].label}
+                      </Badge>
                       {sender.reviewed && <Badge variant="success">Reviewed</Badge>}
                       <span className="ml-auto shrink-0 text-[11px] text-text-tertiary">{formatDateTime(sender.timestamp)}</span>
                     </div>
@@ -117,6 +154,17 @@ export function UnknownSendersView({ senders }: { senders: UnknownSender[] }) {
                     {sender.classification !== "Internal" && (
                       <Button size="sm" variant="ghost" onClick={() => markInternal(sender)} disabled={pending} title="Mark as internal / not a prospect">
                         <ShieldAlert className="h-3.5 w-3.5" /> Internal
+                      </Button>
+                    )}
+                    {sender.classification !== "System Notification" && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => markSystemNotification(sender)}
+                        disabled={pending}
+                        title="Mark as an automated platform notification, not a prospect"
+                      >
+                        <Bell className="h-3.5 w-3.5" /> Notification
                       </Button>
                     )}
                     <Button size="sm" variant="ghost" className="text-danger hover:text-danger" onClick={() => remove(sender)} disabled={pending}>
