@@ -42,13 +42,13 @@ export function Header({ attentionCount = 0, adminEmail = "" }: { attentionCount
   }
 
   return (
-    <header className="sticky top-0 z-20 flex h-16 shrink-0 items-center gap-3 border-b border-border-subtle bg-header/92 px-4 shadow-[0_1px_0_0_rgba(255,255,255,0.02)] backdrop-blur-md lg:px-6">
+    <header className="sticky top-0 z-20 flex h-14 shrink-0 items-center gap-3 border-b border-border-subtle bg-header/95 px-4 shadow-[0_1px_0_0_rgba(255,255,255,0.02),0_1px_12px_-4px_rgba(0,0,0,0.5)] backdrop-blur-md lg:px-6">
       <Button variant="ghost" size="icon" className="lg:hidden" onClick={() => setMobileNavOpen(true)} aria-label="Open navigation menu">
         <Menu className="h-5 w-5" />
       </Button>
 
       <div className="hidden min-w-0 flex-col justify-center lg:flex">
-        <div className="flex items-center gap-1.5 text-xs text-text-tertiary">
+        <div className="flex items-center gap-1.5 text-[11px] text-text-tertiary">
           <Link href="/dashboard" className="hover:text-text-primary">
             Biggbee CRM
           </Link>
@@ -59,7 +59,10 @@ export function Header({ attentionCount = 0, adminEmail = "" }: { attentionCount
             </>
           )}
         </div>
-        <h1 className="truncate text-sm font-semibold text-text-primary">{current?.label ?? "Dashboard"}</h1>
+        <h1 className="flex items-center gap-1.5 truncate text-sm font-semibold text-text-primary">
+          <span className="h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-accent shadow-[0_0_6px_var(--accent-glow)]" />
+          {current?.label ?? "Dashboard"}
+        </h1>
       </div>
 
       <form onSubmit={handleSearchSubmit} className="ml-auto flex flex-1 items-center gap-2 lg:max-w-sm">

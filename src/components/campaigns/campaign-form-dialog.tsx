@@ -49,6 +49,7 @@ export function CampaignFormDialog({
   const [clickTrackingEnabled, setClickTrackingEnabled] = React.useState(campaign?.clickTrackingEnabled ?? true);
   const [replyTrackingEnabled, setReplyTrackingEnabled] = React.useState(campaign?.replyTrackingEnabled ?? true);
   const [deliverabilityTestEnabled, setDeliverabilityTestEnabled] = React.useState(campaign?.deliverabilityTestEnabled ?? false);
+  const [isTest, setIsTest] = React.useState(campaign?.isTest ?? false);
 
   const selectedDemo = demos.find((d) => d.demoId === demoId);
 
@@ -61,6 +62,7 @@ export function CampaignFormDialog({
     formData.set("clickTrackingEnabled", clickTrackingEnabled ? "true" : "false");
     formData.set("replyTrackingEnabled", replyTrackingEnabled ? "true" : "false");
     formData.set("deliverabilityTestEnabled", deliverabilityTestEnabled ? "true" : "false");
+    formData.set("isTest", isTest ? "true" : "false");
 
     setPending(true);
     setError(null);
@@ -125,6 +127,15 @@ export function CampaignFormDialog({
               <div className="space-y-1.5">
                 <Label htmlFor="c-notes">Notes</Label>
                 <Textarea id="c-notes" name="notes" rows={3} defaultValue={campaign?.notes} placeholder="Target agencies running Instagram lead generation campaigns." />
+              </div>
+              <div className="flex items-center justify-between rounded-xl border border-border-subtle p-3">
+                <div>
+                  <p className="text-sm font-medium text-text-primary">Test Campaign</p>
+                  <p className="text-xs text-text-tertiary">
+                    Leads scraped under this campaign are tagged as test data and excluded from production analytics by default.
+                  </p>
+                </div>
+                <Switch checked={isTest} onCheckedChange={setIsTest} aria-label="Test campaign" />
               </div>
             </TabsContent>
 

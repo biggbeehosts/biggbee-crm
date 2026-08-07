@@ -316,6 +316,38 @@ export async function updateRowFields(
   }
 }
 
+/**
+ * Clears every data row's VALUES in a tab (everything from row 2 down) while leaving the header
+ * row, the tab itself, and every other tab completely untouched -- this is the one primitive
+ * "Reset CRM Data" is built on (see reset-store.ts). Uses spreadsheets.values.clear, not a
+ * dimension/row delete: the sheet keeps its exact row/column count and formatting, only cell
+ * *values* are removed, so this can never touch a different tab or the spreadsheet structure.
+ * Returns how many data rows existed before the clear (for the caller's audit-log count).
+ */
+export async function clearTabDataRows(tabName: string): Promise<number> {
+  const env = getSheetsEnv();
+  const sheets = getClient();
+  const meta = await getSheetMeta(tabName);
+  if (!meta) return 0;
+  const lastCol = columnLetter(Math.max(meta.headers.length - 1, 0));
+  try {
+    const current = await sheets.spreadsheets.values.get({
+      spreadsheetId: env.sheetId,
+      range: `'${tabName}'!A2:${lastCol}100000`,
+    });
+    const rowCount = (current.data.values ?? []).filter((row) => row.some((cell) => cell !== undefined && cell !== "")).length;
+    if (rowCount === 0) return 0;
+    await sheets.spreadsheets.values.clear({
+      spreadsheetId: env.sheetId,
+      range: `'${tabName}'!A2:${lastCol}100000`,
+      requestBody: {},
+    });
+    return rowCount;
+  } catch (err) {
+    throw translateSheetsError(err, tabName);
+  }
+}
+
 /** Deletes exactly one row (1-based, header row = 1) via a dimension delete so subsequent rows
  *  shift up -- callers that track rowNumber must reload after this. */
 export async function deleteSheetRow(tabName: string, rowNumber: number): Promise<void> {

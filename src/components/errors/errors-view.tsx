@@ -14,23 +14,28 @@ import { daysSince, formatDateTime } from "@/lib/utils/date";
 import { severityOf, SEVERITY_BADGE } from "@/lib/calculations/error-severity";
 import { AlertTriangle, Check, ChevronDown, ChevronRight, Copy, Search, ShieldAlert, Users } from "lucide-react";
 
-export function ErrorsView({ errors }: { errors: ErrorRecord[] }) {
+export function ErrorsView({ errors, testLeadEmails = new Set() }: { errors: ErrorRecord[]; testLeadEmails?: Set<string> }) {
   const [search, setSearch] = React.useState("");
   const [source, setSource] = React.useState("all");
   const [node, setNode] = React.useState("all");
   const [dateRange, setDateRange] = React.useState("all");
   const [leadFilter, setLeadFilter] = React.useState("all");
+  const [dataFilter, setDataFilter] = React.useState<"all" | "production" | "test">("all");
   const [expanded, setExpanded] = React.useState<string | null>(null);
   const [copied, setCopied] = React.useState<string | null>(null);
 
   const sources = React.useMemo(() => unique(errors.map((e) => e.source)), [errors]);
   const nodes = React.useMemo(() => unique(errors.map((e) => e.nodeName)), [errors]);
   const leadEmails = React.useMemo(() => unique(errors.map((e) => e.leadEmail)), [errors]);
+  const isTestError = React.useCallback((e: ErrorRecord) => Boolean(e.leadEmail && testLeadEmails.has(e.leadEmail)), [testLeadEmails]);
+  const testCount = React.useMemo(() => errors.filter(isTestError).length, [errors, isTestError]);
 
   const filtered = errors.filter((e) => {
     if (source !== "all" && (e.source || "—") !== source) return false;
     if (node !== "all" && (e.nodeName || "—") !== node) return false;
     if (leadFilter !== "all" && (e.leadEmail || "—") !== leadFilter) return false;
+    if (dataFilter === "production" && isTestError(e)) return false;
+    if (dataFilter === "test" && !isTestError(e)) return false;
     if (dateRange !== "all") {
       const age = daysSince(e.timestamp);
       if (age === null || age > Number(dateRange)) return false;
@@ -106,6 +111,13 @@ export function ErrorsView({ errors }: { errors: ErrorRecord[] }) {
           <option value="7">Last 7 days</option>
           <option value="30">Last 30 days</option>
         </Select>
+        {testCount > 0 && (
+          <Select value={dataFilter} onChange={(e) => setDataFilter(e.target.value as typeof dataFilter)} className="w-40" aria-label="Filter by data type">
+            <option value="all">All errors</option>
+            <option value="production">Production only</option>
+            <option value="test">Test only ({testCount})</option>
+          </Select>
+        )}
       </div>
 
       <Card className="overflow-hidden">
@@ -131,6 +143,7 @@ export function ErrorsView({ errors }: { errors: ErrorRecord[] }) {
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-2">
                         <Badge variant={SEVERITY_BADGE[severity]}>{severity}</Badge>
+                        {isTestError(err) && <Badge variant="purple">TEST</Badge>}
                         <span className="text-xs text-text-tertiary">{err.source || "Unknown source"}</span>
                         {err.nodeName && <span className="text-xs text-text-tertiary">· {err.nodeName}</span>}
                         <span className="ml-auto shrink-0 text-[11px] text-text-tertiary">{formatDateTime(err.timestamp)}</span>

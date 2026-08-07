@@ -75,6 +75,19 @@ export async function ensureLeadsTrackingColumns(): Promise<void> {
   leadsTrackingColumnsEnsured = true;
 }
 
+/** Same additive-column pattern, for the "Is Test" marker. Set at creation (scraper import
+ *  inherits the assigned campaign's isTest flag) or explicitly by an admin action -- never
+ *  touched by n8n, so no coordination with the outbound workflow is required. */
+const TEST_LEAD_HEADERS = ["Is Test"];
+let leadsTestColumnEnsured = false;
+async function ensureLeadsTestColumn(): Promise<void> {
+  if (leadsTestColumnEnsured) return;
+  if (await tabExists(SHEET_TAB_NAMES.leads)) {
+    await ensureTabWithHeaders(SHEET_TAB_NAMES.leads, TEST_LEAD_HEADERS);
+  }
+  leadsTestColumnEnsured = true;
+}
+
 /** Always reads fresh (bypasses the 60s cache) -- used immediately before a targeted write so the
  *  row number and optimistic-concurrency check reflect the true current state of the sheet. */
 async function findLeadRowUncached(email: string): Promise<Lead | undefined> {
@@ -124,6 +137,7 @@ function leadToRow(lead: Partial<Lead>): Record<string, string> {
   if (lead.bouncedAt !== undefined) row["Bounced At"] = lead.bouncedAt ?? "";
   if (lead.complaintAt !== undefined) row["Complaint At"] = lead.complaintAt ?? "";
   if (lead.suppressedReason !== undefined) row["Suppressed Reason"] = lead.suppressedReason;
+  if (lead.isTest !== undefined) row["Is Test"] = lead.isTest ? "TRUE" : "FALSE";
   return row;
 }
 
@@ -194,6 +208,7 @@ export interface LeadEditableFields {
   bouncedAt?: string | null;
   complaintAt?: string | null;
   suppressedReason?: string;
+  isTest?: boolean;
 }
 
 export async function createLead(lead: Lead): Promise<void> {
@@ -205,6 +220,7 @@ export async function createLead(lead: Lead): Promise<void> {
   if (touchesScraperColumns(lead)) await ensureLeadsScraperColumns();
   if (touchesDemoColumns(lead)) await ensureLeadsDemoColumns();
   if (touchesTrackingColumns(lead)) await ensureLeadsTrackingColumns();
+  if (lead.isTest !== undefined) await ensureLeadsTestColumn();
   await appendRow(SHEET_TAB_NAMES.leads, leadToRow(lead));
   invalidateCache();
 }
@@ -218,6 +234,7 @@ export async function updateLeadFields(email: string, fields: LeadEditableFields
   if (touchesScraperColumns(fields)) await ensureLeadsScraperColumns();
   if (touchesDemoColumns(fields)) await ensureLeadsDemoColumns();
   if (touchesTrackingColumns(fields)) await ensureLeadsTrackingColumns();
+  if (fields.isTest !== undefined) await ensureLeadsTestColumn();
   const current = await findLeadRowUncached(email);
   if (!current?.rowNumber) throw new Error(`Lead "${email}" was not found in the Leads sheet.`);
   await updateRowFields(SHEET_TAB_NAMES.leads, current.rowNumber, leadToRow(fields), { header: "Email", value: current.email });
@@ -240,6 +257,28 @@ export async function bulkUpdateLeadStatus(emails: string[], status: LeadStatus)
       updated.push(email);
     } catch (err) {
       failed.push({ email, error: err instanceof Error ? err.message : "Failed to update status." });
+    }
+  }
+  return { updated, failed };
+}
+
+/** Generic bulk field update -- the one bulk-write path every "bulk X" action (assign campaign,
+ *  mark test/production, and bulkUpdateLeadStatus above) goes through, so there is exactly one
+ *  place that knows how to loop-and-report over `updateLeadFields` rather than a parallel
+ *  implementation per action. Same best-effort-per-row contract: one row's failure never aborts
+ *  the rest, and every outcome (not just successes) is returned so nothing fails silently. */
+export async function bulkUpdateLeadFields(
+  emails: string[],
+  fields: LeadEditableFields
+): Promise<{ updated: string[]; failed: { email: string; error: string }[] }> {
+  const updated: string[] = [];
+  const failed: { email: string; error: string }[] = [];
+  for (const email of emails) {
+    try {
+      await updateLeadFields(email, fields);
+      updated.push(email);
+    } catch (err) {
+      failed.push({ email, error: err instanceof Error ? err.message : "Failed to update lead." });
     }
   }
   return { updated, failed };

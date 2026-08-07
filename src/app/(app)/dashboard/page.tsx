@@ -54,9 +54,21 @@ export default async function DashboardPage() {
       getAllProviderHealth(),
     ]);
 
-  const metrics = computeDashboardMetrics(leads);
+  // Dashboard metrics/charts exclude test data by default (Leads/Campaigns tagged isTest) so a
+  // test campaign never inflates what the operator reads as real production numbers -- see
+  // Settings -> Data Management for how test data is tagged/cleaned. This never touches the
+  // underlying data, only what this read aggregates.
+  const productionLeads = leads.filter((l) => !l.isTest);
+  const testExcludedCount = leads.length - productionLeads.length;
+  // Scraping Jobs have no Is Test column of their own -- test status is derived from the campaign
+  // they ran under (see startScrapingJobAction, which already inherits the campaign's isTest flag
+  // onto imported leads), so the same exclusion is applied here via campaignId lookup.
+  const testCampaignIds = new Set(campaigns.filter((c) => c.isTest).map((c) => c.id));
+  const productionScrapingJobs = scrapingJobs.filter((j) => !testCampaignIds.has(j.campaignId));
+
+  const metrics = computeDashboardMetrics(productionLeads);
   const errorSummary = summarizeDashboardErrors(errors);
-  const activity = excludeInternalSenderLeads(buildActivityFeed(leads, memory, errorSummary.active, 15));
+  const activity = excludeInternalSenderLeads(buildActivityFeed(productionLeads, memory, errorSummary.active, 15));
   const mock = isUsingMockData();
   const lastSync = getLastSyncAt("tab:leads");
   const lastSyncIso = lastSync ? new Date(lastSync).toISOString() : null;
@@ -105,26 +117,29 @@ export default async function DashboardPage() {
       <SystemHealthStrip providers={providers} knowledgeBaseHealthy={knowledgeBaseHealthy} />
 
       <KpiGrid metrics={metrics} />
+      {testExcludedCount > 0 && (
+        <p className="text-right text-[11px] text-text-tertiary">{testExcludedCount} test record{testExcludedCount === 1 ? "" : "s"} excluded</p>
+      )}
 
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-        <LeadGenOverview agents={scraperAgents} jobs={scrapingJobs} sourceBreakdown={leadsBySource(leads)} />
-        <OutreachPerformanceCard leads={leads} volume={outreachVolumeOverTime(leads)} />
+        <LeadGenOverview agents={scraperAgents} jobs={productionScrapingJobs} sourceBreakdown={leadsBySource(productionLeads)} />
+        <OutreachPerformanceCard leads={productionLeads} volume={outreachVolumeOverTime(productionLeads)} />
       </div>
 
       <div>
         <SectionHeader icon={PieChart} title="Lead Distribution" description="Where today's leads are coming from and where they stand" />
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 xl:grid-cols-4">
           <ChartCard title="Leads by Country">
-            <CountBarChart data={leadsByCountry(leads)} />
+            <CountBarChart data={leadsByCountry(productionLeads)} />
           </ChartCard>
           <ChartCard title="Leads by Industry">
-            <CountBarChart data={leadsByIndustry(leads)} />
+            <CountBarChart data={leadsByIndustry(productionLeads)} />
           </ChartCard>
           <ChartCard title="Leads by Service">
-            <CountBarChart data={leadsByService(leads)} />
+            <CountBarChart data={leadsByService(productionLeads)} />
           </ChartCard>
           <ChartCard title="Lead Status">
-            <CountPieChart data={leadsByStatus(leads)} />
+            <CountPieChart data={leadsByStatus(productionLeads)} />
           </ChartCard>
         </div>
       </div>

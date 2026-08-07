@@ -19,6 +19,10 @@ export interface AnalyticsFilterValues {
   range: string;
   from?: string;
   to?: string;
+  /** Defaults to "production" (test-tagged leads/campaigns excluded) when absent -- see
+   *  page.tsx's resolveDataMode. Explicit "test"/"all" are real URL params; "production" clears
+   *  the param entirely so a shared/bookmarked link with no `data` param still means production. */
+  data?: "production" | "test" | "all";
   campaignId?: string;
   source?: string;
   country?: string;
@@ -71,6 +75,16 @@ export function AnalyticsFilters({
     router.push(`${pathname}?${params.toString()}`);
   }
 
+  /** Distinct from setParam above: for `data`, "all" is a real, explicit filter state (not "no
+   *  filter") -- "production" (the default) is what clears the param, so it can't reuse setParam's
+   *  generic "all means delete" shortcut without silently losing the "all" selection. */
+  function setDataParam(value: string) {
+    const params = new URLSearchParams(window.location.search);
+    if (!value || value === "production") params.delete("data");
+    else params.set("data", value);
+    router.push(`${pathname}?${params.toString()}`);
+  }
+
   return (
     <Card className="p-4">
       <div className="flex flex-wrap items-end gap-3">
@@ -81,6 +95,13 @@ export function AnalyticsFilters({
                 {o.label}
               </option>
             ))}
+          </Select>
+        </Field>
+        <Field label="Data">
+          <Select value={values.data ?? "production"} onChange={(e) => setDataParam(e.target.value)}>
+            <option value="production">Production</option>
+            <option value="test">Test</option>
+            <option value="all">All</option>
           </Select>
         </Field>
         {values.range === "custom" && (

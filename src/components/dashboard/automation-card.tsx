@@ -202,7 +202,12 @@ export function AutomationCard({
             <Play className="h-4 w-4" />
             {runBusy ? "Starting…" : runCooldown > 0 ? `Run Campaign (${runCooldown}s)` : "Run Campaign"}
           </Button>
-          {!readiness.canRun && <span className="text-[11px] text-warning">Blocked — see Campaign Readiness</span>}
+          {!readiness.canRun && readiness.blockReasons.length > 0 && (
+            <span className="max-w-sm text-[11px] font-medium text-warning">
+              Blocked: {readiness.blockReasons[0]}
+              {readiness.blockReasons.length > 1 ? ` (+${readiness.blockReasons.length - 1} more)` : ""}
+            </span>
+          )}
           {readiness.canRun && runCooldown === 0 && !runBusy && readiness.campaignMatches !== null && (
             <span className="text-[11px] text-text-tertiary">
               {readiness.campaignMatches} lead{readiness.campaignMatches === 1 ? "" : "s"} assigned by Campaign ID and eligible

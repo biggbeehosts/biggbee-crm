@@ -33,6 +33,7 @@ const CAMPAIGN_HEADERS = [
   "Deliverability Test Enabled",
   "Language",
   "Website ID",
+  "Is Test",
   "Created At",
   "Updated At",
 ];
@@ -61,6 +62,7 @@ function toRow(c: Campaign): Record<string, string> {
     "Deliverability Test Enabled": c.deliverabilityTestEnabled ? "Yes" : "No",
     Language: c.language ?? "",
     "Website ID": c.websiteId ?? "",
+    "Is Test": c.isTest ? "TRUE" : "FALSE",
     "Created At": c.createdAt,
     "Updated At": c.updatedAt,
   };
@@ -162,6 +164,8 @@ function fromRow(row: Record<string, string>, rowNumber: number): Campaign {
     deliverabilityTestEnabled: parseYesNo(row["Deliverability Test Enabled"], false),
     language: row.Language || undefined,
     websiteId: row["Website ID"] || undefined,
+    // Additive column -- missing/blank on every row written before it existed reads as false.
+    isTest: parseYesNo(row["Is Test"], false),
     createdAt: row["Created At"] || now(),
     updatedAt: row["Updated At"] || now(),
     rowNumber,
@@ -189,6 +193,7 @@ const SEED_CAMPAIGNS: Campaign[] = [
     clickTrackingEnabled: true,
     replyTrackingEnabled: true,
     deliverabilityTestEnabled: false,
+    isTest: false,
     createdAt: now(),
     updatedAt: now(),
   },

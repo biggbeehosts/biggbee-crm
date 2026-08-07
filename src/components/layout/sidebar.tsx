@@ -21,14 +21,14 @@ export function Sidebar({ connected, mode, adminEmail }: { connected: boolean; m
         sidebarCollapsed ? "w-[76px]" : "w-64"
       )}
     >
-      <div className="flex h-16 shrink-0 items-center border-b border-border-subtle px-4">
+      <div className="flex h-14 shrink-0 items-center border-b border-border-subtle px-4">
         <Logo collapsed={sidebarCollapsed} />
       </div>
 
-      <nav className="flex-1 space-y-4 overflow-y-auto px-2.5 py-4">
+      <nav className="flex-1 space-y-3.5 overflow-y-auto px-2 py-3.5">
         {NAV_GROUPS.map((group) => (
           <div key={group}>
-            {!sidebarCollapsed && <p className="px-2.5 pb-1 text-[10px] font-semibold uppercase tracking-wider text-text-tertiary/80">{group}</p>}
+            {!sidebarCollapsed && <p className="px-2.5 pb-1 text-[10px] font-semibold uppercase tracking-wider text-text-tertiary/70">{group}</p>}
             <div className="space-y-0.5">
               {NAV_ITEMS.filter((item) => item.group === group).map((item) => {
                 const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
@@ -39,16 +39,19 @@ export function Sidebar({ connected, mode, adminEmail }: { connected: boolean; m
                     href={item.href}
                     title={sidebarCollapsed ? item.label : undefined}
                     className={cn(
-                      "group relative flex items-center gap-3 rounded-lg py-1.5 pl-3 pr-2.5 text-sm font-medium transition-colors",
-                      active ? "bg-accent-soft text-accent-strong" : "text-text-secondary hover:bg-panel hover:text-text-primary",
+                      "group relative flex items-center gap-2.5 rounded-lg py-1.5 pl-3 pr-2.5 text-[13px] font-medium transition-all",
+                      active
+                        ? "border border-accent/25 bg-surface-2 text-accent shadow-[0_0_0_1px_rgba(182,240,58,0.08),0_0_14px_-4px_var(--accent-glow)]"
+                        : "border border-transparent text-text-secondary hover:bg-panel hover:text-text-primary",
                       sidebarCollapsed && "justify-center px-0"
                     )}
                   >
                     {active && (
-                      <span className="absolute left-0 top-1/2 h-4 w-0.5 -translate-y-1/2 rounded-full bg-accent-strong shadow-[0_0_8px_var(--accent-glow)]" />
+                      <span className="absolute left-0 top-1/2 h-4 w-[3px] -translate-y-1/2 rounded-full bg-accent shadow-[0_0_8px_var(--accent-glow)]" />
                     )}
-                    <Icon className={cn("h-4 w-4 shrink-0", active ? "text-accent-strong" : "text-text-tertiary group-hover:text-text-primary")} />
+                    <Icon className={cn("h-4 w-4 shrink-0", active ? "text-accent" : "text-text-tertiary group-hover:text-text-primary")} />
                     {!sidebarCollapsed && <span className="truncate">{item.label}</span>}
+                    {active && !sidebarCollapsed && <span className="ml-auto h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-accent" />}
                   </Link>
                 );
               })}

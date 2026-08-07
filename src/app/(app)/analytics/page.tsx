@@ -49,6 +49,8 @@ interface SearchParams {
   range?: string;
   from?: string;
   to?: string;
+  /** Defaults to "production" -- see resolveDataMode below. */
+  data?: string;
   campaignId?: string;
   source?: string;
   country?: string;
@@ -85,14 +87,30 @@ function resolveRange(sp: SearchParams): { from: string; to: string; range: stri
 export default async function AnalyticsPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
   const sp = await searchParams;
   const { from, to, range } = resolveRange(sp);
+  const dataMode: "production" | "test" | "all" = sp.data === "test" ? "test" : sp.data === "all" ? "all" : "production";
 
-  const [leads, campaigns, demos, events, placementTests] = await Promise.all([
+  const [allLeads, campaigns, demos, allEvents, placementTests] = await Promise.all([
     getLeads(),
     getCampaigns(),
     getDemoLibrary(),
     getEvents({ from, to }),
     getInboxPlacementTests(),
   ]);
+
+  // Production is the default everywhere on this page -- a test campaign must never inflate what
+  // reads as real performance. Events are cross-referenced against test lead emails (in addition
+  // to their own real isTestEvent flag) since a send/open/click for a test lead is test data too,
+  // even on an event type that isn't itself flagged as a synthetic/dry-run test event.
+  const testLeadEmails = new Set(allLeads.filter((l) => l.isTest).map((l) => l.email));
+  const leads = dataMode === "all" ? allLeads : allLeads.filter((l) => (dataMode === "test" ? l.isTest : !l.isTest));
+  const events =
+    dataMode === "all"
+      ? allEvents
+      : allEvents.filter((e) => {
+          const isTest = e.isTestEvent || (e.leadId ? testLeadEmails.has(e.leadId) : false);
+          return dataMode === "test" ? isTest : !isTest;
+        });
+  const testLeadsExcluded = dataMode === "production" ? allLeads.length - leads.length : 0;
 
   const filter: TrackingFilter = {
     from,
@@ -131,7 +149,7 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
       />
 
       <AnalyticsFilters
-        values={{ range, from: sp.from, to: sp.to, ...sp }}
+        values={{ range, from: sp.from, to: sp.to, ...sp, data: dataMode }}
         campaigns={campaigns}
         demos={demos}
         dimensions={dims}
@@ -139,6 +157,9 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
         subjectVariants={subjectVariants}
         emailStyles={emailStyles}
       />
+      {testLeadsExcluded > 0 && (
+        <p className="text-[11px] text-text-tertiary">{testLeadsExcluded} test lead{testLeadsExcluded === 1 ? "" : "s"} excluded from these numbers</p>
+      )}
 
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4 xl:grid-cols-5">
         <StatCard label="Leads Scraped" value={snapshot.kpis.leadsScraped} icon={Send} />

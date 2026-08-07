@@ -32,6 +32,7 @@ const CampaignSchema = z.object({
   replyTrackingEnabled: z.boolean(),
   deliverabilityTestEnabled: z.boolean(),
   websiteId: z.string().optional(),
+  isTest: z.boolean(),
 });
 
 function numOrNull(v: FormDataEntryValue | null): number | null {
@@ -66,6 +67,7 @@ export async function saveCampaignAction(formData: FormData): Promise<ActionResu
     replyTrackingEnabled: formData.get("replyTrackingEnabled") === "on" || formData.get("replyTrackingEnabled") === "true",
     deliverabilityTestEnabled: formData.get("deliverabilityTestEnabled") === "on" || formData.get("deliverabilityTestEnabled") === "true",
     websiteId: String(formData.get("websiteId") || "") || undefined,
+    isTest: formData.get("isTest") === "on" || formData.get("isTest") === "true",
   });
 
   if (!parsed.success) {
@@ -109,6 +111,7 @@ export async function saveCampaignAction(formData: FormData): Promise<ActionResu
       replyTrackingEnabled: parsed.data.replyTrackingEnabled,
       deliverabilityTestEnabled: parsed.data.deliverabilityTestEnabled,
       websiteId: parsed.data.websiteId,
+      isTest: parsed.data.isTest,
       createdAt: existing?.createdAt ?? new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };

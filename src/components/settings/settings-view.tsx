@@ -2,7 +2,9 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { BookOpen, RefreshCw, Sheet, ShieldCheck, Workflow, Palette } from "lucide-react";
+import Link from "next/link";
+import { BookOpen, RefreshCw, Sheet, ShieldCheck, Workflow, Palette, Trash2, ArrowRight, TriangleAlert } from "lucide-react";
+import { DataManagementPanel } from "./data-management-panel";
 import type { ConnectionStatus, KnowledgeBaseRecord } from "@/types";
 import type { EnvValidation } from "@/lib/config/env-validation";
 import type { N8nActionKey } from "@/lib/n8n/config";
@@ -218,6 +220,40 @@ export function SettingsView({
               <p className="text-xs text-text-tertiary">Default and recommended for the Biggbee visual identity</p>
             </div>
             <Switch checked={theme === "dark"} onCheckedChange={toggleTheme} aria-label="Toggle dark mode" />
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <div className="flex items-center gap-2.5">
+            <IconBadge icon={Trash2} tone="danger" />
+            <div>
+              <CardTitle>Data Management</CardTitle>
+              <CardDescription>Clean tagged test data, or reset all CRM business data -- both real, both admin-protected</CardDescription>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <DataManagementPanel />
+          <div className="flex items-center justify-between rounded-lg border border-border-subtle bg-panel px-3 py-2.5">
+            <div>
+              <p className="text-sm font-medium text-text-primary">Individual tracking-event cleanup</p>
+              <p className="text-[11px] text-text-tertiary">Mark-as-test, delete-by-month, and retention purge live on Tracking</p>
+            </div>
+            <Button size="sm" variant="secondary" asChild>
+              <Link href="/system/tracking">
+                Open <ArrowRight className="h-3 w-3" />
+              </Link>
+            </Button>
+          </div>
+          <div className="flex items-start gap-2 rounded-lg border border-warning/20 bg-warning/10 p-2.5">
+            <TriangleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0 text-warning" />
+            <p className="text-[11px] text-warning">
+              Lead Memory and Errors show accurate test-record counts in the preview but can&apos;t be deleted from here yet -- neither has a
+              delete function in this codebase today (both are read-only, n8n-owned tabs). Clean Test Data and Reset both skip them and report
+              this honestly rather than silently failing.
+            </p>
           </div>
         </CardContent>
       </Card>

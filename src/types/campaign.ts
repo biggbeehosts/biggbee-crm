@@ -60,6 +60,11 @@ export interface Campaign {
    *  uses that site's knowledge base instead of the default (Biggbee's own); when unset, behavior
    *  is unchanged from before this field existed (falls back to the default KB). */
   websiteId?: string;
+  /** Additive "Is Test" column -- when true, leads imported by a scraper run under this campaign
+   *  inherit isTest=true at creation (see leads-mutations.ts), and dashboard/analytics metrics
+   *  exclude this campaign's leads by default. Missing/blank on any row written before this column
+   *  existed reads as `false` -- see normalizeCampaign. Never inferred from the campaign's name. */
+  isTest: boolean;
   createdAt: string;
   updatedAt: string;
   /** Row position in the Campaigns sheet tab, used for targeted updates. Absent in mock mode. */

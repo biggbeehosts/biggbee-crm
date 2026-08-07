@@ -68,6 +68,8 @@ export function normalizeLead(row: Row, index: number): Lead {
     bouncedAt: pick(row, "Bounced At") || null,
     complaintAt: pick(row, "Complaint At") || null,
     suppressedReason: pick(row, "Suppressed Reason") || undefined,
+    // Additive column -- missing/blank on every row written before it existed reads as false.
+    isTest: parseYesNo(pick(row, "Is Test")),
     rowNumber: index + 2, // +1 for header row, +1 for 1-based sheet rows
   };
 }

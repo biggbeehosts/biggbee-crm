@@ -2,7 +2,15 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { bulkDeleteLeads, bulkUpdateLeadStatus, createLead, deleteLead, updateLeadFields, updateLeadStatus } from "@/lib/data/leads-mutations";
+import {
+  bulkDeleteLeads,
+  bulkUpdateLeadFields,
+  bulkUpdateLeadStatus,
+  createLead,
+  deleteLead,
+  updateLeadFields,
+  updateLeadStatus,
+} from "@/lib/data/leads-mutations";
 import { getCampaign } from "@/lib/data/campaigns-store";
 import { requireAdmin } from "@/lib/auth/require-admin";
 import { logAudit } from "@/lib/audit/log";
@@ -64,6 +72,9 @@ export async function addLeadAction(formData: FormData): Promise<ActionResult> {
 
   const campaignError = await validateCampaignId(parsed.data.campaignId);
   if (campaignError) return { success: false, message: campaignError };
+  // Inherits the assigned campaign's Is Test flag at creation, same rule the scraper import path
+  // uses (see startScrapingJobAction) -- a lead added under a test campaign is test data too.
+  const assignedCampaign = await getCampaign(parsed.data.campaignId);
 
   const lead: Lead = {
     email: parsed.data.email.toLowerCase(),
@@ -93,6 +104,7 @@ export async function addLeadAction(formData: FormData): Promise<ActionResult> {
     emailStyle: "",
     confidence: null,
     campaignId: parsed.data.campaignId,
+    isTest: assignedCampaign?.isTest ?? false,
   };
 
   try {
@@ -117,6 +129,20 @@ export async function updateLeadStatusAction(email: string, status: LeadStatus):
   } catch (err) {
     const message = err instanceof Error ? err.message : "Failed to update status.";
     await logAudit({ actor, action: "lead.status_change_failed", target: email, success: false, details: { error: message } });
+    return { success: false, message };
+  }
+}
+
+export async function setLeadTestFlagAction(email: string, isTest: boolean): Promise<ActionResult> {
+  const actor = await requireAdmin();
+  try {
+    await updateLeadFields(email, { isTest });
+    revalidateLeadPaths(email);
+    await logAudit({ actor, action: "lead.test_flag_change", target: email, success: true, details: { isTest } });
+    return { success: true, message: isTest ? "Marked as test data." : "Marked as production." };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Failed to update test flag.";
+    await logAudit({ actor, action: "lead.test_flag_change_failed", target: email, success: false, details: { error: message } });
     return { success: false, message };
   }
 }
@@ -263,4 +289,39 @@ export async function bulkDeleteLeadsAction(emails: string[]): Promise<BulkActio
   revalidateScrapedLeadsPaths();
   await logAudit({ actor, action: "lead.bulk_delete", success: failed.length === 0, details: { count: deleted.length, failed: failed.length } });
   return summarizeBulk("deleted", deleted, failed);
+}
+
+/** Main Leads-page bulk toolbar (distinct from the Scraped Leads review queue above) -- assign
+ *  campaign, change status, and mark test/production all go through the same generic
+ *  bulkUpdateLeadFields path rather than one bespoke implementation per action. */
+export async function bulkAssignCampaignAction(emails: string[], campaignId: string): Promise<BulkActionResult> {
+  const actor = await requireAdmin();
+  const campaignError = await validateCampaignId(campaignId);
+  if (campaignError) return { success: false, message: campaignError, succeeded: [], failed: [] };
+  const campaign = await getCampaign(campaignId);
+  const { updated, failed } = await bulkUpdateLeadFields(emails, { campaignId, campaignName: campaign?.name ?? "" });
+  revalidateLeadPaths();
+  await logAudit({ actor, action: "lead.bulk_assign_campaign", success: failed.length === 0, details: { campaignId, count: updated.length, failed: failed.length } });
+  return summarizeBulk("reassigned", updated, failed);
+}
+
+export async function bulkChangeStatusAction(emails: string[], status: LeadStatus): Promise<BulkActionResult> {
+  const actor = await requireAdmin();
+  const { updated, failed } = await bulkUpdateLeadFields(emails, { status });
+  revalidateLeadPaths();
+  await logAudit({ actor, action: "lead.bulk_status_change", success: failed.length === 0, details: { status, count: updated.length, failed: failed.length } });
+  return summarizeBulk("updated", updated, failed);
+}
+
+export async function bulkSetTestFlagAction(emails: string[], isTest: boolean): Promise<BulkActionResult> {
+  const actor = await requireAdmin();
+  const { updated, failed } = await bulkUpdateLeadFields(emails, { isTest });
+  revalidateLeadPaths();
+  await logAudit({
+    actor,
+    action: "lead.bulk_test_flag_change",
+    success: failed.length === 0,
+    details: { isTest, count: updated.length, failed: failed.length },
+  });
+  return summarizeBulk(isTest ? "marked test" : "marked production", updated, failed);
 }

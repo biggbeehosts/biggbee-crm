@@ -138,6 +138,11 @@ export interface Lead {
   /** Free-text reason a lead was suppressed (bounce/unsubscribe/complaint) -- audit trail, not a
    *  gate itself (Status is the actual gate n8n's STOP_STATUSES checks). */
   suppressedReason?: string;
+  /** Additive "Is Test" column -- explicit admin/scraper-set marker, never inferred from name or
+   *  content. Missing/blank on any existing row (including every row written before this column
+   *  existed) reads as `false` -- see normalizeLead. Set at creation by the scraper import path
+   *  (inherited from the assigned campaign's own isTest flag) or explicitly by an admin action. */
+  isTest: boolean;
   /** Row position in the source sheet, used for targeted updates. Absent in mock mode. */
   rowNumber?: number;
 }

@@ -35,6 +35,15 @@ const SYSTEM_SUBJECT_PATTERNS = [
   /returned to sender/i,
   /out of office/i,
   /automatic reply/i,
+  // Billing/security/account alerts -- always a platform notification, never a prospect reply.
+  /password reset/i,
+  /reset your password/i,
+  /security alert/i,
+  /new sign-?in/i,
+  /verify your (email|account)/i,
+  /your (invoice|receipt|payment)/i,
+  /billing (alert|notification|statement)/i,
+  /two-factor|2fa code|one-time (code|password)/i,
 ];
 
 export function isSystemNotificationSender(email: string, subject?: string): boolean {

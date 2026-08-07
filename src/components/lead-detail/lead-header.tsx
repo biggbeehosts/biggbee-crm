@@ -2,20 +2,29 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { Globe, Copy, Play, Download, Check, Trash2 } from "lucide-react";
+import { Globe, Copy, Play, Download, Check, Trash2, FlaskConical } from "lucide-react";
 import type { Campaign, Lead } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { StatusBadge, ConfidenceBadge } from "@/components/ui/status-badge";
 import { initials } from "@/lib/utils/format";
 import { resolveDownloadUrl } from "@/lib/utils/cloudinary";
-import { deleteLeadAction } from "@/lib/actions/leads";
+import { deleteLeadAction, setLeadTestFlagAction } from "@/lib/actions/leads";
 import { EditLeadDialog } from "./edit-lead-dialog";
 
 export function LeadHeader({ lead, campaigns, campaignName }: { lead: Lead; campaigns: Campaign[]; campaignName: string | null }) {
   const router = useRouter();
   const [copied, setCopied] = React.useState(false);
   const [deleting, setDeleting] = React.useState(false);
+  const [togglingTest, setTogglingTest] = React.useState(false);
+
+  async function toggleTest() {
+    setTogglingTest(true);
+    const result = await setLeadTestFlagAction(lead.email, !lead.isTest);
+    if (!result.success) window.alert(result.message);
+    router.refresh();
+    setTogglingTest(false);
+  }
 
   async function copyEmail() {
     await navigator.clipboard.writeText(lead.email);
@@ -50,6 +59,7 @@ export function LeadHeader({ lead, campaigns, campaignName }: { lead: Lead; camp
               <h1 className="text-lg font-semibold text-text-primary">{lead.company}</h1>
               <StatusBadge status={lead.status} />
               <ConfidenceBadge value={lead.confidence} />
+              {lead.isTest && <Badge variant="purple">TEST</Badge>}
             </div>
             <p className="mt-0.5 text-sm text-text-secondary">
               {lead.name} · {lead.email}
@@ -94,6 +104,9 @@ export function LeadHeader({ lead, campaigns, campaignName }: { lead: Lead; camp
           {copied ? "Copied" : "Copy email"}
         </Button>
         <EditLeadDialog lead={lead} campaigns={campaigns} />
+        <Button variant="secondary" size="sm" onClick={toggleTest} disabled={togglingTest}>
+          <FlaskConical className="h-3.5 w-3.5" /> {lead.isTest ? "Mark production" : "Mark test"}
+        </Button>
         <Button variant="secondary" size="sm" className="text-danger hover:text-danger" onClick={handleDelete} disabled={deleting}>
           <Trash2 className="h-3.5 w-3.5" /> {deleting ? "Deleting…" : "Delete lead"}
         </Button>

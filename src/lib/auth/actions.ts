@@ -7,6 +7,7 @@ import { adminExists, createAdmin, getAdmin } from "./admin-store";
 import { hashPassword, verifyPassword } from "./crypto";
 import { checkRateLimit, clearLoginFailures, recordLoginFailure } from "./rate-limit";
 import { createSessionToken, verifySessionToken, SESSION_COOKIE, sessionCookieOptions } from "./session";
+import { requireAdmin } from "./require-admin";
 import { logAudit } from "@/lib/audit/log";
 
 export interface AuthActionResult {
@@ -118,4 +119,39 @@ export async function setupAction(formData: FormData): Promise<AuthActionResult>
 /** Exposed for scripted/non-interactive provisioning parity with ADMIN_PASSWORD_HASH env docs. */
 export async function hashPasswordForEnv(password: string): Promise<string> {
   return hashPassword(password);
+}
+
+/**
+ * Step-up re-authentication for destructive admin operations (Data Management's Clean Test Data
+ * / Reset CRM Data) -- an active session alone is not enough to run those; the admin must also
+ * re-enter their password in the moment. Reuses the exact same verifyPassword/getAdmin path login
+ * already trusts (never a parallel/weaker check), and the same rate-limit bucket as login failures
+ * so a step-up brute-force attempt locks out the same way a login brute-force would. Returns only
+ * a boolean -- callers never see or log the password itself, and the caller is still responsible
+ * for calling requireAdmin() first so this can never be reached without an active session.
+ */
+export async function verifyAdminPasswordAction(password: string): Promise<AuthActionResult> {
+  const actorEmail = await requireAdmin();
+  const ip = await clientIp();
+
+  const rate = checkRateLimit(actorEmail, ip);
+  if (!rate.allowed) {
+    await logAudit({ actor: actorEmail, action: "stepup.rate_limited", success: false, details: { ip } });
+    return {
+      success: false,
+      message: `Too many failed attempts. Try again in ${Math.ceil((rate.retryAfterSeconds ?? 60) / 60)} minute(s).`,
+    };
+  }
+
+  const admin = await getAdmin();
+  const valid = Boolean(admin) && (await verifyPassword(password, admin!.passwordHash));
+  if (!valid) {
+    await recordLoginFailure(actorEmail, ip);
+    await logAudit({ actor: actorEmail, action: "stepup.failed", success: false, details: { ip } });
+    return { success: false, message: "Incorrect password." };
+  }
+
+  await clearLoginFailures(actorEmail, ip);
+  await logAudit({ actor: actorEmail, action: "stepup.success", success: true, details: { ip } });
+  return { success: true, message: "Verified." };
 }

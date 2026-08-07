@@ -2,108 +2,135 @@
 @plugin "tailwindcss-animate";
 
 /*
- * Biggbee brand system: dark navy/black base, electric blue accent, subtle glass panels.
- * Dark mode is the default; :root[data-theme="light"] flips to the light palette.
- * Tailwind v4 is CSS-first, so brand tokens live here in @theme rather than a JS config.
+ * Biggbee AI Operations theme -- warm near-black/graphite base, ELECTRIC LIME as the primary
+ * brand/action color (not blue), amber/orange secondary, violet for a real analytics category.
+ * Blue survives only as `--info`, a supporting/informational color -- it is never the default
+ * button, link, or active-state color anymore. Dark mode is the default; :root[data-theme="light"]
+ * flips to the light palette. Tailwind v4 is CSS-first, so brand tokens live here in @theme rather
+ * than a JS config.
  */
 
 :root {
-  /* Surface tier system -- each level is a deliberate, small step up from the one below it, so
-     nesting (canvas -> sidebar/header -> module card -> stat card -> nested panel -> dialog)
-     reads as real depth instead of one flat dark grey repeated everywhere. */
-  --bg-canvas: #030409; /* app background -- the deepest, near-black, very slightly warm */
-  --bg-sidebar: #07080f;
-  --bg-header: #07080f;
-  --bg-surface: #0b0e17; /* level 1: main module card */
-  --bg-surface-2: #10141f; /* level 2: metric/stat card */
-  --bg-surface-raised: #131826; /* level 3: nested panel, inputs, dialogs */
-  --bg-dialog: #0d1119;
-  --bg-panel: rgba(255, 255, 255, 0.035);
+  /* Surface tier system -- warm charcoal/graphite, not navy. Each level is a deliberate step up
+     from the one below it, so nesting (canvas -> sidebar/header -> module card -> stat card ->
+     nested panel -> dialog) reads as real depth instead of one flat dark grey everywhere. */
+  --bg-canvas: #0a0a0b; /* app background -- the deepest, near-black charcoal */
+  --bg-sidebar: #101012;
+  --bg-header: #101012;
+  --bg-surface: #17171b; /* level 1: main module card -- graphite */
+  --bg-surface-2: #1d1d22; /* level 2: metric/stat card -- slightly raised graphite */
+  --bg-surface-raised: #232329; /* level 3: nested panel, inputs, dialogs */
+  --bg-dialog: #19191e;
+  --bg-panel: rgba(255, 255, 255, 0.04);
   --border-subtle: rgba(255, 255, 255, 0.08);
-  --border-strong: rgba(255, 255, 255, 0.17);
-  --text-primary: #f5f7fc;
-  --text-secondary: #9aa4b9;
-  --text-tertiary: #6b7386;
-  /* Primary accent: a richer, brighter royal/electric blue -- the one color that means
-     "primary action / selected / clickable" everywhere in the app. */
-  --accent: #2f66ff;
-  --accent-strong: #5f8fff;
-  --accent-soft: rgba(47, 102, 255, 0.16);
-  --accent-foreground: #f4f8ff;
-  --accent-glow: rgba(95, 143, 255, 0.4);
-  /* Secondary accent, GrowZen-inspired -- reserved for "live/healthy/high-performing" signals
-     only (an active job, a successful run, a top-performing metric): never the primary brand
-     color, never decorative. */
-  --accent-lime: #b9ef3d;
-  --accent-lime-soft: rgba(185, 239, 61, 0.14);
-  --accent-lime-foreground: #10160a;
+  --border-strong: rgba(255, 255, 255, 0.16);
+  --text-primary: #f6f6f2; /* soft white, very slightly warm */
+  --text-secondary: #a3a3ab; /* cool grey */
+  --text-tertiary: #6f6f78;
+
+  /* PRIMARY accent: electric/acid lime -- this is the one color that means "primary action /
+     selected / clickable / live" everywhere in the app (buttons, active nav, focus rings, links,
+     selected rows). This is the whole personality of the interface -- it must never quietly
+     revert to blue. */
+  --accent: #b6f03a;
+  --accent-strong: #cdff66;
+  --accent-soft: rgba(182, 240, 58, 0.16);
+  --accent-foreground: #0c1206; /* near-black text on lime -- lime is too bright for white text */
+  --accent-glow: rgba(182, 240, 58, 0.45);
+  /* Kept as its own token for "this exact thing is happening right now" (a running job, a live
+     pulse dot) -- same family as --accent by design (aliased), not a second brand color. */
+  --accent-lime: var(--accent-strong);
+  --accent-lime-soft: var(--accent-soft);
+  --accent-lime-foreground: var(--accent-foreground);
+
+  /* Secondary accent: warm amber/orange. */
+  --warning: #f59e0b;
+  --warning-soft: rgba(245, 158, 11, 0.14);
+
+  /* Third accent: violet, reserved for one real analytics/data category -- never decorative and
+     never used interchangeably with the primary lime. */
+  --category-purple: #b48cf2;
+
+  /* Blue survives only here -- purely informational/supporting, never a primary action color. */
+  --info: #5b8def;
+  --info-strong: #82abf7;
+  --info-soft: rgba(91, 141, 239, 0.14);
+  --info-foreground: #f4f8ff;
+
   --success: #2fd18d;
-  --warning: #f5a524;
   --danger: #f2596b;
-  /* Purple is reserved for one real, distinct data category (e.g. "Meeting Booked") -- never
-     used decoratively or interchangeably with the primary accent. */
-  --category-purple: #a78bfa;
+
   --card-gradient: linear-gradient(165deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0) 55%);
   --shadow-card: 0 1px 0 0 rgba(255, 255, 255, 0.02) inset, 0 10px 28px -14px rgba(0, 0, 0, 0.6);
 }
 
 :root[data-theme="light"] {
-  --bg-canvas: #f4f6fb;
+  --bg-canvas: #f5f5f2;
   --bg-sidebar: #ffffff;
   --bg-header: #ffffff;
   --bg-surface: #ffffff;
-  --bg-surface-2: #fbfcfe;
-  --bg-surface-raised: #f7f9fc;
+  --bg-surface-2: #fafaf8;
+  --bg-surface-raised: #f2f2ee;
   --bg-dialog: #ffffff;
   --bg-panel: rgba(15, 23, 42, 0.03);
   --border-subtle: rgba(15, 23, 42, 0.08);
   --border-strong: rgba(15, 23, 42, 0.14);
-  --text-primary: #0b0f1a;
-  --text-secondary: #47506b;
-  --text-tertiary: #7a8399;
-  --accent: #2f6fed;
-  --accent-strong: #1d5be0;
-  --accent-soft: rgba(47, 111, 237, 0.1);
+  --text-primary: #14140f;
+  --text-secondary: #47473f;
+  --text-tertiary: #7a7a70;
+  --accent: #5c8a00;
+  --accent-strong: #4a7000;
+  --accent-soft: rgba(92, 138, 0, 0.1);
   --accent-foreground: #ffffff;
-  --accent-glow: rgba(47, 111, 237, 0.22);
-  --accent-lime: #7ea60f;
-  --accent-lime-soft: rgba(126, 166, 15, 0.1);
-  --accent-lime-foreground: #ffffff;
-  --success: #059669;
+  --accent-glow: rgba(92, 138, 0, 0.2);
+  --accent-lime: var(--accent-strong);
+  --accent-lime-soft: var(--accent-soft);
+  --accent-lime-foreground: var(--accent-foreground);
   --warning: #b45309;
-  --danger: #e11d48;
+  --warning-soft: rgba(180, 83, 9, 0.1);
   --category-purple: #7c5cea;
+  --info: #2f6fed;
+  --info-strong: #1d5be0;
+  --info-soft: rgba(47, 111, 237, 0.1);
+  --info-foreground: #ffffff;
+  --success: #059669;
+  --danger: #e11d48;
   --card-gradient: linear-gradient(165deg, rgba(15, 23, 42, 0.02), rgba(15, 23, 42, 0) 55%);
   --shadow-card: 0 1px 0 0 rgba(255, 255, 255, 0.6) inset, 0 8px 20px -14px rgba(15, 23, 42, 0.25);
 }
 
 @media (prefers-color-scheme: light) {
   :root:not([data-theme="dark"]) {
-    --bg-canvas: #f4f6fb;
+    --bg-canvas: #f5f5f2;
     --bg-sidebar: #ffffff;
     --bg-header: #ffffff;
     --bg-surface: #ffffff;
-    --bg-surface-2: #fbfcfe;
-    --bg-surface-raised: #f7f9fc;
+    --bg-surface-2: #fafaf8;
+    --bg-surface-raised: #f2f2ee;
     --bg-dialog: #ffffff;
     --bg-panel: rgba(15, 23, 42, 0.03);
     --border-subtle: rgba(15, 23, 42, 0.08);
     --border-strong: rgba(15, 23, 42, 0.14);
-    --text-primary: #0b0f1a;
-    --text-secondary: #47506b;
-    --text-tertiary: #7a8399;
-    --accent: #2f6fed;
-    --accent-strong: #1d5be0;
-    --accent-soft: rgba(47, 111, 237, 0.1);
+    --text-primary: #14140f;
+    --text-secondary: #47473f;
+    --text-tertiary: #7a7a70;
+    --accent: #5c8a00;
+    --accent-strong: #4a7000;
+    --accent-soft: rgba(92, 138, 0, 0.1);
     --accent-foreground: #ffffff;
-    --accent-glow: rgba(47, 111, 237, 0.22);
-    --accent-lime: #7ea60f;
-    --accent-lime-soft: rgba(126, 166, 15, 0.1);
-    --accent-lime-foreground: #ffffff;
-    --success: #059669;
+    --accent-glow: rgba(92, 138, 0, 0.2);
+    --accent-lime: var(--accent-strong);
+    --accent-lime-soft: var(--accent-soft);
+    --accent-lime-foreground: var(--accent-foreground);
     --warning: #b45309;
-    --danger: #e11d48;
+    --warning-soft: rgba(180, 83, 9, 0.1);
     --category-purple: #7c5cea;
+    --info: #2f6fed;
+    --info-strong: #1d5be0;
+    --info-soft: rgba(47, 111, 237, 0.1);
+    --info-foreground: #ffffff;
+    --success: #059669;
+    --danger: #e11d48;
     --card-gradient: linear-gradient(165deg, rgba(15, 23, 42, 0.02), rgba(15, 23, 42, 0) 55%);
     --shadow-card: 0 1px 0 0 rgba(255, 255, 255, 0.6) inset, 0 8px 20px -14px rgba(15, 23, 42, 0.25);
   }
@@ -133,8 +160,13 @@
   --color-accent-lime-foreground: var(--accent-lime-foreground);
   --color-success: var(--success);
   --color-warning: var(--warning);
+  --color-warning-soft: var(--warning-soft);
   --color-danger: var(--danger);
   --color-category-purple: var(--category-purple);
+  --color-info: var(--info);
+  --color-info-strong: var(--info-strong);
+  --color-info-soft: var(--info-soft);
+  --color-info-foreground: var(--info-foreground);
   --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
 }
 

@@ -13,7 +13,7 @@ import {
   getSortedRowModel,
   useReactTable,
 } from "@tanstack/react-table";
-import { ArrowUpDown, ChevronLeft, ChevronRight, Columns3, Download, Search, SlidersHorizontal, Trash2, X } from "lucide-react";
+import { ArrowUpDown, ChevronLeft, ChevronRight, Columns3, Download, FlaskConical, Search, SlidersHorizontal, Trash2, X } from "lucide-react";
 import type { Campaign, Lead, LeadStatus } from "@/types";
 import { LEAD_STATUSES } from "@/types";
 import { buildLeadsColumns } from "./columns";
@@ -36,7 +36,7 @@ import { STATUS_COLORS } from "@/lib/utils/status";
 import { downloadCsv, toCsv } from "@/lib/utils/csv";
 import { cn } from "@/lib/utils/cn";
 import { UsersRound } from "lucide-react";
-import { bulkDeleteLeadsAction } from "@/lib/actions/leads";
+import { bulkAssignCampaignAction, bulkChangeStatusAction, bulkDeleteLeadsAction, bulkSetTestFlagAction } from "@/lib/actions/leads";
 
 const CONFIDENCE_RANGES = [
   { value: "all", label: "Any confidence" },
@@ -72,6 +72,7 @@ export function LeadsTable({
   const [serviceFilter, setServiceFilter] = React.useState("all");
   const [confidenceFilter, setConfidenceFilter] = React.useState("all");
   const [campaignFilter, setCampaignFilter] = React.useState("all");
+  const [dataFilter, setDataFilter] = React.useState<"all" | "production" | "test">("all");
 
   const industries = React.useMemo(() => uniqueSorted(leads.map((l) => l.industry)), [leads]);
   const countries = React.useMemo(() => uniqueSorted(leads.map((l) => l.country)), [leads]);
@@ -89,6 +90,8 @@ export function LeadsTable({
       if (leadGenTypeFilter !== "all" && (lead.leadGenerationType || "—") !== leadGenTypeFilter) return false;
       if (serviceFilter !== "all" && (lead.serviceOffered || "—") !== serviceFilter) return false;
       if (campaignFilter !== "all" && (lead.campaignId || "unassigned") !== campaignFilter) return false;
+      if (dataFilter === "production" && lead.isTest) return false;
+      if (dataFilter === "test" && !lead.isTest) return false;
 
       if (confidenceFilter !== "all") {
         const c = lead.confidence;
@@ -100,7 +103,9 @@ export function LeadsTable({
 
       return true;
     });
-  }, [leads, statusFilter, industryFilter, countryFilter, businessTypeFilter, leadGenTypeFilter, serviceFilter, confidenceFilter, campaignFilter]);
+  }, [leads, statusFilter, industryFilter, countryFilter, businessTypeFilter, leadGenTypeFilter, serviceFilter, confidenceFilter, campaignFilter, dataFilter]);
+
+  const testCount = React.useMemo(() => leads.filter((l) => l.isTest).length, [leads]);
 
   const table = useReactTable({
     data: filtered,
@@ -171,17 +176,45 @@ export function LeadsTable({
 
   const selectedCount = Object.keys(rowSelection).length;
   const [bulkPending, setBulkPending] = React.useState(false);
+  const [bulkCampaignId, setBulkCampaignId] = React.useState("");
+  const [bulkStatus, setBulkStatus] = React.useState<LeadStatus>("New");
 
-  async function handleBulkDelete() {
-    const emails = table.getSelectedRowModel().rows.map((r) => r.original.email);
-    if (emails.length === 0) return;
-    if (!window.confirm(`Delete ${emails.length} lead${emails.length === 1 ? "" : "s"} permanently? This cannot be undone.`)) return;
+  function selectedEmails() {
+    return table.getSelectedRowModel().rows.map((r) => r.original.email);
+  }
+
+  async function runBulk(fn: () => Promise<{ success: boolean; message: string }>) {
     setBulkPending(true);
-    const result = await bulkDeleteLeadsAction(emails);
+    const result = await fn();
     if (!result.success) window.alert(result.message);
     setRowSelection({});
     router.refresh();
     setBulkPending(false);
+  }
+
+  async function handleBulkDelete() {
+    const emails = selectedEmails();
+    if (emails.length === 0) return;
+    if (!window.confirm(`Delete ${emails.length} lead${emails.length === 1 ? "" : "s"} permanently? This cannot be undone.`)) return;
+    return runBulk(() => bulkDeleteLeadsAction(emails));
+  }
+
+  async function handleBulkAssignCampaign() {
+    const emails = selectedEmails();
+    if (emails.length === 0 || !bulkCampaignId) return;
+    return runBulk(() => bulkAssignCampaignAction(emails, bulkCampaignId));
+  }
+
+  async function handleBulkChangeStatus() {
+    const emails = selectedEmails();
+    if (emails.length === 0) return;
+    return runBulk(() => bulkChangeStatusAction(emails, bulkStatus));
+  }
+
+  async function handleBulkSetTest(isTest: boolean) {
+    const emails = selectedEmails();
+    if (emails.length === 0) return;
+    return runBulk(() => bulkSetTestFlagAction(emails, isTest));
   }
 
   return (
@@ -270,6 +303,19 @@ export function LeadsTable({
           </PopoverContent>
         </Popover>
 
+        {testCount > 0 && (
+          <Select
+            value={dataFilter}
+            onChange={(e) => setDataFilter(e.target.value as typeof dataFilter)}
+            className="w-40"
+            aria-label="Filter by data type"
+          >
+            <option value="all">All leads</option>
+            <option value="production">Production only</option>
+            <option value="test">Test only ({testCount})</option>
+          </Select>
+        )}
+
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="secondary" size="sm">
@@ -302,11 +348,42 @@ export function LeadsTable({
       </div>
 
       {selectedCount > 0 && (
-        <div className="flex items-center gap-3 rounded-xl border border-accent/25 bg-accent-soft px-3.5 py-2">
+        <div className="flex flex-wrap items-center gap-2.5 rounded-xl border border-accent/25 bg-accent-soft px-3.5 py-2.5">
           <Badge variant="accent">{selectedCount} selected</Badge>
+
+          <Select value={bulkCampaignId} onChange={(e) => setBulkCampaignId(e.target.value)} disabled={bulkPending} className="h-8 w-40 text-xs">
+            <option value="">Assign campaign…</option>
+            {campaigns.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
+          </Select>
+          <Button size="sm" variant="secondary" onClick={handleBulkAssignCampaign} disabled={bulkPending || !bulkCampaignId}>
+            Assign
+          </Button>
+
+          <Select value={bulkStatus} onChange={(e) => setBulkStatus(e.target.value as LeadStatus)} disabled={bulkPending} className="h-8 w-36 text-xs">
+            {LEAD_STATUSES.map((s) => (
+              <option key={s} value={s}>
+                {s}
+              </option>
+            ))}
+          </Select>
+          <Button size="sm" variant="secondary" onClick={handleBulkChangeStatus} disabled={bulkPending}>
+            Set status
+          </Button>
+
+          <Button size="sm" variant="secondary" onClick={() => handleBulkSetTest(true)} disabled={bulkPending}>
+            <FlaskConical className="h-3.5 w-3.5" /> Mark test
+          </Button>
+          <Button size="sm" variant="secondary" onClick={() => handleBulkSetTest(false)} disabled={bulkPending}>
+            Mark production
+          </Button>
+
           <Button size="sm" variant="destructive" onClick={handleBulkDelete} disabled={bulkPending}>
             <Trash2 className="h-3.5 w-3.5" />
-            {bulkPending ? "Deleting…" : "Delete selected"}
+            {bulkPending ? "Working…" : "Delete"}
           </Button>
           <button onClick={() => setRowSelection({})} className="ml-auto text-xs font-medium text-text-tertiary hover:text-text-primary">
             Clear selection

@@ -4,6 +4,7 @@ import Link from "next/link";
 import type { ColumnDef } from "@tanstack/react-table";
 import type { Campaign, Lead } from "@/types";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Badge } from "@/components/ui/badge";
 import { StatusBadge, ConfidenceBadge } from "@/components/ui/status-badge";
 import { formatDate } from "@/lib/utils/date";
 import { initials } from "@/lib/utils/format";
@@ -40,13 +41,16 @@ export function buildLeadsColumns(campaigns: Campaign[]): ColumnDef<Lead>[] {
     accessorKey: "company",
     header: "Company",
     cell: ({ row }) => (
-      <Link
-        href={`/leads/${encodeURIComponent(row.original.email)}`}
-        onClick={(e) => e.stopPropagation()}
-        className="font-medium text-text-primary hover:text-accent"
-      >
-        {row.original.company}
-      </Link>
+      <div className="flex items-center gap-1.5">
+        <Link
+          href={`/leads/${encodeURIComponent(row.original.email)}`}
+          onClick={(e) => e.stopPropagation()}
+          className="font-medium text-text-primary hover:text-accent"
+        >
+          {row.original.company}
+        </Link>
+        {row.original.isTest && <Badge variant="purple">TEST</Badge>}
+      </div>
     ),
   },
   {

@@ -12,9 +12,13 @@ const badgeVariants = cva("inline-flex items-center gap-1.5 rounded-md px-2 py-0
        *  distinct from `success` (a completed/positive outcome that isn't necessarily happening
        *  right now). See globals.css's --accent-lime doc comment. */
       lime: "bg-accent-lime-soft text-accent-lime border-accent-lime/25",
-      warning: "bg-warning/10 text-warning border-warning/20",
+      warning: "bg-warning-soft text-warning border-warning/20",
       danger: "bg-danger/10 text-danger border-danger/20",
       purple: "bg-category-purple/10 text-category-purple border-category-purple/20",
+      /** Blue, deliberately supporting/informational only -- never the default or primary
+       *  action color (that's `accent`, which is lime). Use for neutral metadata, not for
+       *  anything the operator should treat as a live/actionable/primary signal. */
+      info: "bg-info-soft text-info-strong border-info/20",
       outline: "bg-transparent text-text-secondary border-border-strong",
     },
   },

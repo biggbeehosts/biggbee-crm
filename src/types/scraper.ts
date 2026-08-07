@@ -207,6 +207,11 @@ export interface ScraperRunPayload {
     industry: string | null;
     businessType: string | null;
     leadGenerationType: string | null;
+    /** Additive field -- the assigned campaign's own Is Test flag. The current n8n scraper
+     *  subflows do not read this yet (they write lead rows directly and would need a node change
+     *  to also write "Is Test"); sent so the payload contract is ready for that follow-up without
+     *  breaking anything for a workflow that ignores unknown fields today. */
+    isTest: boolean;
   };
 }
 

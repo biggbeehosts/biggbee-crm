@@ -351,6 +351,7 @@ export async function startScrapingJobAction(
       industry: campaign.industry || null,
       businessType: campaign.businessType || null,
       leadGenerationType: campaign.leadGenerationType || null,
+      isTest: campaign.isTest,
     },
   });
 

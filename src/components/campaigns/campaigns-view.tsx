@@ -107,7 +107,10 @@ export function CampaignsView({
             >
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0">
-                  <p className="truncate text-sm font-semibold text-text-primary">{campaign.name}</p>
+                  <div className="flex items-center gap-1.5">
+                    <p className="truncate text-sm font-semibold text-text-primary">{campaign.name}</p>
+                    {campaign.isTest && <Badge variant="purple">TEST</Badge>}
+                  </div>
                   <p className="mt-0.5 text-[11px] text-text-tertiary">Updated {formatDate(campaign.updatedAt)}</p>
                 </div>
                 <Badge variant={STATUS_TONE[campaign.status]}>{campaign.status}</Badge>

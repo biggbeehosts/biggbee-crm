@@ -1,16 +1,19 @@
 export const dynamic = "force-dynamic";
 
-import { getErrors } from "@/lib/data/repository";
+import { getErrors, getLeads } from "@/lib/data/repository";
 import { PageHeader } from "@/components/layout/page-header";
 import { ErrorsView } from "@/components/errors/errors-view";
 
 export default async function ErrorsPage() {
-  const errors = await getErrors();
+  const [errors, leads] = await Promise.all([getErrors(), getLeads()]);
+  // Errors has no Is Test column of its own (n8n-owned, read-only) -- test status is derived by
+  // matching leadEmail against known test leads, same rule Analytics/Dashboard use.
+  const testLeadEmails = new Set(leads.filter((l) => l.isTest).map((l) => l.email));
 
   return (
     <div>
       <PageHeader title="Errors" subtitle="Operational log from the n8n workflow's Errors sheet" />
-      <ErrorsView errors={errors} />
+      <ErrorsView errors={errors} testLeadEmails={testLeadEmails} />
     </div>
   );
 }

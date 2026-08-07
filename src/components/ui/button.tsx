@@ -14,7 +14,7 @@ const buttonVariants = cva(
           "bg-surface-2 text-text-primary border border-border-subtle hover:border-border-strong hover:bg-surface-raised",
         ghost: "text-text-secondary hover:text-text-primary hover:bg-panel",
         outline: "border border-border-strong text-text-primary hover:bg-panel",
-        success: "bg-accent-lime text-accent-lime-foreground shadow-sm shadow-accent-lime/20 hover:brightness-110",
+        success: "bg-success/90 text-white shadow-sm shadow-success/20 hover:bg-success",
         destructive: "bg-danger/15 text-danger border border-danger/25 hover:bg-danger/25 hover:border-danger/40",
         link: "text-accent underline-offset-4 hover:underline p-0 h-auto",
       },

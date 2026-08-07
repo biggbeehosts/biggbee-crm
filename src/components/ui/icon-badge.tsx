@@ -1,7 +1,7 @@
 import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 
-export type IconBadgeTone = "default" | "accent" | "success" | "lime" | "warning" | "danger" | "purple";
+export type IconBadgeTone = "default" | "accent" | "success" | "lime" | "warning" | "danger" | "purple" | "info";
 
 const TONE_CLASSES: Record<IconBadgeTone, string> = {
   default: "bg-panel text-text-secondary",
@@ -9,9 +9,11 @@ const TONE_CLASSES: Record<IconBadgeTone, string> = {
   success: "bg-success/10 text-success",
   /** Reserved for genuinely "live" states -- see globals.css's --accent-lime doc comment. */
   lime: "bg-accent-lime-soft text-accent-lime",
-  warning: "bg-warning/10 text-warning",
+  warning: "bg-warning-soft text-warning",
   danger: "bg-danger/10 text-danger",
   purple: "bg-category-purple/10 text-category-purple",
+  /** Blue, supporting/informational only -- see Badge's "info" variant doc comment. */
+  info: "bg-info-soft text-info-strong",
 };
 
 const SIZE_CLASSES = { sm: "h-7 w-7", md: "h-8 w-8", lg: "h-9 w-9" };
