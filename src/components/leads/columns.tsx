@@ -2,16 +2,23 @@
 
 import Link from "next/link";
 import type { ColumnDef } from "@tanstack/react-table";
+import { MoreHorizontal, Pencil, Trash2 } from "lucide-react";
 import type { Campaign, Lead } from "@/types";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { StatusBadge, ConfidenceBadge } from "@/components/ui/status-badge";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { formatDate } from "@/lib/utils/date";
 import { initials } from "@/lib/utils/format";
 
+export interface LeadRowHandlers {
+  onEdit: (lead: Lead) => void;
+  onDelete: (lead: Lead) => void;
+}
+
 /** Columns depend on the current campaigns list only to resolve a lead's Campaign ID to a
  *  display name -- the id itself, never the name, is what's persisted (see Lead.campaignId). */
-export function buildLeadsColumns(campaigns: Campaign[]): ColumnDef<Lead>[] {
+export function buildLeadsColumns(campaigns: Campaign[], handlers: LeadRowHandlers): ColumnDef<Lead>[] {
   const campaignName = (id?: string) => (id ? (campaigns.find((c) => c.id === id)?.name ?? id) : undefined);
 
   return [
@@ -101,6 +108,34 @@ export function buildLeadsColumns(campaigns: Campaign[]): ColumnDef<Lead>[] {
     accessorKey: "followUpCount",
     header: "Follow-ups",
     cell: ({ row }) => row.original.followUpCount,
+  },
+  {
+    id: "actions",
+    header: "",
+    cell: ({ row }) => (
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <button
+            onClick={(e) => e.stopPropagation()}
+            className="flex h-7 w-7 items-center justify-center rounded-md text-text-tertiary transition-colors hover:bg-panel hover:text-text-primary"
+            aria-label={`Actions for ${row.original.company}`}
+          >
+            <MoreHorizontal className="h-4 w-4" />
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
+          <DropdownMenuItem onSelect={() => handlers.onEdit(row.original)}>
+            <Pencil className="h-3.5 w-3.5" /> Edit
+          </DropdownMenuItem>
+          <DropdownMenuItem onSelect={() => handlers.onDelete(row.original)} className="text-danger focus:text-danger">
+            <Trash2 className="h-3.5 w-3.5" /> Delete
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    ),
+    enableSorting: false,
+    enableHiding: false,
+    size: 40,
   },
   ];
 }

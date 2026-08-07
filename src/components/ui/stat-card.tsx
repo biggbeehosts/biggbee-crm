@@ -13,7 +13,7 @@ interface StatCardProps {
   className?: string;
 }
 
-const ACCENT_BAR: Record<string, string> = {
+const ACCENT_BAR: Record<IconBadgeTone, string> = {
   default: "bg-border-strong",
   accent: "bg-accent",
   success: "bg-success",
@@ -22,6 +22,8 @@ const ACCENT_BAR: Record<string, string> = {
   danger: "bg-danger",
   purple: "bg-category-purple",
   info: "bg-info",
+  orange: "bg-category-orange",
+  teal: "bg-category-teal",
 };
 
 export function StatCard({ label, value, icon: Icon, hint, trend, tone = "default", className }: StatCardProps) {

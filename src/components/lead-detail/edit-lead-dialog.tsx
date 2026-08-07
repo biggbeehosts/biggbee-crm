@@ -11,9 +11,27 @@ import { Input, Label } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { updateLeadAction } from "@/lib/actions/leads";
 
-export function EditLeadDialog({ lead, campaigns }: { lead: Lead; campaigns: Campaign[] }) {
+/** Uncontrolled by default (renders its own trigger button, as on the lead detail page). Pass
+ *  `open`/`onOpenChange` to drive it externally instead -- e.g. from the Leads table's row action
+ *  menu, where one shared dialog instance is opened per selected row rather than rendering a
+ *  trigger button (and dialog) per visible row. */
+export function EditLeadDialog({
+  lead,
+  campaigns,
+  open: openProp,
+  onOpenChange: onOpenChangeProp,
+  hideTrigger = false,
+}: {
+  lead: Lead;
+  campaigns: Campaign[];
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  hideTrigger?: boolean;
+}) {
   const router = useRouter();
-  const [open, setOpen] = React.useState(false);
+  const [openState, setOpenState] = React.useState(false);
+  const open = openProp ?? openState;
+  const setOpen = onOpenChangeProp ?? setOpenState;
   const [pending, setPending] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
 
@@ -32,11 +50,13 @@ export function EditLeadDialog({ lead, campaigns }: { lead: Lead; campaigns: Cam
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button variant="secondary" size="sm">
-          <Pencil className="h-3.5 w-3.5" /> Edit lead
-        </Button>
-      </DialogTrigger>
+      {!hideTrigger && (
+        <DialogTrigger asChild>
+          <Button variant="secondary" size="sm">
+            <Pencil className="h-3.5 w-3.5" /> Edit lead
+          </Button>
+        </DialogTrigger>
+      )}
       <DialogContent className="max-w-xl">
         <DialogHeader>
           <DialogTitle>Edit lead</DialogTitle>

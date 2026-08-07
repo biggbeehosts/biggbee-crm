@@ -1,28 +1,40 @@
 import Link from "next/link";
-import { CheckCircle2, Play, TriangleAlert, UserSearch } from "lucide-react";
+import { CheckCircle2, Play, TriangleAlert, UserSearch, Wrench } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DashboardControls } from "./dashboard-controls";
 import { formatDateTime } from "@/lib/utils/date";
 
+export type OverallState = "ready" | "setup-incomplete" | "action-needed";
+
+/** Calm-language tri-state (Section 18 of the polish brief): "setup-incomplete" is an expected,
+ *  first-run state (amber, not a failure); "action-needed" is reserved for a genuinely active
+ *  current failure (red) -- never used for "not configured yet". */
+const STATE_META: Record<OverallState, { label: string; badge: "lime" | "warning" | "danger"; icon: typeof CheckCircle2 }> = {
+  ready: { label: "Ready", badge: "lime", icon: CheckCircle2 },
+  "setup-incomplete": { label: "Setup incomplete", badge: "warning", icon: Wrench },
+  "action-needed": { label: "Action needed", badge: "danger", icon: TriangleAlert },
+};
+
 /** Dashboard hero -- a real operational summary (system state, last sync), not decoration. Quick
  *  actions are anchors into the sections that already own that functionality (Automation Control,
  *  Lead Generation) rather than a second copy of Run Campaign's confirm-dialog flow. */
 export function CommandHeader({
-  systemsHealthy,
-  systemsTotal,
-  hasCriticalIssue,
+  overallState,
   lastSyncedAt,
   mock,
+  campaignName,
+  eligibleLeads,
 }: {
-  systemsHealthy: number;
-  systemsTotal: number;
-  hasCriticalIssue: boolean;
+  overallState: OverallState;
   lastSyncedAt: string | null;
   mock: boolean;
+  campaignName: string | null;
+  eligibleLeads: number | null;
 }) {
-  const allHealthy = systemsHealthy === systemsTotal && !hasCriticalIssue;
+  const meta = STATE_META[overallState];
+  const StateIcon = meta.icon;
 
   return (
     <Card className="bg-grid-texture relative overflow-hidden border-accent/15 p-5 sm:p-6">
@@ -35,10 +47,21 @@ export function CommandHeader({
           </div>
           <h1 className="mt-1 text-2xl font-bold tracking-tight text-text-primary">Welcome back</h1>
           <div className="mt-2.5 flex flex-wrap items-center gap-3">
-            <Badge variant={allHealthy ? "lime" : "warning"} className="gap-1.5">
-              {allHealthy ? <CheckCircle2 className="h-3 w-3" /> : <TriangleAlert className="h-3 w-3" />}
-              {allHealthy ? "All systems operational" : `${systemsHealthy}/${systemsTotal} systems healthy`}
+            <Badge variant={meta.badge} className="gap-1.5">
+              <StateIcon className="h-3 w-3" />
+              {meta.label}
             </Badge>
+            {campaignName && (
+              <span className="text-xs text-text-secondary">
+                <span className="text-text-tertiary">Campaign:</span> {campaignName}
+                {eligibleLeads !== null && (
+                  <span className="text-text-tertiary">
+                    {" "}
+                    · {eligibleLeads} eligible lead{eligibleLeads === 1 ? "" : "s"}
+                  </span>
+                )}
+              </span>
+            )}
             <span className="text-xs text-text-tertiary">Synced {lastSyncedAt ? formatDateTime(lastSyncedAt) : "just now"}</span>
           </div>
         </div>

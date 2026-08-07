@@ -1,5 +1,6 @@
 export const dynamic = "force-dynamic";
 
+import { Columns3 } from "lucide-react";
 import { getLeads } from "@/lib/data/repository";
 import { isUsingMockData } from "@/lib/data/repository";
 import { getCampaigns } from "@/lib/data/campaigns-store";
@@ -17,6 +18,8 @@ export default async function PipelinePage() {
         title="Pipeline"
         subtitle="Drag a card between stages to update its status"
         actions={mock ? <Badge variant="accent">Mock data mode — drag updates are session-only</Badge> : undefined}
+        icon={Columns3}
+        tone="purple"
       />
       <KanbanBoard leads={leads} campaigns={campaigns} />
     </div>

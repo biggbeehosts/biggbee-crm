@@ -19,6 +19,10 @@ const badgeVariants = cva("inline-flex items-center gap-1.5 rounded-md px-2 py-0
        *  action color (that's `accent`, which is lime). Use for neutral metadata, not for
        *  anything the operator should treat as a live/actionable/primary signal. */
       info: "bg-info-soft text-info-strong border-info/20",
+      /** Semantic page-identity accents only (Workflows, Knowledge Base) -- see globals.css's
+       *  --category-orange/--category-teal doc comment. */
+      orange: "bg-category-orange-soft text-category-orange border-category-orange/20",
+      teal: "bg-category-teal-soft text-category-teal border-category-teal/20",
       outline: "bg-transparent text-text-secondary border-border-strong",
     },
   },

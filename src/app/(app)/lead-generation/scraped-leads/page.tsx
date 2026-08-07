@@ -1,3 +1,4 @@
+import { UserSearch } from "lucide-react";
 import { getLeads } from "@/lib/data/repository";
 import { getCampaigns } from "@/lib/data/campaigns-store";
 import { getScrapingJobs } from "@/lib/data/scraping-jobs-store";
@@ -12,7 +13,7 @@ export default async function ScrapedLeadsPage({ searchParams }: { searchParams:
 
   return (
     <div>
-      <PageHeader title="Scraped Leads" subtitle={`${staged.length} lead${staged.length === 1 ? "" : "s"} staged for review`} />
+      <PageHeader title="Scraped Leads" subtitle={`${staged.length} lead${staged.length === 1 ? "" : "s"} staged for review`} icon={UserSearch} tone="info" />
       <ScrapedLeadsView
         leads={staged}
         allLeads={allLeads}

@@ -1,4 +1,4 @@
-import { Bot } from "lucide-react";
+import { Bot, Sparkles } from "lucide-react";
 import type { ScraperAgentCategory } from "@/types";
 import { getScraperAgents } from "@/lib/data/scraper-registry-store";
 import { getScrapingJobs } from "@/lib/data/scraping-jobs-store";
@@ -52,7 +52,13 @@ export async function ScraperRegistrySection({
 
   return (
     <div>
-      <PageHeader title={title} subtitle={subtitle} actions={<AgentForm defaultCategory={category} />} />
+      <PageHeader
+        title={title}
+        subtitle={subtitle}
+        actions={<AgentForm defaultCategory={category} />}
+        icon={category === "Lead Source" ? Bot : Sparkles}
+        tone={category === "Lead Source" ? "info" : "purple"}
+      />
       {filtered.length === 0 ? (
         <EmptyState icon={Bot} title={`No ${title.toLowerCase()} registered yet`} description={emptyDescription} action={<AgentForm defaultCategory={category} />} />
       ) : (

@@ -33,6 +33,7 @@ import { AnalyticsFilters } from "@/components/analytics/analytics-filters";
 import { StatCard } from "@/components/ui/stat-card";
 import { UnavailableStatCard } from "@/components/ui/unavailable-stat-card";
 import {
+  BarChart3,
   Clapperboard,
   Send,
   MailOpen,
@@ -146,6 +147,8 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
       <PageHeader
         title="Analytics"
         subtitle="Campaign, tracking, and deliverability metrics — opens are estimated, never treated as exact"
+        icon={BarChart3}
+        tone="lime"
       />
 
       <AnalyticsFilters

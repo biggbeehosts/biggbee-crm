@@ -204,7 +204,7 @@ export function AutomationCard({
           </Button>
           {!readiness.canRun && readiness.blockReasons.length > 0 && (
             <span className="max-w-sm text-[11px] font-medium text-warning">
-              Blocked: {readiness.blockReasons[0]}
+              {readiness.blockReasons[0]}
               {readiness.blockReasons.length > 1 ? ` (+${readiness.blockReasons.length - 1} more)` : ""}
             </span>
           )}

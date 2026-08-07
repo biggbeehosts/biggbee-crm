@@ -1,3 +1,4 @@
+import { Inbox } from "lucide-react";
 import { getCampaigns } from "@/lib/data/campaigns-store";
 import { getInboxPlacementTests, getSeedRecipients } from "@/lib/data/deliverability-store";
 import { summarizeDeliverability, deliverabilityByProvider } from "@/lib/calculations/deliverability-metrics";
@@ -14,6 +15,8 @@ export default async function DeliverabilityAdminPage() {
       <PageHeader
         title="Deliverability"
         subtitle="Inbox-placement testing — only ever populated by a real seed-list test or manual entry, never inferred from opens/clicks/replies"
+        icon={Inbox}
+        tone="warning"
       />
       <DeliverabilityAdminView campaigns={campaigns} tests={tests} seeds={seeds} summary={summary} byProvider={byProvider} />
     </div>

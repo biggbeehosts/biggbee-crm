@@ -21,7 +21,7 @@ export function CampaignReadinessCard({ readiness }: { readiness: CampaignReadin
             <CardDescription>Checks run against the data already in the CRM</CardDescription>
           </div>
         </div>
-        <Badge variant={readiness.canRun ? "success" : "warning"}>{readiness.canRun ? "Ready to run" : "Blocked"}</Badge>
+        <Badge variant={readiness.canRun ? "success" : "warning"}>{readiness.canRun ? "Ready to run" : "Not ready"}</Badge>
       </CardHeader>
 
       <div className="px-5 pb-5">

@@ -1,5 +1,6 @@
 export const dynamic = "force-dynamic";
 
+import { BookOpen } from "lucide-react";
 import { getKnowledgeBase } from "@/lib/data/repository";
 import { getConfiguredActionsAction } from "@/lib/n8n/actions";
 import { getWebsiteRegistry } from "@/lib/data/website-registry-store";
@@ -19,6 +20,8 @@ export default async function KnowledgeBasePage() {
       <PageHeader
         title="Knowledge Base"
         subtitle="Stage 6, Part 8: one registry entry per website, each synced into its own Knowledge Base cache"
+        icon={BookOpen}
+        tone="teal"
       />
       <WebsiteRegistryView websites={websites} kbByWebsiteId={kbByWebsiteId} syncLog={syncLog} refreshKbConfigured={configuredActions.refreshKb} />
     </div>

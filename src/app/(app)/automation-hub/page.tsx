@@ -1,6 +1,6 @@
 import type { ComponentType } from "react";
 import Link from "next/link";
-import { Bot, Cable, Clapperboard, BookOpen, Sparkles, Plug, SlidersHorizontal, ArrowRight } from "lucide-react";
+import { Bot, Cable, Clapperboard, BookOpen, Sparkles, Plug, SlidersHorizontal, ArrowRight, LayoutGrid } from "lucide-react";
 import { getScraperAgents } from "@/lib/data/scraper-registry-store";
 import { getWorkflowIntegrations } from "@/lib/data/workflow-registry-store";
 import { getDemoLibrary } from "@/lib/data/demo-library-store";
@@ -87,6 +87,8 @@ export default async function AutomationHubOverviewPage() {
       <PageHeader
         title="Automation Hub"
         subtitle="The single control center for every lead-generation automation -- everything below is registry-driven, no hardcoded per-automation pages."
+        icon={LayoutGrid}
+        tone="lime"
       />
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
         <HealthCard

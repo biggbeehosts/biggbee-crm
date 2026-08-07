@@ -1,3 +1,4 @@
+import { UsersRound } from "lucide-react";
 import { getLeads } from "@/lib/data/repository";
 import { getCampaigns } from "@/lib/data/campaigns-store";
 import { getEnabledOptions } from "@/lib/data/options-store";
@@ -13,7 +14,7 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
 
   return (
     <div>
-      <PageHeader title="Leads" subtitle={`${leads.length} leads across all Biggbee outbound campaigns`} />
+      <PageHeader title="Leads" subtitle={`${leads.length} leads across all Biggbee outbound campaigns`} icon={UsersRound} tone="info" />
       <LeadsTable leads={leads} initialSearch={search ?? ""} addLeadOptions={addLeadOptions} campaigns={campaigns} />
     </div>
   );

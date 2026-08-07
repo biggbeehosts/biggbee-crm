@@ -3,7 +3,7 @@
 import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { z } from "zod";
-import { adminExists, createAdmin, getAdmin } from "./admin-store";
+import { adminExists, createAdmin, getAdmin, setSetupGuideDismissed } from "./admin-store";
 import { hashPassword, verifyPassword } from "./crypto";
 import { checkRateLimit, clearLoginFailures, recordLoginFailure } from "./rate-limit";
 import { createSessionToken, verifySessionToken, SESSION_COOKIE, sessionCookieOptions } from "./session";
@@ -154,4 +154,21 @@ export async function verifyAdminPasswordAction(password: string): Promise<AuthA
   await clearLoginFailures(actorEmail, ip);
   await logAudit({ actor: actorEmail, action: "stepup.success", success: true, details: { ip } });
   return { success: true, message: "Verified." };
+}
+
+/** Persists that this admin closed the first-login Getting Started guide, so it doesn't
+ *  auto-show again -- see dashboard/page.tsx's essentialIntegrationDown override, which can still
+ *  force it back regardless of this flag if something genuinely required breaks. */
+export async function dismissSetupGuideAction(): Promise<AuthActionResult> {
+  const actorEmail = await requireAdmin();
+  await setSetupGuideDismissed(actorEmail, true);
+  return { success: true, message: "Setup guide dismissed." };
+}
+
+/** Manual "Setup Guide" reopen (Settings) -- clears the dismissed flag so it auto-shows again on
+ *  the Dashboard, the same panel a first-time admin sees. */
+export async function reopenSetupGuideAction(): Promise<AuthActionResult> {
+  const actorEmail = await requireAdmin();
+  await setSetupGuideDismissed(actorEmail, false);
+  return { success: true, message: "Setup guide reopened." };
 }

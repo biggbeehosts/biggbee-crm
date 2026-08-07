@@ -1,7 +1,7 @@
 import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 
-export type IconBadgeTone = "default" | "accent" | "success" | "lime" | "warning" | "danger" | "purple" | "info";
+export type IconBadgeTone = "default" | "accent" | "success" | "lime" | "warning" | "danger" | "purple" | "info" | "orange" | "teal";
 
 const TONE_CLASSES: Record<IconBadgeTone, string> = {
   default: "bg-panel text-text-secondary",
@@ -14,6 +14,10 @@ const TONE_CLASSES: Record<IconBadgeTone, string> = {
   purple: "bg-category-purple/10 text-category-purple",
   /** Blue, supporting/informational only -- see Badge's "info" variant doc comment. */
   info: "bg-info-soft text-info-strong",
+  /** Semantic page-identity accents only (Workflows, Knowledge Base) -- see globals.css's
+   *  --category-orange/--category-teal doc comment. */
+  orange: "bg-category-orange-soft text-category-orange",
+  teal: "bg-category-teal-soft text-category-teal",
 };
 
 const SIZE_CLASSES = { sm: "h-7 w-7", md: "h-8 w-8", lg: "h-9 w-9" };

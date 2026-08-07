@@ -1,5 +1,6 @@
 export const dynamic = "force-dynamic";
 
+import { Megaphone } from "lucide-react";
 import { getLeads } from "@/lib/data/repository";
 import { getCampaigns } from "@/lib/data/campaigns-store";
 import { getDemoLibrary } from "@/lib/data/demo-library-store";
@@ -42,6 +43,8 @@ export default async function CampaignsPage() {
         title="Campaigns"
         subtitle="Define what the current outreach run targets, and preview the selection before n8n sends anything"
         actions={<CampaignFormDialog options={options} demos={demos} websites={websites} />}
+        icon={Megaphone}
+        tone="warning"
       />
       <CampaignsView
         campaigns={campaigns}

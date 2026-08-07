@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { BookOpen, RefreshCw, Sheet, ShieldCheck, Workflow, Palette, Trash2, ArrowRight, TriangleAlert } from "lucide-react";
+import { BookOpen, Compass, RefreshCw, Sheet, ShieldCheck, Workflow, Palette, Trash2, ArrowRight, TriangleAlert } from "lucide-react";
 import { DataManagementPanel } from "./data-management-panel";
 import type { ConnectionStatus, KnowledgeBaseRecord } from "@/types";
 import type { EnvValidation } from "@/lib/config/env-validation";
@@ -15,6 +15,7 @@ import { Switch } from "@/components/ui/switch";
 import { IconBadge } from "@/components/ui/icon-badge";
 import { daysSince, formatDateTime, formatRelativeTime } from "@/lib/utils/date";
 import { refreshDataAction } from "@/lib/actions/leads";
+import { reopenSetupGuideAction } from "@/lib/auth/actions";
 import { useUIState } from "@/components/layout/ui-state-provider";
 import { useN8nAction } from "@/lib/n8n/hooks";
 
@@ -41,6 +42,15 @@ export function SettingsView({
   const { theme, toggleTheme } = useUIState();
   const [testing, setTesting] = React.useState(false);
   const [testResult, setTestResult] = React.useState<string | null>(null);
+  const [reopeningGuide, setReopeningGuide] = React.useState(false);
+
+  async function reopenSetupGuide() {
+    setReopeningGuide(true);
+    await reopenSetupGuideAction();
+    router.push("/dashboard");
+    router.refresh();
+    setReopeningGuide(false);
+  }
   const { run, pendingAction } = useN8nAction({ refreshKb: refreshKbConfigured });
   const kbAge = daysSince(knowledgeBase.updatedAt);
   const kbFresh = kbAge !== null && kbAge <= 1;
@@ -220,6 +230,26 @@ export function SettingsView({
               <p className="text-xs text-text-tertiary">Default and recommended for the Biggbee visual identity</p>
             </div>
             <Switch checked={theme === "dark"} onCheckedChange={toggleTheme} aria-label="Toggle dark mode" />
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <div className="flex items-center gap-2.5">
+            <IconBadge icon={Compass} tone="lime" />
+            <div>
+              <CardTitle>Setup Guide</CardTitle>
+              <CardDescription>The Getting Started checklist shown on first login</CardDescription>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center justify-between gap-4">
+            <p className="text-xs text-text-tertiary">Reopen it on the Dashboard -- useful if you dismissed it or want to walk through setup again.</p>
+            <Button size="sm" variant="secondary" onClick={reopenSetupGuide} disabled={reopeningGuide}>
+              <Compass className="h-3.5 w-3.5" /> {reopeningGuide ? "Opening…" : "Open guide"}
+            </Button>
           </div>
         </CardContent>
       </Card>

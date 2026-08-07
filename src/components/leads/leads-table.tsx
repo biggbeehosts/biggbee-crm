@@ -18,11 +18,13 @@ import type { Campaign, Lead, LeadStatus } from "@/types";
 import { LEAD_STATUSES } from "@/types";
 import { buildLeadsColumns } from "./columns";
 import { AddLeadDialog, type AddLeadOptions } from "./add-lead-dialog";
+import { EditLeadDialog } from "@/components/lead-detail/edit-lead-dialog";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -36,7 +38,8 @@ import { STATUS_COLORS } from "@/lib/utils/status";
 import { downloadCsv, toCsv } from "@/lib/utils/csv";
 import { cn } from "@/lib/utils/cn";
 import { UsersRound } from "lucide-react";
-import { bulkAssignCampaignAction, bulkChangeStatusAction, bulkDeleteLeadsAction, bulkSetTestFlagAction } from "@/lib/actions/leads";
+import { bulkAssignCampaignAction, bulkChangeStatusAction, bulkDeleteLeadsAction, bulkSetTestFlagAction, deleteLeadAction } from "@/lib/actions/leads";
+import { useToast } from "@/components/ui/toast";
 
 const CONFIDENCE_RANGES = [
   { value: "all", label: "Any confidence" },
@@ -58,6 +61,10 @@ export function LeadsTable({
   campaigns?: Campaign[];
 }) {
   const router = useRouter();
+  const { toast } = useToast();
+  const [editingLead, setEditingLead] = React.useState<Lead | null>(null);
+  const [deletingLead, setDeletingLead] = React.useState<Lead | null>(null);
+  const [deletingLeadPending, setDeletingLeadPending] = React.useState(false);
   const [globalFilter, setGlobalFilter] = React.useState(initialSearch);
   const [sorting, setSorting] = React.useState<SortingState>([{ id: "lastContact", desc: true }]);
   const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({});
@@ -79,7 +86,10 @@ export function LeadsTable({
   const businessTypes = React.useMemo(() => uniqueSorted(leads.map((l) => l.businessType)), [leads]);
   const leadGenTypes = React.useMemo(() => uniqueSorted(leads.map((l) => l.leadGenerationType)), [leads]);
   const services = React.useMemo(() => uniqueSorted(leads.map((l) => l.serviceOffered)), [leads]);
-  const columns = React.useMemo(() => buildLeadsColumns(campaigns), [campaigns]);
+  const columns = React.useMemo(
+    () => buildLeadsColumns(campaigns, { onEdit: setEditingLead, onDelete: setDeletingLead }),
+    [campaigns]
+  );
 
   const filtered = React.useMemo(() => {
     return leads.filter((lead) => {
@@ -178,6 +188,7 @@ export function LeadsTable({
   const [bulkPending, setBulkPending] = React.useState(false);
   const [bulkCampaignId, setBulkCampaignId] = React.useState("");
   const [bulkStatus, setBulkStatus] = React.useState<LeadStatus>("New");
+  const [bulkDeleteConfirmOpen, setBulkDeleteConfirmOpen] = React.useState(false);
 
   function selectedEmails() {
     return table.getSelectedRowModel().rows.map((r) => r.original.email);
@@ -186,17 +197,31 @@ export function LeadsTable({
   async function runBulk(fn: () => Promise<{ success: boolean; message: string }>) {
     setBulkPending(true);
     const result = await fn();
-    if (!result.success) window.alert(result.message);
+    toast(result.message, result.success ? "success" : "error");
     setRowSelection({});
     router.refresh();
     setBulkPending(false);
   }
 
-  async function handleBulkDelete() {
+  function handleBulkDelete() {
+    if (selectedEmails().length === 0) return;
+    setBulkDeleteConfirmOpen(true);
+  }
+
+  async function confirmBulkDelete() {
     const emails = selectedEmails();
-    if (emails.length === 0) return;
-    if (!window.confirm(`Delete ${emails.length} lead${emails.length === 1 ? "" : "s"} permanently? This cannot be undone.`)) return;
+    setBulkDeleteConfirmOpen(false);
     return runBulk(() => bulkDeleteLeadsAction(emails));
+  }
+
+  async function confirmDeleteLead() {
+    if (!deletingLead) return;
+    setDeletingLeadPending(true);
+    const result = await deleteLeadAction(deletingLead.email);
+    toast(result.message, result.success ? "success" : "error");
+    setDeletingLeadPending(false);
+    setDeletingLead(null);
+    if (result.success) router.refresh();
   }
 
   async function handleBulkAssignCampaign() {
@@ -395,9 +420,9 @@ export function LeadsTable({
         <table className="w-full min-w-[1100px] text-left text-sm">
           <thead className="sticky top-0 z-10 bg-surface-raised">
             {table.getHeaderGroups().map((headerGroup) => (
-              <tr key={headerGroup.id} className="border-b border-border-subtle">
+              <tr key={headerGroup.id} className="border-b border-border-strong">
                 {headerGroup.headers.map((header) => (
-                  <th key={header.id} className="whitespace-nowrap px-3 py-2.5 text-xs font-medium text-text-tertiary" style={{ width: header.getSize() === 150 ? undefined : header.getSize() }}>
+                  <th key={header.id} className="whitespace-nowrap px-3 py-2.5 text-xs font-semibold text-text-secondary" style={{ width: header.getSize() === 150 ? undefined : header.getSize() }}>
                     {header.isPlaceholder ? null : (
                       <button
                         className={cn("flex items-center gap-1", header.column.getCanSort() && "cursor-pointer select-none hover:text-text-primary")}
@@ -457,6 +482,57 @@ export function LeadsTable({
           </Button>
         </div>
       </div>
+
+      {editingLead && (
+        <EditLeadDialog
+          lead={editingLead}
+          campaigns={campaigns}
+          open={Boolean(editingLead)}
+          onOpenChange={(v) => !v && setEditingLead(null)}
+          hideTrigger
+        />
+      )}
+
+      <Dialog open={deletingLead !== null} onOpenChange={(v) => !v && setDeletingLead(null)}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="text-danger">Delete lead</DialogTitle>
+            <DialogDescription>
+              {deletingLead && (
+                <>
+                  Delete <span className="font-medium text-text-primary">{deletingLead.company}</span> ({deletingLead.email})? This removes it
+                  from the Leads sheet and cannot be undone.
+                </>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="secondary" size="sm" onClick={() => setDeletingLead(null)} disabled={deletingLeadPending}>
+              Cancel
+            </Button>
+            <Button variant="destructive" size="sm" onClick={confirmDeleteLead} disabled={deletingLeadPending}>
+              <Trash2 className="h-3.5 w-3.5" /> {deletingLeadPending ? "Deleting…" : "Delete lead"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={bulkDeleteConfirmOpen} onOpenChange={setBulkDeleteConfirmOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="text-danger">Delete {selectedCount} lead{selectedCount === 1 ? "" : "s"}</DialogTitle>
+            <DialogDescription>This permanently removes {selectedCount === 1 ? "this lead" : "these leads"} from the Leads sheet and cannot be undone.</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="secondary" size="sm" onClick={() => setBulkDeleteConfirmOpen(false)} disabled={bulkPending}>
+              Cancel
+            </Button>
+            <Button variant="destructive" size="sm" onClick={confirmBulkDelete} disabled={bulkPending}>
+              <Trash2 className="h-3.5 w-3.5" /> {bulkPending ? "Deleting…" : `Delete ${selectedCount}`}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

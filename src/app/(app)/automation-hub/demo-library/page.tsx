@@ -1,5 +1,6 @@
 export const dynamic = "force-dynamic";
 
+import { Clapperboard } from "lucide-react";
 import { getDemoLibrary } from "@/lib/data/demo-library-store";
 import { getCampaigns } from "@/lib/data/campaigns-store";
 import { countCampaignDemoUsage } from "@/lib/calculations/demo-match";
@@ -17,6 +18,8 @@ export default async function DemoLibraryPage() {
       <PageHeader
         title="Demo Library"
         subtitle="Cloudinary-backed source of truth -- upload here and it's available to email automation immediately, no Sheet editing needed"
+        icon={Clapperboard}
+        tone="purple"
       />
       <DemoLibraryView demos={demos} usageCounts={Object.fromEntries(usageCounts)} storageConfigured={storageConfigured} />
     </div>

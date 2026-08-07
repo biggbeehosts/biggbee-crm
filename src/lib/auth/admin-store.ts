@@ -7,6 +7,10 @@ export interface AdminAccount {
   passwordHash: string;
   createdAt: string;
   updatedAt: string;
+  /** Additive -- whether this admin dismissed the first-login Getting Started guide. Missing on
+   *  any existing record (including every admin created before this field existed) reads as
+   *  `false` (see getSetupGuideDismissed), so a new admin always sees the guide once by default. */
+  setupGuideDismissed?: boolean;
 }
 
 const COLLECTION = "admin";
@@ -62,5 +66,17 @@ export async function updateAdminPassword(email: string, newPasswordHash: string
       throw new Error("Admin account not found.");
     }
     return { ...current, passwordHash: newPasswordHash, updatedAt: new Date().toISOString() };
+  });
+}
+
+/** Set (or clear, for the manual "reopen" case) whether this admin has dismissed the first-login
+ *  Getting Started guide. Single-admin architecture -- no per-user table needed, this is already
+ *  scoped correctly by being the one admin record. */
+export async function setSetupGuideDismissed(email: string, dismissed: boolean): Promise<void> {
+  await updateCollection<AdminAccount | null>(COLLECTION, null, (current) => {
+    if (!current || current.email !== email.trim().toLowerCase()) {
+      throw new Error("Admin account not found.");
+    }
+    return { ...current, setupGuideDismissed: dismissed, updatedAt: new Date().toISOString() };
   });
 }

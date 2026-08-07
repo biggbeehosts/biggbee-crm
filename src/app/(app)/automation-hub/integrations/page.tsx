@@ -21,6 +21,8 @@ export default async function IntegrationsPage() {
       <PageHeader
         title="Integrations"
         subtitle="Every external service the CRM calls directly, through one provider-adapter interface -- swapping a provider later never touches business logic."
+        icon={Plug}
+        tone="info"
       />
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
         {providers.map((p) => (

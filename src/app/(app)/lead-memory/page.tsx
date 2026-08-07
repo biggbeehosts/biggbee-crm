@@ -1,5 +1,6 @@
 export const dynamic = "force-dynamic";
 
+import { Brain } from "lucide-react";
 import { getLeadMemory } from "@/lib/data/repository";
 import { PageHeader } from "@/components/layout/page-header";
 import { MemoryTable } from "@/components/lead-memory/memory-table";
@@ -9,7 +10,7 @@ export default async function LeadMemoryPage() {
 
   return (
     <div>
-      <PageHeader title="Lead Memory" subtitle="What the AI remembers about every lead across the conversation" />
+      <PageHeader title="Lead Memory" subtitle="What the AI remembers about every lead across the conversation" icon={Brain} tone="purple" />
       <MemoryTable memory={memory} />
     </div>
   );

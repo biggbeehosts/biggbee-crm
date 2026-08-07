@@ -1,3 +1,4 @@
+import { Radar } from "lucide-react";
 import { getScrapingJobs } from "@/lib/data/scraping-jobs-store";
 import { getScraperAgents } from "@/lib/data/scraper-registry-store";
 import { getN8nBaseUrl } from "@/lib/n8n/config";
@@ -17,7 +18,7 @@ export default async function ScrapingJobsPage() {
 
   return (
     <div>
-      <PageHeader title="Scraping Jobs" subtitle={`${jobs.length} scraping run${jobs.length === 1 ? "" : "s"} across all agents`} />
+      <PageHeader title="Scraping Jobs" subtitle={`${jobs.length} scraping run${jobs.length === 1 ? "" : "s"} across all agents`} icon={Radar} tone="info" />
       <ScrapingJobsView jobs={jobs} executionUrls={executionUrls} />
     </div>
   );

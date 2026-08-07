@@ -8,12 +8,14 @@ import { getScrapingJobs } from "@/lib/data/scraping-jobs-store";
 import { getEvents } from "@/lib/data/analytics-events-store";
 import { getAllProviderHealth } from "@/lib/providers/registry";
 import { getLastSyncAt } from "@/lib/data/cache";
+import { getAdmin } from "@/lib/auth/admin-store";
 import { computeDashboardMetrics, leadsBySource, outreachVolumeOverTime } from "@/lib/calculations/dashboard-metrics";
 import { summarizeDashboardErrors } from "@/lib/calculations/dashboard-alerts";
 import { computeCampaignReadiness } from "@/lib/calculations/campaign-readiness";
 import { daysSince } from "@/lib/utils/date";
-import { CommandHeader } from "@/components/dashboard/command-header";
-import { OperationsStatusRow } from "@/components/dashboard/operations-status-row";
+import { CommandHeader, type OverallState } from "@/components/dashboard/command-header";
+import { GettingStartedGuide, type GuideStep } from "@/components/dashboard/getting-started-guide";
+import { DashboardHighlights } from "@/components/dashboard/dashboard-highlights";
 import { KpiGrid } from "@/components/dashboard/kpi-grid";
 import { LeadGenOverview } from "@/components/dashboard/lead-gen-overview";
 import { OutreachPerformanceCard } from "@/components/dashboard/outreach-performance-card";
@@ -28,7 +30,7 @@ import { isN8nApiKeyRequiredButMissing } from "@/lib/config/env-validation";
 const EPOCH = new Date(0).toISOString();
 
 export default async function DashboardPage() {
-  const [leads, errors, automationStatus, connection, knowledgeBase, campaigns, configuredActionsRaw, demos, scraperAgents, scrapingJobs, providers, replyEvents] =
+  const [leads, errors, automationStatus, connection, knowledgeBase, campaigns, configuredActionsRaw, demos, scraperAgents, scrapingJobs, providers, replyEvents, admin] =
     await Promise.all([
       getLeads(),
       getErrors(),
@@ -42,6 +44,7 @@ export default async function DashboardPage() {
       getScrapingJobs(),
       getAllProviderHealth(),
       getEvents({ from: EPOCH, to: new Date().toISOString(), type: "reply_received" }),
+      getAdmin(),
     ]);
 
   // Dashboard metrics/charts exclude test data by default (Leads/Campaigns tagged isTest) so a
@@ -67,8 +70,6 @@ export default async function DashboardPage() {
   const lastSyncIso = lastSync ? new Date(lastSync).toISOString() : null;
   const kbAge = daysSince(knowledgeBase.updatedAt);
   const knowledgeBaseHealthy = kbAge !== null && kbAge <= 1;
-  const systemsHealthy = providers.filter((p) => p.configured && p.connected).length + (knowledgeBaseHealthy ? 1 : 0);
-  const systemsTotal = providers.length + 1;
 
   // Which automation actions are genuinely available. Booleans only -- never URLs or keys.
   const configuredActions: ConfiguredActions = {
@@ -97,29 +98,111 @@ export default async function DashboardPage() {
   );
   const noSelectionReadiness = computeCampaignReadiness({ ...readinessBase, selectedCampaign: null });
 
-  // The compact Operations Status row summarizes the first Active campaign -- actual selection
-  // (when more than one is Active) is a client concern owned by the Run Campaign panel below.
+  // The hero and the primary highlight cards both summarize the first Active campaign -- actual
+  // selection (when more than one is Active) is a client concern owned by the Run Campaign panel.
   const summaryCampaign = activeCampaigns[0] ?? null;
   const summaryReadiness = summaryCampaign ? readinessByCampaignId[summaryCampaign.id] : noSelectionReadiness;
+
+  // Calm-language overall state (Section 18: reserve "action needed" for a genuinely active
+  // failure, never for "not configured yet"). sheetsDown/anyProviderDown are real current
+  // failures; everything else is an expected first-run gap.
+  const sheetsDown = connection.mode === "google-sheets" && !connection.connected;
+  const anyProviderDown = providers.some((p) => p.configured && !p.connected);
+  const anyProviderUnconfigured = providers.some((p) => !p.configured);
+  const setupIncomplete = mock || campaigns.length === 0 || productionLeads.length === 0 || !(configuredActions.runCampaign ?? false);
+  const overallState: OverallState =
+    errorSummary.hasCritical || sheetsDown || anyProviderDown
+      ? "action-needed"
+      : setupIncomplete || anyProviderUnconfigured
+        ? "setup-incomplete"
+        : "ready";
+
+  // Getting Started steps -- every state here traces to real, already-fetched data (Section 11).
+  // Dismissal persists per-admin (setSetupGuideDismissed); a genuinely down Sheets connection
+  // still forces the guide back regardless of that flag (Section 12's "essential integration
+  // becomes completely unconfigured" override).
+  const guideSteps: GuideStep[] = [
+    {
+      id: "sheets",
+      title: "Connect Google Sheets",
+      description: "Your Leads, Campaigns, and outreach data all live in one spreadsheet.",
+      state: connection.mode === "google-sheets" && connection.connected ? "complete" : "needs-setup",
+      href: "/settings",
+    },
+    {
+      id: "n8n",
+      title: "Confirm n8n connection",
+      description: "n8n runs the actual outreach workflow -- Run Campaign needs it connected.",
+      state: (configuredActions.runCampaign ?? false) ? "complete" : "needs-setup",
+      href: "/settings",
+    },
+    {
+      id: "lead-sources",
+      title: "Configure Lead Sources",
+      description: "Set up a scraper (Google Maps, Instagram) to bring in new leads automatically.",
+      state: scraperAgents.filter((a) => a.category === "Lead Source").length > 0 ? "complete" : "recommended",
+      href: "/automation-hub/lead-sources",
+    },
+    {
+      id: "demo-library",
+      title: "Add a demo to the Demo Library",
+      description: "Campaigns can attach a demo video automatically when it fits.",
+      state: demos.length > 0 ? "complete" : "recommended",
+      href: "/automation-hub/demo-library",
+    },
+    {
+      id: "kb",
+      title: "Sync your Knowledge Base",
+      description: "The AI uses this to write outreach that actually reflects your offering.",
+      state: knowledgeBaseHealthy ? "complete" : "recommended",
+      href: "/automation-hub/knowledge-base",
+    },
+    {
+      id: "campaign",
+      title: "Create a Campaign",
+      description: "A campaign defines who Run Campaign should reach out to.",
+      state: campaigns.length > 0 ? "complete" : "needs-setup",
+      href: "/campaigns",
+    },
+    {
+      id: "leads",
+      title: "Add or scrape Leads",
+      description: "Run a scraper or add leads manually to build a real pipeline.",
+      state: productionLeads.length > 0 ? "complete" : "needs-setup",
+      href: "/leads",
+    },
+    {
+      id: "outreach",
+      title: "Run your first outreach",
+      description: "Once a campaign and leads are ready, Run Campaign sends the first batch.",
+      state: metrics.emailsSent > 0 ? "complete" : "recommended",
+      href: "#automation-control",
+    },
+  ];
+  const showSetupGuide = !admin?.setupGuideDismissed || sheetsDown;
+
+  const heroEligibleLeads = summaryCampaign ? (summaryReadiness.campaignMatches ?? summaryReadiness.eligibleLeads) : null;
 
   return (
     <div className="space-y-5">
       <CommandHeader
-        systemsHealthy={systemsHealthy}
-        systemsTotal={systemsTotal}
-        hasCriticalIssue={errorSummary.hasCritical}
+        overallState={overallState}
         lastSyncedAt={lastSyncIso}
         mock={mock}
+        campaignName={summaryCampaign?.name ?? null}
+        eligibleLeads={heroEligibleLeads}
       />
 
-      <OperationsStatusRow
-        providers={providers}
-        knowledgeBaseHealthy={knowledgeBaseHealthy}
-        activeCampaigns={activeCampaigns}
-        selectedCampaign={summaryCampaign}
+      {showSetupGuide && <GettingStartedGuide steps={guideSteps} />}
+
+      <DashboardHighlights
+        eligibleLeads={heroEligibleLeads ?? summaryReadiness.eligibleLeads}
+        totalLeads={productionLeads.length}
+        campaign={summaryCampaign}
         readiness={summaryReadiness}
-        workflowState={automationStatus.status?.state ?? null}
-        dataMode={connection.mode}
+        emailsSent={metrics.emailsSent}
+        replies={replies}
+        meetings={metrics.meetingsBooked}
       />
 
       <KpiGrid metrics={metrics} replies={replies} />

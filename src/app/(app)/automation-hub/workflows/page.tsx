@@ -11,7 +11,7 @@ import { getConfiguredActionsAction } from "@/lib/n8n/actions";
 import { scraperToCardModel, integrationToCardModel, combineCardModels } from "@/lib/n8n/card-adapters";
 import { PageHeader } from "@/components/layout/page-header";
 import { WorkflowIntegrationCard } from "@/components/workflow-control/workflow-integration-card";
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle, Cable } from "lucide-react";
 
 export default async function WorkflowManagerPage() {
   // Part I: fetch everything this render needs in parallel -- one page load never makes n8n
@@ -66,6 +66,8 @@ export default async function WorkflowManagerPage() {
       <PageHeader
         title="Workflow Manager"
         subtitle="Connect scraper and outreach workflows to n8n, change assignments safely, and monitor executions -- without editing workflow JSON by hand."
+        icon={Cable}
+        tone="orange"
       />
 
       {!adminApiConfigured && (

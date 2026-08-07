@@ -1,5 +1,6 @@
 export const dynamic = "force-dynamic";
 
+import { SlidersHorizontal } from "lucide-react";
 import { getConnectionStatus, getKnowledgeBase } from "@/lib/data/repository";
 import { validateEnvironment } from "@/lib/config/env-validation";
 import { getConfiguredActionsAction } from "@/lib/n8n/actions";
@@ -26,7 +27,7 @@ export default async function SettingsPage() {
 
   return (
     <div>
-      <PageHeader title="Settings" subtitle="Connection, automation, configuration and theme" />
+      <PageHeader title="Settings" subtitle="Connection, automation, configuration and theme" icon={SlidersHorizontal} tone="lime" />
       <SettingsView
         status={status}
         env={env}

@@ -24,7 +24,7 @@ export default async function AutomationHubSettingsPage() {
 
   return (
     <div>
-      <PageHeader title="Automation Hub Settings" subtitle="Read-only configuration health for every automation on this CRM." />
+      <PageHeader title="Automation Hub Settings" subtitle="Read-only configuration health for every automation on this CRM." icon={ShieldCheck} tone="lime" />
 
       <Card className="mb-4">
         <CardContent className="divide-y divide-border-subtle p-0">

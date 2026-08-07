@@ -1,5 +1,6 @@
 export const dynamic = "force-dynamic";
 
+import { ShieldAlert } from "lucide-react";
 import { getErrors, getLeads } from "@/lib/data/repository";
 import { PageHeader } from "@/components/layout/page-header";
 import { ErrorsView } from "@/components/errors/errors-view";
@@ -12,7 +13,7 @@ export default async function ErrorsPage() {
 
   return (
     <div>
-      <PageHeader title="Errors" subtitle="Operational log from the n8n workflow's Errors sheet" />
+      <PageHeader title="Errors" subtitle="Operational log from the n8n workflow's Errors sheet" icon={ShieldAlert} tone="danger" />
       <ErrorsView errors={errors} testLeadEmails={testLeadEmails} />
     </div>
   );

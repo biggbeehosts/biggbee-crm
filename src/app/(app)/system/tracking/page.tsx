@@ -1,3 +1,4 @@
+import { Radar } from "lucide-react";
 import { getLeads } from "@/lib/data/repository";
 import { getCampaigns } from "@/lib/data/campaigns-store";
 import { getEvents } from "@/lib/data/analytics-events-store";
@@ -27,6 +28,8 @@ export default async function TrackingAdminPage() {
       <PageHeader
         title="Tracking"
         subtitle="Per-campaign tracking toggles, internal-sender allowlist, suppression, and tracking health -- Stage 5 admin controls"
+        icon={Radar}
+        tone="info"
       />
       <TrackingAdminView
         campaigns={campaigns}
