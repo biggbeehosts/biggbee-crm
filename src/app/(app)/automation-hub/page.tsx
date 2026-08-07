@@ -26,11 +26,11 @@ function HealthCard({
   title: string;
   primary: string;
   secondary: string;
-  tone: "success" | "warning" | "outline";
+  tone: "lime" | "warning" | "outline";
 }) {
   return (
     <Link href={href}>
-      <Card className="flex h-full flex-col gap-3 p-5 transition-colors hover:border-border-strong">
+      <Card level={2} className="flex h-full flex-col gap-3 p-4 transition-all hover:-translate-y-px hover:border-border-strong">
         <div className="flex items-start justify-between gap-3">
           <div className="flex items-center gap-2.5">
             <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-accent-soft text-accent-strong">
@@ -95,7 +95,7 @@ export default async function AutomationHubOverviewPage() {
           title="Lead Sources"
           primary={`${leadSources.length} registered`}
           secondary={`${leadSourcesConnected}/${leadSources.length} connected`}
-          tone={leadSources.length > 0 && leadSourcesConnected === leadSources.length ? "success" : "warning"}
+          tone={leadSources.length > 0 && leadSourcesConnected === leadSources.length ? "lime" : "warning"}
         />
         <HealthCard
           href="/automation-hub/workflows"
@@ -103,7 +103,7 @@ export default async function AutomationHubOverviewPage() {
           title="Workflows"
           primary={`${activeIntegrations}/${integrations.length} active`}
           secondary={isAdminApiConfigured() ? "Admin API connected" : "Admin API not configured"}
-          tone={isAdminApiConfigured() ? "success" : "warning"}
+          tone={isAdminApiConfigured() ? "lime" : "warning"}
         />
         <HealthCard
           href="/automation-hub/demo-library"
@@ -111,7 +111,7 @@ export default async function AutomationHubOverviewPage() {
           title="Demo Library"
           primary={`${demos.length} demos`}
           secondary={`${healthyDemos} healthy`}
-          tone={demos.length > 0 && healthyDemos === demos.length ? "success" : "warning"}
+          tone={demos.length > 0 && healthyDemos === demos.length ? "lime" : "warning"}
         />
         <HealthCard
           href="/automation-hub/knowledge-base"
@@ -119,7 +119,7 @@ export default async function AutomationHubOverviewPage() {
           title="Knowledge Base"
           primary={`${websites.length} website${websites.length === 1 ? "" : "s"}`}
           secondary={`${syncedRecently} synced today`}
-          tone={syncedRecently > 0 ? "success" : "outline"}
+          tone={syncedRecently > 0 ? "lime" : "outline"}
         />
         <HealthCard
           href="/automation-hub/ai-agents"
@@ -127,7 +127,7 @@ export default async function AutomationHubOverviewPage() {
           title="AI Agents"
           primary={`${aiAgents.length} registered`}
           secondary={aiAgents.length > 0 ? "Active" : "None yet"}
-          tone={aiAgents.length > 0 ? "success" : "outline"}
+          tone={aiAgents.length > 0 ? "lime" : "outline"}
         />
         <HealthCard
           href="/automation-hub/integrations"
@@ -135,7 +135,7 @@ export default async function AutomationHubOverviewPage() {
           title="Integrations"
           primary={`${providersConfigured}/${providers.length} configured`}
           secondary={providersConfigured === providers.length ? "All connected" : "Needs attention"}
-          tone={providersConfigured === providers.length ? "success" : "warning"}
+          tone={providersConfigured === providers.length ? "lime" : "warning"}
         />
         <HealthCard
           href="/automation-hub/settings"
@@ -143,7 +143,7 @@ export default async function AutomationHubOverviewPage() {
           title="Settings"
           primary={`${settingsPassing}/${settingsChecks.length} checks passing`}
           secondary={settingsPassing === settingsChecks.length ? "Healthy" : "Needs attention"}
-          tone={settingsPassing === settingsChecks.length ? "success" : "warning"}
+          tone={settingsPassing === settingsChecks.length ? "lime" : "warning"}
         />
       </div>
     </div>

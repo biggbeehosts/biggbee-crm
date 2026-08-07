@@ -46,7 +46,7 @@ export default async function AutomationHubSettingsPage() {
           {ACTION_KEYS.map((key) => (
             <div key={key} className="flex items-center justify-between px-5 py-3 text-sm">
               <span className="text-text-secondary">{N8N_ACTION_LABELS[key]}</span>
-              <Badge variant={isActionConfigured(key) ? "success" : "outline"}>{isActionConfigured(key) ? "Configured" : "Not set"}</Badge>
+              <Badge variant={isActionConfigured(key) ? "lime" : "outline"}>{isActionConfigured(key) ? "Configured" : "Not set"}</Badge>
             </div>
           ))}
         </CardContent>

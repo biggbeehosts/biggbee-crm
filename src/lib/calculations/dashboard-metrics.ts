@@ -56,6 +56,15 @@ export function leadsByCountry(leads: Lead[]): CountPoint[] {
   return Array.from(map, ([label, value]) => ({ label, value })).sort((a, b) => b.value - a.value);
 }
 
+export function leadsBySource(leads: Lead[]): CountPoint[] {
+  const map = new Map<string, number>();
+  for (const l of leads) {
+    const key = l.source?.trim() || "Unknown";
+    map.set(key, (map.get(key) ?? 0) + 1);
+  }
+  return Array.from(map, ([label, value]) => ({ label, value })).sort((a, b) => b.value - a.value);
+}
+
 export function leadsByIndustry(leads: Lead[]): CountPoint[] {
   const map = new Map<string, number>();
   for (const l of leads) {

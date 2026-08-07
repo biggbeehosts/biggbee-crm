@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { EmptyState } from "@/components/ui/empty-state";
+import { Checkbox } from "@/components/ui/checkbox";
 import { formatDateTime } from "@/lib/utils/date";
 import { ShieldAlert, X, Trash2, Ban, Activity } from "lucide-react";
 import {
@@ -190,7 +191,7 @@ export function TrackingAdminView({
                 Save
               </Button>
             </form>
-            <Button variant="outline" onClick={purgeOld} disabled={pending}>
+            <Button variant="destructive" onClick={purgeOld} disabled={pending}>
               <Trash2 className="h-3.5 w-3.5" /> Purge events older than {settings.retentionDays} days now
             </Button>
           </CardContent>
@@ -251,7 +252,7 @@ export function TrackingAdminView({
                 {flaggedFirst.map((e) => (
                   <tr key={e.id}>
                     <td className="py-1.5">
-                      <input type="checkbox" checked={selected.has(e.id)} onChange={() => toggleSelected(e.id)} />
+                      <Checkbox checked={selected.has(e.id)} onCheckedChange={() => toggleSelected(e.id)} aria-label="Select event" />
                     </td>
                     <td className="py-1.5 text-text-primary">{e.type}</td>
                     <td className="py-1.5 text-text-tertiary">{formatDateTime(e.timestamp)}</td>
@@ -281,7 +282,7 @@ export function TrackingAdminView({
           </CardHeader>
           <CardContent className="flex flex-wrap gap-2">
             {Array.from(new Set(testEvents.map((e) => e.timestamp.slice(0, 7)))).map((month) => (
-              <Button key={month} variant="outline" size="sm" onClick={() => deleteTestForMonth(`analytics-events-${month}`)} disabled={pending}>
+              <Button key={month} variant="destructive" size="sm" onClick={() => deleteTestForMonth(`analytics-events-${month}`)} disabled={pending}>
                 <Trash2 className="h-3.5 w-3.5" /> Delete test events — {month}
               </Button>
             ))}

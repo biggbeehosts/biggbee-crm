@@ -2,7 +2,7 @@
 
 import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import type { ProviderBreakdown } from "@/lib/calculations/deliverability-metrics";
-import { CHART_AXIS, CHART_DANGER, CHART_GRID, CHART_SUCCESS } from "./palette";
+import { CHART_AXIS, CHART_DANGER, CHART_GRID, CHART_NEUTRAL, CHART_SUCCESS, CHART_WARNING } from "./palette";
 
 /** Stacked Inbox/Promotions/Spam/Missing counts per mailbox provider -- only ever fed real
  *  InboxPlacementTest rows (Stage 5, Part G); an empty `data` means no tests exist, not zero spam. */
@@ -19,9 +19,9 @@ export function DeliverabilityProviderChart({ data }: { data: ProviderBreakdown[
         />
         <Legend wrapperStyle={{ fontSize: 12, color: "var(--text-tertiary)" }} />
         <Bar dataKey="inbox" name="Inbox" stackId="p" fill={CHART_SUCCESS} radius={[0, 0, 0, 0]} maxBarSize={28} />
-        <Bar dataKey="promotions" name="Promotions" stackId="p" fill="#fbbf24" maxBarSize={28} />
+        <Bar dataKey="promotions" name="Promotions" stackId="p" fill={CHART_WARNING} maxBarSize={28} />
         <Bar dataKey="spam" name="Spam" stackId="p" fill={CHART_DANGER} maxBarSize={28} />
-        <Bar dataKey="missing" name="Missing" stackId="p" fill="#94a3b8" radius={[3, 3, 0, 0]} maxBarSize={28} />
+        <Bar dataKey="missing" name="Missing" stackId="p" fill={CHART_NEUTRAL} radius={[3, 3, 0, 0]} maxBarSize={28} />
       </BarChart>
     </ResponsiveContainer>
   );

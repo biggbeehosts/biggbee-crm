@@ -15,7 +15,7 @@ import { WebsiteFormDialog, WebsiteEditTrigger } from "./website-form-dialog";
 import { KnowledgeBaseView } from "./kb-view";
 import type { WebsiteSyncLogEntry } from "@/lib/data/website-sync-log-store";
 
-const SYNC_STATUS_VARIANT = { "never-synced": "outline", syncing: "accent", idle: "success", failed: "danger" } as const;
+const SYNC_STATUS_VARIANT = { "never-synced": "outline", syncing: "accent", idle: "lime", failed: "danger" } as const;
 
 export function WebsiteRegistryView({
   websites,
@@ -64,7 +64,7 @@ export function WebsiteRegistryView({
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
-            <thead>
+            <thead className="bg-surface-raised">
               <tr className="border-b border-border-subtle text-left text-[11px] uppercase tracking-wide text-text-tertiary">
                 <th className="px-5 py-2.5 font-medium">Website</th>
                 <th className="px-3 py-2.5 font-medium">Pages Indexed</th>
@@ -80,7 +80,7 @@ export function WebsiteRegistryView({
                 <tr
                   key={site.id}
                   onClick={() => setSelectedId(site.id)}
-                  className={`cursor-pointer border-b border-border-subtle last:border-0 hover:bg-panel ${selectedId === site.id ? "bg-accent-soft/30" : ""}`}
+                  className={`cursor-pointer border-b border-border-subtle transition-colors last:border-0 hover:bg-panel ${selectedId === site.id ? "bg-accent-soft" : ""}`}
                 >
                   <td className="px-5 py-3">
                     <p className="font-medium text-text-primary">{site.label}</p>

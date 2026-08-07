@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Copy, Pause, Play, Target, Trash2 } from "lucide-react";
+import { Activity, Copy, Pause, Play, Target, Trash2 } from "lucide-react";
 import type { Campaign, CampaignMatchSummary, DemoRecord, Lead, OptionLists, WebsiteRegistryEntry } from "@/types";
 import { filterCampaignLeads, summarizeCampaignMatch } from "@/lib/calculations/campaign-match";
 import { resolveCampaignDemo } from "@/lib/calculations/demo-match";
@@ -100,8 +100,10 @@ export function CampaignsView({
           return (
             <Card
               key={campaign.id}
+              level={2}
+              glow={isSelected && campaign.status === "Active"}
               onClick={() => setSelectedId(campaign.id)}
-              className={cn("cursor-pointer p-4 transition-colors", isSelected ? "border-accent/50 bg-accent-soft/30" : "hover:border-border-strong")}
+              className={cn("cursor-pointer p-4 transition-all", isSelected ? "border-accent/50" : "hover:border-border-strong")}
             >
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0">
@@ -123,6 +125,14 @@ export function CampaignsView({
                 {campaign.minConfidence !== null && <Badge variant="accent">≥{campaign.minConfidence}%</Badge>}
               </div>
               <DemoBadge campaign={campaign} demos={demos} />
+              <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-text-tertiary">
+                <span className="flex items-center gap-1">
+                  <Activity className={cn("h-3 w-3", campaign.openTrackingEnabled || campaign.clickTrackingEnabled ? "text-accent-lime" : "text-text-tertiary")} />
+                  Tracking {campaign.openTrackingEnabled || campaign.clickTrackingEnabled ? "on" : "off"}
+                </span>
+                {campaign.maxLeadsPerRun && <span>Max {campaign.maxLeadsPerRun}/run</span>}
+                {campaign.dailySendLimit && <span>{campaign.dailySendLimit}/day</span>}
+              </div>
               <div className="mt-3 flex items-center justify-between border-t border-border-subtle pt-2.5">
                 <p className="text-xs text-text-secondary">
                   <span className="font-semibold text-accent-strong">{count}</span> lead{count === 1 ? "" : "s"} assigned

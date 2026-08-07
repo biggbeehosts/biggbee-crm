@@ -119,10 +119,10 @@ export function MemoryTable({ memory }: { memory: LeadMemory[] }) {
                       </td>
                       <td className="max-w-[240px] truncate px-4 py-2.5 text-text-secondary">{m.lastSummary ? truncate(m.lastSummary, 60) : "—"}</td>
                       <td className="px-4 py-2.5">
-                        <span className={isStale ? "font-medium text-warning" : "text-text-tertiary"}>
-                          {formatRelativeTime(m.updatedAt)}
-                          {isStale && " · stale"}
-                        </span>
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-text-tertiary">{formatRelativeTime(m.updatedAt)}</span>
+                          {isStale ? <Badge variant="warning">Stale</Badge> : <Badge variant="lime">Fresh</Badge>}
+                        </div>
                       </td>
                     </tr>
                   );

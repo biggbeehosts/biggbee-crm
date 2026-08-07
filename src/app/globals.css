@@ -8,28 +8,53 @@
  */
 
 :root {
-  --bg-canvas: #05070d;
-  --bg-surface: #0b0f1a;
-  --bg-surface-raised: #0f1420;
-  --bg-panel: rgba(255, 255, 255, 0.03);
+  /* Surface tier system -- each level is a deliberate, small step up from the one below it, so
+     nesting (canvas -> sidebar/header -> module card -> stat card -> nested panel -> dialog)
+     reads as real depth instead of one flat dark grey repeated everywhere. */
+  --bg-canvas: #030409; /* app background -- the deepest, near-black, very slightly warm */
+  --bg-sidebar: #07080f;
+  --bg-header: #07080f;
+  --bg-surface: #0b0e17; /* level 1: main module card */
+  --bg-surface-2: #10141f; /* level 2: metric/stat card */
+  --bg-surface-raised: #131826; /* level 3: nested panel, inputs, dialogs */
+  --bg-dialog: #0d1119;
+  --bg-panel: rgba(255, 255, 255, 0.035);
   --border-subtle: rgba(255, 255, 255, 0.08);
-  --border-strong: rgba(255, 255, 255, 0.14);
-  --text-primary: #f4f6fb;
+  --border-strong: rgba(255, 255, 255, 0.17);
+  --text-primary: #f5f7fc;
   --text-secondary: #9aa4b9;
   --text-tertiary: #6b7386;
-  --accent: #2f7dff;
-  --accent-strong: #4f8fff;
-  --accent-soft: rgba(47, 125, 255, 0.14);
+  /* Primary accent: a richer, brighter royal/electric blue -- the one color that means
+     "primary action / selected / clickable" everywhere in the app. */
+  --accent: #2f66ff;
+  --accent-strong: #5f8fff;
+  --accent-soft: rgba(47, 102, 255, 0.16);
   --accent-foreground: #f4f8ff;
-  --success: #34d399;
-  --warning: #fbbf24;
-  --danger: #fb7185;
+  --accent-glow: rgba(95, 143, 255, 0.4);
+  /* Secondary accent, GrowZen-inspired -- reserved for "live/healthy/high-performing" signals
+     only (an active job, a successful run, a top-performing metric): never the primary brand
+     color, never decorative. */
+  --accent-lime: #b9ef3d;
+  --accent-lime-soft: rgba(185, 239, 61, 0.14);
+  --accent-lime-foreground: #10160a;
+  --success: #2fd18d;
+  --warning: #f5a524;
+  --danger: #f2596b;
+  /* Purple is reserved for one real, distinct data category (e.g. "Meeting Booked") -- never
+     used decoratively or interchangeably with the primary accent. */
+  --category-purple: #a78bfa;
+  --card-gradient: linear-gradient(165deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0) 55%);
+  --shadow-card: 0 1px 0 0 rgba(255, 255, 255, 0.02) inset, 0 10px 28px -14px rgba(0, 0, 0, 0.6);
 }
 
 :root[data-theme="light"] {
   --bg-canvas: #f4f6fb;
+  --bg-sidebar: #ffffff;
+  --bg-header: #ffffff;
   --bg-surface: #ffffff;
-  --bg-surface-raised: #ffffff;
+  --bg-surface-2: #fbfcfe;
+  --bg-surface-raised: #f7f9fc;
+  --bg-dialog: #ffffff;
   --bg-panel: rgba(15, 23, 42, 0.03);
   --border-subtle: rgba(15, 23, 42, 0.08);
   --border-strong: rgba(15, 23, 42, 0.14);
@@ -40,16 +65,27 @@
   --accent-strong: #1d5be0;
   --accent-soft: rgba(47, 111, 237, 0.1);
   --accent-foreground: #ffffff;
+  --accent-glow: rgba(47, 111, 237, 0.22);
+  --accent-lime: #7ea60f;
+  --accent-lime-soft: rgba(126, 166, 15, 0.1);
+  --accent-lime-foreground: #ffffff;
   --success: #059669;
   --warning: #b45309;
   --danger: #e11d48;
+  --category-purple: #7c5cea;
+  --card-gradient: linear-gradient(165deg, rgba(15, 23, 42, 0.02), rgba(15, 23, 42, 0) 55%);
+  --shadow-card: 0 1px 0 0 rgba(255, 255, 255, 0.6) inset, 0 8px 20px -14px rgba(15, 23, 42, 0.25);
 }
 
 @media (prefers-color-scheme: light) {
   :root:not([data-theme="dark"]) {
     --bg-canvas: #f4f6fb;
+    --bg-sidebar: #ffffff;
+    --bg-header: #ffffff;
     --bg-surface: #ffffff;
-    --bg-surface-raised: #ffffff;
+    --bg-surface-2: #fbfcfe;
+    --bg-surface-raised: #f7f9fc;
+    --bg-dialog: #ffffff;
     --bg-panel: rgba(15, 23, 42, 0.03);
     --border-subtle: rgba(15, 23, 42, 0.08);
     --border-strong: rgba(15, 23, 42, 0.14);
@@ -60,16 +96,27 @@
     --accent-strong: #1d5be0;
     --accent-soft: rgba(47, 111, 237, 0.1);
     --accent-foreground: #ffffff;
+    --accent-glow: rgba(47, 111, 237, 0.22);
+    --accent-lime: #7ea60f;
+    --accent-lime-soft: rgba(126, 166, 15, 0.1);
+    --accent-lime-foreground: #ffffff;
     --success: #059669;
     --warning: #b45309;
     --danger: #e11d48;
+    --category-purple: #7c5cea;
+    --card-gradient: linear-gradient(165deg, rgba(15, 23, 42, 0.02), rgba(15, 23, 42, 0) 55%);
+    --shadow-card: 0 1px 0 0 rgba(255, 255, 255, 0.6) inset, 0 8px 20px -14px rgba(15, 23, 42, 0.25);
   }
 }
 
 @theme inline {
   --color-canvas: var(--bg-canvas);
+  --color-sidebar: var(--bg-sidebar);
+  --color-header: var(--bg-header);
   --color-surface: var(--bg-surface);
+  --color-surface-2: var(--bg-surface-2);
   --color-surface-raised: var(--bg-surface-raised);
+  --color-dialog: var(--bg-dialog);
   --color-panel: var(--bg-panel);
   --color-border-subtle: var(--border-subtle);
   --color-border-strong: var(--border-strong);
@@ -80,9 +127,14 @@
   --color-accent-strong: var(--accent-strong);
   --color-accent-soft: var(--accent-soft);
   --color-accent-foreground: var(--accent-foreground);
+  --color-accent-glow: var(--accent-glow);
+  --color-accent-lime: var(--accent-lime);
+  --color-accent-lime-soft: var(--accent-lime-soft);
+  --color-accent-lime-foreground: var(--accent-lime-foreground);
   --color-success: var(--success);
   --color-warning: var(--warning);
   --color-danger: var(--danger);
+  --color-category-purple: var(--category-purple);
   --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
 }
 
@@ -130,6 +182,30 @@ body {
   background: linear-gradient(180deg, var(--bg-panel), transparent);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
+}
+
+/* Very faint dot grid for large, otherwise-empty surfaces (e.g. behind the dashboard command
+   header) -- a texture cue, never a decoration loud enough to compete with real content. */
+.bg-grid-texture {
+  background-image: radial-gradient(circle, var(--border-subtle) 1px, transparent 1px);
+  background-size: 22px 22px;
+}
+
+/* Restrained glow for a genuinely "live/active" state (a running workflow, an active nav item) --
+   deliberately subtle so it reads as premium rather than neon. Respects reduced motion. */
+.glow-accent {
+  box-shadow: 0 0 0 1px var(--accent-soft), 0 0 18px -4px var(--accent-glow);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
 
 @keyframes shimmer {

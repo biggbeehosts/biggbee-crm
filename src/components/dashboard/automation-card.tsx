@@ -17,8 +17,8 @@ import { formatDateTime } from "@/lib/utils/date";
 import { useToast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils/cn";
 
-const STATE_META: Record<WorkflowState, { label: string; badge: "success" | "accent" | "danger" | "outline"; dot: string; pulse?: boolean }> = {
-  running: { label: "Running", badge: "accent", dot: "bg-accent", pulse: true },
+const STATE_META: Record<WorkflowState, { label: string; badge: "lime" | "success" | "danger" | "outline"; dot: string; pulse?: boolean }> = {
+  running: { label: "Running", badge: "lime", dot: "bg-accent-lime", pulse: true },
   idle: { label: "Idle", badge: "success", dot: "bg-success" },
   failed: { label: "Failed", badge: "danger", dot: "bg-danger" },
   unknown: { label: "Unknown", badge: "outline", dot: "bg-zinc-500" },
@@ -140,7 +140,7 @@ export function AutomationCard({
   }
 
   return (
-    <Card>
+    <Card glow={status?.state === "running"}>
       <CardHeader>
         <div className="flex items-center gap-2.5">
           <IconBadge icon={Workflow} tone="accent" />

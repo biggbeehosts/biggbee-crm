@@ -33,7 +33,7 @@ import { StartOutreachDialog } from "@/components/scrapers/start-outreach-dialog
 
 const PURPOSE_ICON = { Scraper: Bot, Outreach: Send, Status: Activity, "Knowledge Base": BookOpen, "Reply Processing": MessageCircle } as const;
 
-const CONNECTION_VARIANT = { connected: "success", error: "danger", unknown: "outline", unconfigured: "warning" } as const;
+const CONNECTION_VARIANT = { connected: "lime", error: "danger", unknown: "outline", unconfigured: "warning" } as const;
 
 function formatRuntime(seconds: number | null): string {
   if (seconds === null) return "—";
@@ -89,10 +89,15 @@ export function WorkflowIntegrationCard({
   }
 
   return (
-    <Card id={kind === "integration" ? card.purpose.toLowerCase().replace(/\s+/g, "-") : undefined} className="flex scroll-mt-20 flex-col gap-4 p-5">
+    <Card
+      id={kind === "integration" ? card.purpose.toLowerCase().replace(/\s+/g, "-") : undefined}
+      level={2}
+      glow={card.active && card.connectionStatus === "connected"}
+      className="flex scroll-mt-20 flex-col gap-3.5 p-4"
+    >
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-start gap-3">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-accent-soft text-accent-strong">
+          <div className={cn("flex h-10 w-10 shrink-0 items-center justify-center rounded-lg", card.active ? "bg-accent-lime-soft text-accent-lime" : "bg-panel text-text-tertiary")}>
             <Icon className="h-5 w-5" />
           </div>
           <div className="min-w-0">
@@ -101,7 +106,7 @@ export function WorkflowIntegrationCard({
           </div>
         </div>
         <div className="flex flex-col items-end gap-1.5">
-          <Badge variant={card.active ? "success" : "outline"}>{card.active ? "Active" : "Inactive"}</Badge>
+          <Badge variant={card.active ? "lime" : "outline"}>{card.active ? "Active" : "Inactive"}</Badge>
           <Badge variant={CONNECTION_VARIANT[card.connectionStatus]}>{card.connectionStatus}</Badge>
         </div>
       </div>

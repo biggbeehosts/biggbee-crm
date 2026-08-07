@@ -42,7 +42,7 @@ export function Header({ attentionCount = 0, adminEmail = "" }: { attentionCount
   }
 
   return (
-    <header className="sticky top-0 z-20 flex h-16 shrink-0 items-center gap-3 border-b border-border-subtle bg-surface/80 px-4 backdrop-blur-md lg:px-6">
+    <header className="sticky top-0 z-20 flex h-16 shrink-0 items-center gap-3 border-b border-border-subtle bg-header/92 px-4 shadow-[0_1px_0_0_rgba(255,255,255,0.02)] backdrop-blur-md lg:px-6">
       <Button variant="ghost" size="icon" className="lg:hidden" onClick={() => setMobileNavOpen(true)} aria-label="Open navigation menu">
         <Menu className="h-5 w-5" />
       </Button>
@@ -74,7 +74,7 @@ export function Header({ attentionCount = 0, adminEmail = "" }: { attentionCount
         </div>
       </form>
 
-      <div className="flex items-center gap-1.5">
+      <div className="flex items-center gap-1">
         <Button variant="ghost" size="icon" onClick={handleRefresh} title="Refresh data" aria-label="Refresh data">
           <RefreshCw className={refreshing ? "h-4 w-4 animate-spin" : "h-4 w-4"} />
         </Button>

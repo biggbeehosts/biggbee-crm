@@ -47,12 +47,12 @@ export function KnowledgeBaseView({ kb, refreshKbConfigured }: { kb: KnowledgeBa
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <StatCard label="Last Fetched" value={formatRelativeTime(kb.updatedAt)} icon={RefreshCw} hint={formatDateTime(kb.updatedAt)} tone={fresh ? "success" : "warning"} />
+        <StatCard label="Last Fetched" value={formatRelativeTime(kb.updatedAt)} icon={RefreshCw} hint={formatDateTime(kb.updatedAt)} tone={fresh ? "lime" : "warning"} />
         <StatCard label="Source Sections" value={kb.sourceCount} icon={Layers} />
         <StatCard label="Content Length" value={`${Math.round(kb.knowledgeBaseText.length / 1000)}k chars`} icon={FileText} />
-        <Card className="flex items-center justify-center p-5">
+        <Card level={2} className="flex items-center justify-center p-4">
           <div className="text-center">
-            <Badge variant={fresh ? "success" : "warning"}>{fresh ? "In sync" : "May be stale"}</Badge>
+            <Badge variant={fresh ? "lime" : "warning"}>{fresh ? "In sync" : "May be stale"}</Badge>
             <p className="mt-1.5 text-[11px] text-text-tertiary">Refreshed automatically on every n8n run</p>
           </div>
         </Card>
@@ -107,7 +107,7 @@ export function KnowledgeBaseView({ kb, refreshKbConfigured }: { kb: KnowledgeBa
                 </button>
                 {!isCollapsed && (
                   <CardContent className="border-t border-border-subtle pt-4">
-                    <p className="whitespace-pre-wrap text-sm leading-relaxed text-text-secondary">
+                    <p className="max-w-[75ch] whitespace-pre-wrap text-sm leading-[1.7] text-text-secondary">
                       {search ? highlight(section.content, search) : section.content}
                     </p>
                   </CardContent>

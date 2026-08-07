@@ -31,6 +31,7 @@ import { CampaignComparisonChart } from "@/components/charts/campaign-comparison
 import { DeliverabilityProviderChart } from "@/components/charts/deliverability-provider-chart";
 import { AnalyticsFilters } from "@/components/analytics/analytics-filters";
 import { StatCard } from "@/components/ui/stat-card";
+import { UnavailableStatCard } from "@/components/ui/unavailable-stat-card";
 import {
   Clapperboard,
   Send,
@@ -43,11 +44,6 @@ import {
   MailWarning,
   Inbox,
 } from "lucide-react";
-
-/** Shown instead of a number for any metric SMTP sending structurally cannot confirm (no ESP
- *  webhook/DSN receipt, no seed-mailbox provider connected) -- never a fabricated 0 or estimate
- *  standing in for real data (Stage 5 completion, Priority 6). */
-const UNAVAILABLE = "Unavailable until provider integration";
 
 interface SearchParams {
   range?: string;
@@ -150,12 +146,11 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
         <StatCard label="Approved Leads" value={snapshot.kpis.approvedLeads} icon={Send} />
         <StatCard label="Emails Attempted" value={snapshot.kpis.emailsAttempted} icon={Send} />
         <StatCard label="Emails Sent" value={snapshot.kpis.emailsSent} icon={Send} tone="accent" />
-        <StatCard
-          label="Delivered"
-          value={snapshot.kpis.confirmedDelivered > 0 ? snapshot.kpis.confirmedDelivered : UNAVAILABLE}
-          icon={Send}
-          hint="SMTP has no delivery receipt — see Deliverability"
-        />
+        {snapshot.kpis.confirmedDelivered > 0 ? (
+          <StatCard label="Delivered" value={snapshot.kpis.confirmedDelivered} icon={Send} hint="SMTP has no delivery receipt — see Deliverability" />
+        ) : (
+          <UnavailableStatCard label="Delivered" icon={Send} reason="No delivery receipt yet" />
+        )}
         <StatCard
           label="Estimated Unique Opens"
           value={snapshot.kpis.estimatedUniqueOpens}
@@ -178,17 +173,21 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
         <StatCard label="Deferred" value={snapshot.kpis.deferred} icon={MailWarning} hint="Temporary — not suppressed" />
         <StatCard label="Complaints" value={snapshot.kpis.complaints} icon={ShieldAlert} tone="danger" />
         <StatCard label="Unsubscribes" value={snapshot.kpis.unsubscribes} icon={Ban} />
-        <StatCard
-          label="Estimated Inbox Placement"
-          value={snapshot.kpis.inboxPlacementRate === null ? UNAVAILABLE : formatPercent(snapshot.kpis.inboxPlacementRate! * 100)}
-          icon={Inbox}
-        />
-        <StatCard
-          label="Estimated Spam Placement"
-          value={snapshot.kpis.spamPlacementRate === null ? UNAVAILABLE : formatPercent(snapshot.kpis.spamPlacementRate! * 100)}
-          icon={ShieldAlert}
-          tone={snapshot.kpis.spamPlacementRate ? "danger" : "default"}
-        />
+        {snapshot.kpis.inboxPlacementRate === null ? (
+          <UnavailableStatCard label="Estimated Inbox Placement" icon={Inbox} reason="Provider not connected" />
+        ) : (
+          <StatCard label="Estimated Inbox Placement" value={formatPercent(snapshot.kpis.inboxPlacementRate * 100)} icon={Inbox} />
+        )}
+        {snapshot.kpis.spamPlacementRate === null ? (
+          <UnavailableStatCard label="Estimated Spam Placement" icon={ShieldAlert} reason="Provider not connected" />
+        ) : (
+          <StatCard
+            label="Estimated Spam Placement"
+            value={formatPercent(snapshot.kpis.spamPlacementRate * 100)}
+            icon={ShieldAlert}
+            tone={snapshot.kpis.spamPlacementRate ? "danger" : "default"}
+          />
+        )}
       </div>
 
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">

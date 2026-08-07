@@ -16,7 +16,7 @@ export function MobileNav({ connected, mode }: { connected: boolean; mode: "mock
 
   return (
     <Drawer open={mobileNavOpen} onOpenChange={setMobileNavOpen}>
-      <DrawerContent side="left" widthClassName="w-72" className="flex flex-col p-0">
+      <DrawerContent side="left" widthClassName="w-72" className="flex flex-col bg-sidebar p-0">
         <DialogPrimitive.Title className="sr-only">Navigation</DialogPrimitive.Title>
         <div className="flex h-16 items-center border-b border-border-subtle px-4">
           <Logo />
@@ -35,10 +35,11 @@ export function MobileNav({ connected, mode }: { connected: boolean; mode: "mock
                       href={item.href}
                       onClick={() => setMobileNavOpen(false)}
                       className={cn(
-                        "flex items-center gap-3 rounded-lg px-2.5 py-2.5 text-sm font-medium transition-colors",
+                        "relative flex items-center gap-3 rounded-lg py-2.5 pl-3.5 pr-2.5 text-sm font-medium transition-colors",
                         active ? "bg-accent-soft text-accent-strong" : "text-text-secondary hover:bg-panel hover:text-text-primary"
                       )}
                     >
+                      {active && <span className="absolute left-0 top-1/2 h-4 w-0.5 -translate-y-1/2 rounded-full bg-accent-strong" />}
                       <Icon className={cn("h-4 w-4 shrink-0", active ? "text-accent-strong" : "text-text-tertiary")} />
                       {item.label}
                     </Link>

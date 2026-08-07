@@ -35,11 +35,18 @@ export async function ScraperRegistrySection({
     const agentJobs = jobs.filter((j) => j.scraperId === agent.id && j.startedAt);
     const finished = agentJobs.filter((j) => j.completedAt);
     const successful = finished.filter((j) => j.status === "Completed" || j.status === "Partially Completed");
+    const currentJob = agentJobs.find((j) => j.status === "Running" || j.status === "Queued") ?? null;
     statsByAgent.set(agent.id, {
       lastRun: agentJobs[0]?.startedAt ?? null,
       totalLeadsScraped: agentJobs.reduce((sum, j) => sum + j.importedCount, 0),
       totalRuns: finished.length,
       successfulRuns: successful.length,
+      totalScraped: agentJobs.reduce((sum, j) => sum + j.scrapedCount, 0),
+      totalValid: agentJobs.reduce((sum, j) => sum + j.validCount, 0),
+      totalDuplicates: agentJobs.reduce((sum, j) => sum + j.duplicateCount, 0),
+      currentJobCampaignName: currentJob?.campaignName ?? null,
+      currentJobStatus: currentJob?.status ?? null,
+      lastCampaignName: agentJobs[0]?.campaignName ?? null,
     });
   }
 
@@ -54,7 +61,20 @@ export async function ScraperRegistrySection({
             <ScraperAgentCard
               key={agent.id}
               agent={agent}
-              stats={statsByAgent.get(agent.id) ?? { lastRun: null, totalLeadsScraped: 0, totalRuns: 0, successfulRuns: 0 }}
+              stats={
+                statsByAgent.get(agent.id) ?? {
+                  lastRun: null,
+                  totalLeadsScraped: 0,
+                  totalRuns: 0,
+                  successfulRuns: 0,
+                  totalScraped: 0,
+                  totalValid: 0,
+                  totalDuplicates: 0,
+                  currentJobCampaignName: null,
+                  currentJobStatus: null,
+                  lastCampaignName: null,
+                }
+              }
               campaigns={campaigns}
               countries={countries}
             />

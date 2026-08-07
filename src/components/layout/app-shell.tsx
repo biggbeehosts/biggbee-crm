@@ -26,7 +26,7 @@ export function AppShell({
   return (
     <TooltipProvider delayDuration={200}>
       <ToastProvider>
-        <Sidebar connected={connected} mode={mode} />
+        <Sidebar connected={connected} mode={mode} adminEmail={adminEmail} />
         <MobileNav connected={connected} mode={mode} />
         <div className={cn("flex min-h-screen flex-col transition-[margin] duration-200", sidebarCollapsed ? "lg:ml-[76px]" : "lg:ml-64")}>
           <Header attentionCount={attentionCount} adminEmail={adminEmail} />

@@ -13,7 +13,7 @@ import {
   getSortedRowModel,
   useReactTable,
 } from "@tanstack/react-table";
-import { ArrowUpDown, ChevronLeft, ChevronRight, Columns3, Download, Search, SlidersHorizontal, X } from "lucide-react";
+import { ArrowUpDown, ChevronLeft, ChevronRight, Columns3, Download, Search, SlidersHorizontal, Trash2, X } from "lucide-react";
 import type { Campaign, Lead, LeadStatus } from "@/types";
 import { LEAD_STATUSES } from "@/types";
 import { buildLeadsColumns } from "./columns";
@@ -36,6 +36,7 @@ import { STATUS_COLORS } from "@/lib/utils/status";
 import { downloadCsv, toCsv } from "@/lib/utils/csv";
 import { cn } from "@/lib/utils/cn";
 import { UsersRound } from "lucide-react";
+import { bulkDeleteLeadsAction } from "@/lib/actions/leads";
 
 const CONFIDENCE_RANGES = [
   { value: "all", label: "Any confidence" },
@@ -169,6 +170,19 @@ export function LeadsTable({
   }
 
   const selectedCount = Object.keys(rowSelection).length;
+  const [bulkPending, setBulkPending] = React.useState(false);
+
+  async function handleBulkDelete() {
+    const emails = table.getSelectedRowModel().rows.map((r) => r.original.email);
+    if (emails.length === 0) return;
+    if (!window.confirm(`Delete ${emails.length} lead${emails.length === 1 ? "" : "s"} permanently? This cannot be undone.`)) return;
+    setBulkPending(true);
+    const result = await bulkDeleteLeadsAction(emails);
+    if (!result.success) window.alert(result.message);
+    setRowSelection({});
+    router.refresh();
+    setBulkPending(false);
+  }
 
   return (
     <div className="space-y-3">
@@ -283,10 +297,22 @@ export function LeadsTable({
         </Button>
 
         <div className="ml-auto flex items-center gap-2">
-          {selectedCount > 0 && <Badge variant="accent">{selectedCount} selected</Badge>}
           <AddLeadDialog options={addLeadOptions} campaigns={campaigns} />
         </div>
       </div>
+
+      {selectedCount > 0 && (
+        <div className="flex items-center gap-3 rounded-xl border border-accent/25 bg-accent-soft px-3.5 py-2">
+          <Badge variant="accent">{selectedCount} selected</Badge>
+          <Button size="sm" variant="destructive" onClick={handleBulkDelete} disabled={bulkPending}>
+            <Trash2 className="h-3.5 w-3.5" />
+            {bulkPending ? "Deleting…" : "Delete selected"}
+          </Button>
+          <button onClick={() => setRowSelection({})} className="ml-auto text-xs font-medium text-text-tertiary hover:text-text-primary">
+            Clear selection
+          </button>
+        </div>
+      )}
 
       <div className="overflow-x-auto rounded-xl border border-border-subtle">
         <table className="w-full min-w-[1100px] text-left text-sm">
@@ -321,7 +347,10 @@ export function LeadsTable({
                 <tr
                   key={row.id}
                   onClick={() => router.push(`/leads/${encodeURIComponent(row.original.email)}`)}
-                  className="cursor-pointer transition-colors hover:bg-panel"
+                  className={cn(
+                    "cursor-pointer transition-colors hover:bg-panel",
+                    row.getIsSelected() && "bg-accent-soft hover:bg-accent-soft"
+                  )}
                 >
                   {row.getVisibleCells().map((cell) => (
                     <td key={cell.id} className="whitespace-nowrap px-3 py-2.5 text-text-secondary">

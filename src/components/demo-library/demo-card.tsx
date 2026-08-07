@@ -80,15 +80,18 @@ export function DemoCard({
     >
       {demo.thumbnailUrl ? (
         // eslint-disable-next-line @next/next/no-img-element -- external Cloudinary thumbnails, dimensions unknown
-        <img src={demo.thumbnailUrl} alt="" className="h-full w-full object-cover" />
+        <img src={demo.thumbnailUrl} alt="" className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]" />
       ) : (
-        <div className="flex h-full w-full items-center justify-center text-text-tertiary">
+        <div className="flex h-full w-full items-center justify-center bg-surface-2 text-text-tertiary">
           <ImageOff className="h-6 w-6" />
         </div>
       )}
+      {/* Permanent bottom gradient (not hover-only) so the duration chip always sits on a
+          readable surface -- reads as a real media-asset browser rather than a plain image. */}
+      <span className="pointer-events-none absolute inset-x-0 bottom-0 h-12 bg-gradient-to-t from-black/60 to-transparent" />
       {canPlay && (
         <span className="absolute inset-0 flex items-center justify-center bg-black/30 opacity-0 transition-opacity group-hover:opacity-100">
-          <span className="flex h-10 w-10 items-center justify-center rounded-full bg-accent text-white shadow-lg">
+          <span className="flex h-10 w-10 items-center justify-center rounded-full bg-accent text-white shadow-lg shadow-accent/30">
             <Play className="ml-0.5 h-4 w-4" />
           </span>
         </span>
@@ -191,12 +194,17 @@ export function DemoCard({
 
   if (layout === "list") {
     return (
-      <Card className="flex items-center gap-4 p-3">
+      <Card level={2} className="flex items-center gap-4 p-3">
         {thumbnail}
         {body}
       </Card>
     );
   }
 
-  return <Card className="overflow-hidden">{thumbnail}{body}</Card>;
+  return (
+    <Card level={2} className="overflow-hidden">
+      {thumbnail}
+      {body}
+    </Card>
+  );
 }

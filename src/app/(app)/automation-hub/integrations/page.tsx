@@ -24,7 +24,7 @@ export default async function IntegrationsPage() {
       />
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
         {providers.map((p) => (
-          <Card key={p.id} className="flex flex-col gap-3 p-5">
+          <Card key={p.id} level={2} glow={p.configured && p.connected} className="flex flex-col gap-3 p-4">
             <div className="flex items-start justify-between gap-3">
               <div>
                 <p className="text-sm font-semibold text-text-primary">{p.name}</p>
@@ -32,7 +32,7 @@ export default async function IntegrationsPage() {
               </div>
               <div className="flex flex-col items-end gap-1.5">
                 <Badge variant={p.configured ? "success" : "warning"}>{p.configured ? "Configured" : "Not configured"}</Badge>
-                {p.configured && <Badge variant={p.connected ? "success" : "danger"}>{p.connected ? "Connected" : "Unreachable"}</Badge>}
+                {p.configured && <Badge variant={p.connected ? "lime" : "danger"}>{p.connected ? "Connected" : "Unreachable"}</Badge>}
               </div>
             </div>
             {p.detail && <p className="text-xs text-text-secondary">{p.detail}</p>}
@@ -41,7 +41,7 @@ export default async function IntegrationsPage() {
         ))}
       </div>
 
-      <Card className="mt-4 flex items-start gap-2.5 p-4">
+      <Card level={2} className="mt-4 flex items-start gap-2.5 p-4">
         <Plug className="mt-0.5 h-4 w-4 shrink-0 text-text-tertiary" />
         <p className="text-xs text-text-tertiary">
           Apify, OpenAI, and SMTP run entirely inside n8n&apos;s own workflows today -- the CRM holds no credential for them, so there is nothing to

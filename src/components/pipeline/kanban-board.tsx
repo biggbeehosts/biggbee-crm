@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import type { Lead, PipelineStage } from "@/types";
+import type { Campaign, Lead, PipelineStage } from "@/types";
 import { PIPELINE_STAGES } from "@/types";
 import { toPipelineStage } from "@/lib/utils/status";
 import { KanbanCard } from "./kanban-card";
@@ -30,7 +30,8 @@ const STAGE_BADGE: Record<PipelineStage, "outline" | "accent" | "warning" | "suc
   Unsubscribed: "outline",
 };
 
-export function KanbanBoard({ leads }: { leads: Lead[] }) {
+export function KanbanBoard({ leads, campaigns = [] }: { leads: Lead[]; campaigns?: Campaign[] }) {
+  const campaignName = React.useCallback((id?: string) => (id ? (campaigns.find((c) => c.id === id)?.name ?? null) : null), [campaigns]);
   const [localLeads, setLocalLeads] = React.useState(leads);
   const [draggingEmail, setDraggingEmail] = React.useState<string | null>(null);
   const [savingEmail, setSavingEmail] = React.useState<string | null>(null);
@@ -113,7 +114,12 @@ export function KanbanBoard({ leads }: { leads: Lead[] }) {
                     onDragStart={() => setDraggingEmail(lead.email)}
                     onDragEnd={() => setDraggingEmail(null)}
                   >
-                    <KanbanCard lead={lead} dragging={draggingEmail === lead.email} saving={savingEmail === lead.email} />
+                    <KanbanCard
+                      lead={lead}
+                      campaignName={campaignName(lead.campaignId)}
+                      dragging={draggingEmail === lead.email}
+                      saving={savingEmail === lead.email}
+                    />
                   </div>
                 ))}
                 {items.length === 0 && <p className="py-6 text-center text-[11px] text-text-tertiary">No leads in this stage</p>}

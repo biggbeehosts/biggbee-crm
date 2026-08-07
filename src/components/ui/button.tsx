@@ -4,15 +4,18 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/utils/cn";
 
 const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 disabled:pointer-events-none disabled:opacity-40 [&_svg]:size-4 [&_svg]:shrink-0",
+  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg text-sm font-medium transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 disabled:pointer-events-none disabled:opacity-40 disabled:saturate-50 [&_svg]:size-4 [&_svg]:shrink-0",
   {
     variants: {
       variant: {
-        default: "bg-accent text-accent-foreground hover:bg-accent-strong shadow-sm shadow-accent/20",
-        secondary: "bg-surface-raised text-text-primary border border-border-subtle hover:border-border-strong hover:bg-panel",
+        default:
+          "bg-accent text-accent-foreground shadow-sm shadow-accent/25 hover:bg-accent-strong hover:-translate-y-px hover:shadow-md hover:shadow-accent/30 active:translate-y-0",
+        secondary:
+          "bg-surface-2 text-text-primary border border-border-subtle hover:border-border-strong hover:bg-surface-raised",
         ghost: "text-text-secondary hover:text-text-primary hover:bg-panel",
         outline: "border border-border-strong text-text-primary hover:bg-panel",
-        destructive: "bg-danger/15 text-danger hover:bg-danger/25 border border-danger/20",
+        success: "bg-accent-lime text-accent-lime-foreground shadow-sm shadow-accent-lime/20 hover:brightness-110",
+        destructive: "bg-danger/15 text-danger border border-danger/25 hover:bg-danger/25 hover:border-danger/40",
         link: "text-accent underline-offset-4 hover:underline p-0 h-auto",
       },
       size: {

@@ -1,11 +1,32 @@
 import * as React from "react";
 import { cn } from "@/lib/utils/cn";
 
-export function Card({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
+/** The three-tier surface system: 1 = main module card (the default -- a Card on its own on a
+ *  page), 2 = metric/stat card (slightly more raised, used inside a grid of many), 3 = nested
+ *  panel/control strip living inside another card. Each level is a deliberate step lighter than
+ *  the one below it so nesting reads as real depth. */
+type CardLevel = 1 | 2 | 3;
+
+const LEVEL_BG: Record<CardLevel, string> = {
+  1: "bg-surface",
+  2: "bg-surface-2",
+  3: "bg-surface-raised",
+};
+
+interface CardProps extends React.HTMLAttributes<HTMLDivElement> {
+  level?: CardLevel;
+  /** A visibly "live/highlighted" card -- a running workflow, the selected campaign. Sparing use
+   *  only; most cards should stay in the default, quieter treatment. */
+  glow?: boolean;
+}
+
+export function Card({ className, level = 1, glow, ...props }: CardProps) {
   return (
     <div
       className={cn(
-        "rounded-2xl border border-border-subtle bg-surface [box-shadow:0_1px_0_0_rgba(255,255,255,0.02)_inset]",
+        "relative overflow-hidden rounded-2xl border [background-image:var(--card-gradient)] [box-shadow:var(--shadow-card)] transition-colors",
+        LEVEL_BG[level],
+        glow ? "border-accent/30 glow-accent" : "border-border-subtle",
         className
       )}
       {...props}
@@ -14,7 +35,7 @@ export function Card({ className, ...props }: React.HTMLAttributes<HTMLDivElemen
 }
 
 export function CardHeader({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn("flex items-start justify-between gap-3 p-5 pb-3", className)} {...props} />;
+  return <div className={cn("flex items-start justify-between gap-3 p-4 pb-2.5", className)} {...props} />;
 }
 
 export function CardTitle({ className, ...props }: React.HTMLAttributes<HTMLHeadingElement>) {

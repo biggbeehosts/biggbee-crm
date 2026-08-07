@@ -43,7 +43,7 @@ export function StorageHealthCard() {
   const { health, uploadLog } = data;
 
   return (
-    <Card className="space-y-3 p-4">
+    <Card level={2} className="space-y-3 p-4">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <CloudCog className="h-4 w-4 text-text-tertiary" />
@@ -52,7 +52,7 @@ export function StorageHealthCard() {
         {!health.configured ? (
           <Badge variant="warning"><TriangleAlert className="h-3 w-3" /> Not configured</Badge>
         ) : health.connected ? (
-          <Badge variant="success"><CheckCircle2 className="h-3 w-3" /> Connected</Badge>
+          <Badge variant="lime"><CheckCircle2 className="h-3 w-3" /> Connected</Badge>
         ) : (
           <Badge variant="danger"><XCircle className="h-3 w-3" /> Unreachable</Badge>
         )}

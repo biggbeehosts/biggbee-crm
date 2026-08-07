@@ -125,7 +125,16 @@ export function UnknownSendersView({ senders }: { senders: UnknownSender[] }) {
               const key = keyOf(sender);
               const pending = pendingKey === key;
               return (
-                <li key={key} className={cn("flex items-start gap-3 px-4 py-3", sender.reviewed && "opacity-55")}>
+                <li
+                  key={key}
+                  className={cn(
+                    "flex items-start gap-3 border-l-2 px-4 py-3 transition-opacity",
+                    sender.classification === "Lead Reply" && "border-l-accent bg-accent-soft/40",
+                    sender.classification === "Needs Review" && "border-l-warning",
+                    sender.classification !== "Lead Reply" && sender.classification !== "Needs Review" && "border-l-transparent",
+                    sender.reviewed && "opacity-55"
+                  )}
+                >
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
                       <p className="text-sm font-medium text-text-primary">{sender.fromEmail}</p>

@@ -8,8 +8,13 @@ const badgeVariants = cva("inline-flex items-center gap-1.5 rounded-md px-2 py-0
       default: "bg-panel text-text-secondary border-border-subtle",
       accent: "bg-accent-soft text-accent-strong border-accent/20",
       success: "bg-success/10 text-success border-success/20",
+      /** Reserved for genuinely "live" states -- a running job, a healthy/connected integration --
+       *  distinct from `success` (a completed/positive outcome that isn't necessarily happening
+       *  right now). See globals.css's --accent-lime doc comment. */
+      lime: "bg-accent-lime-soft text-accent-lime border-accent-lime/25",
       warning: "bg-warning/10 text-warning border-warning/20",
       danger: "bg-danger/10 text-danger border-danger/20",
+      purple: "bg-category-purple/10 text-category-purple border-category-purple/20",
       outline: "bg-transparent text-text-secondary border-border-strong",
     },
   },

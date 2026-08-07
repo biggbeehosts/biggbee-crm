@@ -1,8 +1,10 @@
 import Link from "next/link";
 import { UserSearch, ListChecks, CheckCircle2, Bot } from "lucide-react";
-import type { ScraperAgent, ScrapingJob } from "@/types";
+import type { CountPoint, ScraperAgent, ScrapingJob } from "@/types";
 import { Card, CardContent } from "@/components/ui/card";
 import { IconBadge } from "@/components/ui/icon-badge";
+import { CountBarChart } from "@/components/charts/count-bar-chart";
+import { EmptyState } from "@/components/ui/empty-state";
 import { formatNumber } from "@/lib/utils/format";
 
 interface Tile {
@@ -11,9 +13,18 @@ interface Tile {
   icon: typeof UserSearch;
 }
 
-/** Compact lead-generation summary reusing the same scraper-registry/scraping-jobs data the
- *  Automation Hub and Lead Generation pages already fetch -- no new data source. */
-export function LeadGenOverview({ agents, jobs }: { agents: ScraperAgent[]; jobs: ScrapingJob[] }) {
+/** "Scraping & Intelligence" -- reuses the same scraper-registry/scraping-jobs data the
+ *  Automation Hub and Lead Generation pages already fetch, plus leadsBySource (already-fetched
+ *  leads) for the source breakdown -- no new data source. */
+export function LeadGenOverview({
+  agents,
+  jobs,
+  sourceBreakdown,
+}: {
+  agents: ScraperAgent[];
+  jobs: ScrapingJob[];
+  sourceBreakdown: CountPoint[];
+}) {
   const leadSources = agents.filter((a) => a.category === "Lead Source");
   const activeSources = leadSources.filter((a) => a.status === "Active");
   const activeJobs = jobs.filter((j) => j.status === "Running" || j.status === "Queued");
@@ -30,12 +41,12 @@ export function LeadGenOverview({ agents, jobs }: { agents: ScraperAgent[]; jobs
 
   return (
     <Card>
-      <CardContent className="p-5">
+      <CardContent className="p-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2.5">
             <IconBadge icon={Bot} tone="accent" size="sm" />
             <div>
-              <p className="text-sm font-semibold text-text-primary">Lead Generation</p>
+              <p className="text-sm font-semibold text-text-primary">Scraping &amp; Intelligence</p>
               <p className="text-xs text-text-tertiary">
                 {activeSources.length}/{leadSources.length} scrapers active
               </p>
@@ -45,7 +56,7 @@ export function LeadGenOverview({ agents, jobs }: { agents: ScraperAgent[]; jobs
             View jobs
           </Link>
         </div>
-        <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <div className="mt-4 grid grid-cols-2 gap-2.5 sm:grid-cols-4">
           {tiles.map((t) => (
             <div key={t.label} className="rounded-xl border border-border-subtle bg-panel p-3">
               <t.icon className="h-3.5 w-3.5 text-text-tertiary" />
@@ -53,6 +64,16 @@ export function LeadGenOverview({ agents, jobs }: { agents: ScraperAgent[]; jobs
               <p className="text-[11px] text-text-tertiary">{t.label}</p>
             </div>
           ))}
+        </div>
+        <div className="mt-4 border-t border-border-subtle pt-3">
+          <p className="mb-1.5 text-[11px] font-medium text-text-tertiary">Leads by source</p>
+          {sourceBreakdown.length === 0 ? (
+            <EmptyState title="No source data yet" className="py-4" />
+          ) : (
+            <div style={{ height: 140 }}>
+              <CountBarChart data={sourceBreakdown} maxItems={5} />
+            </div>
+          )}
         </div>
       </CardContent>
     </Card>

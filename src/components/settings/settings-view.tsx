@@ -72,7 +72,7 @@ export function SettingsView({
               <CardDescription>The workflow&apos;s spreadsheet is the only data source for this dashboard</CardDescription>
             </div>
           </div>
-          <Badge variant={status.mode === "mock" ? "accent" : status.connected ? "success" : "danger"}>
+          <Badge variant={status.mode === "mock" ? "accent" : status.connected ? "lime" : "danger"}>
             {status.mode === "mock" ? "Mock mode" : status.connected ? "Connected" : "Error"}
           </Badge>
         </CardHeader>
@@ -117,7 +117,7 @@ export function SettingsView({
               <CardDescription>The n8n-crawled biggbees.com content the AI uses as its source of truth</CardDescription>
             </div>
           </div>
-          <Badge variant={kbFresh ? "success" : "warning"}>{kbFresh ? "In sync" : knowledgeBase.updatedAt ? "May be stale" : "Never synced"}</Badge>
+          <Badge variant={kbFresh ? "lime" : "warning"}>{kbFresh ? "In sync" : knowledgeBase.updatedAt ? "May be stale" : "Never synced"}</Badge>
         </CardHeader>
         <CardContent className="space-y-3">
           <div className="flex items-center justify-between text-sm">
@@ -191,7 +191,7 @@ export function SettingsView({
           {n8nActions.map(({ action, label, configured }) => (
             <div key={action} className="flex items-center justify-between rounded-lg px-2.5 py-1.5 text-sm">
               <span className="text-text-secondary">{label}</span>
-              <Badge variant={configured ? "success" : "outline"}>{configured ? "Connected" : "Not connected"}</Badge>
+              <Badge variant={configured ? "lime" : "outline"}>{configured ? "Connected" : "Not connected"}</Badge>
             </div>
           ))}
           <p className="pt-1 text-[11px] text-text-tertiary">
