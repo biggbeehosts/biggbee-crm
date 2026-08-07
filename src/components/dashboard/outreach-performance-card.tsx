@@ -4,7 +4,7 @@ import { IconBadge } from "@/components/ui/icon-badge";
 import { OutreachVolumeChart } from "@/components/charts/outreach-volume-chart";
 import { demoRecommendationRate } from "@/lib/calculations/dashboard-metrics";
 import { formatNumber } from "@/lib/utils/format";
-import { Send, MailOpen, MousePointerClick, Clapperboard, CalendarCheck2, MailWarning, Zap } from "lucide-react";
+import { Send, MailOpen, MousePointerClick, Reply, Clapperboard, CalendarCheck2, Zap } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 
 interface Tile {
@@ -15,18 +15,18 @@ interface Tile {
 }
 
 /** Real, already-available signals only -- every number here reads directly off the `leads` array
- *  the dashboard already fetches (openCount/clickCount/demoSent/bounceType are real Lead fields,
- *  not derived estimates). Inbox/spam placement and AI-classified "positive reply" rates need the
- *  tracking-events engine Analytics pulls in separately -- duplicating that fetch here would be
- *  more than the "very small UI adjustment" this pass is scoped to, so those stay on /analytics. */
-export function OutreachPerformanceCard({ leads, volume }: { leads: Lead[]; volume: TimeSeriesPoint[] }) {
+ *  the dashboard already fetches (openCount/clickCount/demoSent are real Lead fields, not derived
+ *  estimates) or the `replies` count the page computed once via the same computeTrackingSnapshot()
+ *  Analytics uses (see dashboard/page.tsx), so this never drifts from Analytics' own Replies KPI.
+ *  Bounce detail stays on Outreach/Analytics -- it's not in this card's fixed six per the design
+ *  brief unless it becomes a currently-actionable issue (see System module instead). */
+export function OutreachPerformanceCard({ leads, volume, replies }: { leads: Lead[]; volume: TimeSeriesPoint[]; replies: number }) {
   const demo = demoRecommendationRate(leads);
   const sent = leads.filter((l) => l.lastEmailDate).length;
   const opened = leads.filter((l) => (l.openCount ?? 0) > 0).length;
   const clicked = leads.filter((l) => (l.clickCount ?? 0) > 0).length;
   const demosSent = leads.filter((l) => l.demoSent).length;
   const meetings = leads.filter((l) => l.status === "Meeting Booked" || l.status === "Customer").length;
-  const bounced = leads.filter((l) => l.bounceType).length;
   const openRate = sent > 0 ? Math.round((opened / sent) * 100) : null;
   const clickRate = sent > 0 ? Math.round((clicked / sent) * 100) : null;
 
@@ -34,9 +34,9 @@ export function OutreachPerformanceCard({ leads, volume }: { leads: Lead[]; volu
     { label: "Sent", value: formatNumber(sent), icon: Send, tone: "info" },
     { label: openRate === null ? "Opens" : `Opens (${openRate}%)`, value: formatNumber(opened), icon: MailOpen, tone: "accent" },
     { label: clickRate === null ? "Clicks" : `Clicks (${clickRate}%)`, value: formatNumber(clicked), icon: MousePointerClick, tone: "purple" },
+    { label: "Replies", value: formatNumber(replies), icon: Reply, tone: "info" },
     { label: "Demos sent", value: formatNumber(demosSent), icon: Clapperboard, tone: "purple" },
     { label: "Meetings", value: formatNumber(meetings), icon: CalendarCheck2, tone: "success" },
-    { label: "Bounced", value: formatNumber(bounced), icon: MailWarning, tone: bounced > 0 ? "danger" : "info" },
   ];
 
   const TONE_TEXT: Record<Tile["tone"], string> = {

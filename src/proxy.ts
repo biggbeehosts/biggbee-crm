@@ -8,9 +8,13 @@ export const config = {
     // 401'd; each route validates its own token and is independently rate-limited), the internal
     // n8n->CRM event endpoint (Stage 5 -- server-to-server, authenticated by its own X-API-KEY
     // check against N8N_API_KEY, not a browser session), static assets, and Next internals.
+    // branding/ and apple-icon.png join favicon.ico here for the same reason: next/image's local
+    // optimizer fetches these itself (no session cookie on that internal request), and browsers/
+    // iOS request touch icons the same cookie-less way -- without this exclusion both 400/redirect
+    // instead of serving the logo (see logo.tsx) and app icons.
     // /login and /setup ARE matched -- they still get CSRF + CSP treatment, just not the auth
     // redirect below.
-    "/((?!api/health|api/track|api/internal|_next/static|_next/image|favicon.ico).*)",
+    "/((?!api/health|api/track|api/internal|_next/static|_next/image|favicon.ico|apple-icon.png|branding/).*)",
   ],
 };
 

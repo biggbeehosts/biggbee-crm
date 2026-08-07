@@ -1,47 +1,36 @@
 export const dynamic = "force-dynamic";
 
-import { getConnectionStatus, getErrors, getKnowledgeBase, getLeadMemory, getLeads, isUsingMockData } from "@/lib/data/repository";
+import { getConnectionStatus, getErrors, getKnowledgeBase, getLeads, isUsingMockData } from "@/lib/data/repository";
 import { getCampaigns } from "@/lib/data/campaigns-store";
 import { getDemoLibrary } from "@/lib/data/demo-library-store";
 import { getScraperAgents } from "@/lib/data/scraper-registry-store";
 import { getScrapingJobs } from "@/lib/data/scraping-jobs-store";
+import { getEvents } from "@/lib/data/analytics-events-store";
 import { getAllProviderHealth } from "@/lib/providers/registry";
 import { getLastSyncAt } from "@/lib/data/cache";
-import {
-  computeDashboardMetrics,
-  leadsByCountry,
-  leadsByIndustry,
-  leadsByService,
-  leadsBySource,
-  leadsByStatus,
-  outreachVolumeOverTime,
-} from "@/lib/calculations/dashboard-metrics";
-import { buildActivityFeed } from "@/lib/calculations/activity";
-import { summarizeDashboardErrors, excludeInternalSenderLeads } from "@/lib/calculations/dashboard-alerts";
+import { computeDashboardMetrics, leadsBySource, outreachVolumeOverTime } from "@/lib/calculations/dashboard-metrics";
+import { summarizeDashboardErrors } from "@/lib/calculations/dashboard-alerts";
 import { computeCampaignReadiness } from "@/lib/calculations/campaign-readiness";
 import { daysSince } from "@/lib/utils/date";
-import { SectionHeader } from "@/components/layout/section-header";
 import { CommandHeader } from "@/components/dashboard/command-header";
+import { OperationsStatusRow } from "@/components/dashboard/operations-status-row";
 import { KpiGrid } from "@/components/dashboard/kpi-grid";
-import { RecentActivity } from "@/components/dashboard/recent-activity";
-import { RecentErrors } from "@/components/dashboard/recent-errors";
-import { SystemHealthStrip } from "@/components/dashboard/system-health-strip";
 import { LeadGenOverview } from "@/components/dashboard/lead-gen-overview";
 import { OutreachPerformanceCard } from "@/components/dashboard/outreach-performance-card";
 import { type ConfiguredActions } from "@/components/dashboard/automation-card";
 import { CampaignRunPanel } from "@/components/dashboard/campaign-run-panel";
-import { ChartCard } from "@/components/charts/chart-card";
-import { CountBarChart } from "@/components/charts/count-bar-chart";
-import { CountPieChart } from "@/components/charts/count-pie-chart";
 import { getAutomationStatusAction, getConfiguredActionsAction } from "@/lib/n8n/actions";
 import { isN8nApiKeyRequiredButMissing } from "@/lib/config/env-validation";
-import { PieChart, Activity, Radar, ShieldAlert } from "lucide-react";
+
+/** All-time lower bound for the Replies KPI, matching the other primary KPIs (Total Leads, Emails
+ *  Sent, ...), which are cumulative rather than range-limited -- getEvents() defaults to a 2-month
+ *  window, which would be silently misleading here. */
+const EPOCH = new Date(0).toISOString();
 
 export default async function DashboardPage() {
-  const [leads, memory, errors, automationStatus, connection, knowledgeBase, campaigns, configuredActionsRaw, demos, scraperAgents, scrapingJobs, providers] =
+  const [leads, errors, automationStatus, connection, knowledgeBase, campaigns, configuredActionsRaw, demos, scraperAgents, scrapingJobs, providers, replyEvents] =
     await Promise.all([
       getLeads(),
-      getLeadMemory(),
       getErrors(),
       getAutomationStatusAction(),
       getConnectionStatus(),
@@ -52,6 +41,7 @@ export default async function DashboardPage() {
       getScraperAgents(),
       getScrapingJobs(),
       getAllProviderHealth(),
+      getEvents({ from: EPOCH, to: new Date().toISOString(), type: "reply_received" }),
     ]);
 
   // Dashboard metrics/charts exclude test data by default (Leads/Campaigns tagged isTest) so a
@@ -65,10 +55,13 @@ export default async function DashboardPage() {
   // onto imported leads), so the same exclusion is applied here via campaignId lookup.
   const testCampaignIds = new Set(campaigns.filter((c) => c.isTest).map((c) => c.id));
   const productionScrapingJobs = scrapingJobs.filter((j) => !testCampaignIds.has(j.campaignId));
+  // Same cross-reference Analytics uses for events: a reply from a test lead's address is test
+  // data too, even though reply_received events aren't individually flagged isTestEvent.
+  const testLeadEmails = new Set(leads.filter((l) => l.isTest).map((l) => l.email));
+  const replies = replyEvents.filter((e) => !(e.leadId && testLeadEmails.has(e.leadId))).length;
 
   const metrics = computeDashboardMetrics(productionLeads);
   const errorSummary = summarizeDashboardErrors(errors);
-  const activity = excludeInternalSenderLeads(buildActivityFeed(productionLeads, memory, errorSummary.active, 15));
   const mock = isUsingMockData();
   const lastSync = getLastSyncAt("tab:leads");
   const lastSyncIso = lastSync ? new Date(lastSync).toISOString() : null;
@@ -104,6 +97,11 @@ export default async function DashboardPage() {
   );
   const noSelectionReadiness = computeCampaignReadiness({ ...readinessBase, selectedCampaign: null });
 
+  // The compact Operations Status row summarizes the first Active campaign -- actual selection
+  // (when more than one is Active) is a client concern owned by the Run Campaign panel below.
+  const summaryCampaign = activeCampaigns[0] ?? null;
+  const summaryReadiness = summaryCampaign ? readinessByCampaignId[summaryCampaign.id] : noSelectionReadiness;
+
   return (
     <div className="space-y-5">
       <CommandHeader
@@ -114,38 +112,27 @@ export default async function DashboardPage() {
         mock={mock}
       />
 
-      <SystemHealthStrip providers={providers} knowledgeBaseHealthy={knowledgeBaseHealthy} />
+      <OperationsStatusRow
+        providers={providers}
+        knowledgeBaseHealthy={knowledgeBaseHealthy}
+        activeCampaigns={activeCampaigns}
+        selectedCampaign={summaryCampaign}
+        readiness={summaryReadiness}
+        workflowState={automationStatus.status?.state ?? null}
+        dataMode={connection.mode}
+      />
 
-      <KpiGrid metrics={metrics} />
+      <KpiGrid metrics={metrics} replies={replies} />
       {testExcludedCount > 0 && (
         <p className="text-right text-[11px] text-text-tertiary">{testExcludedCount} test record{testExcludedCount === 1 ? "" : "s"} excluded</p>
       )}
 
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
         <LeadGenOverview agents={scraperAgents} jobs={productionScrapingJobs} sourceBreakdown={leadsBySource(productionLeads)} />
-        <OutreachPerformanceCard leads={productionLeads} volume={outreachVolumeOverTime(productionLeads)} />
-      </div>
-
-      <div>
-        <SectionHeader icon={PieChart} title="Lead Distribution" description="Where today's leads are coming from and where they stand" />
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 xl:grid-cols-4">
-          <ChartCard title="Leads by Country">
-            <CountBarChart data={leadsByCountry(productionLeads)} />
-          </ChartCard>
-          <ChartCard title="Leads by Industry">
-            <CountBarChart data={leadsByIndustry(productionLeads)} />
-          </ChartCard>
-          <ChartCard title="Leads by Service">
-            <CountBarChart data={leadsByService(productionLeads)} />
-          </ChartCard>
-          <ChartCard title="Lead Status">
-            <CountPieChart data={leadsByStatus(productionLeads)} />
-          </ChartCard>
-        </div>
+        <OutreachPerformanceCard leads={productionLeads} volume={outreachVolumeOverTime(productionLeads)} replies={replies} />
       </div>
 
       <div id="automation-control" className="scroll-mt-20">
-        <SectionHeader icon={Radar} title="Automation Control" description="The n8n outreach workflow -- controlled from here, executed in n8n" />
         <CampaignRunPanel
           initialStatus={automationStatus}
           configured={configuredActions}
@@ -153,18 +140,6 @@ export default async function DashboardPage() {
           readinessByCampaignId={readinessByCampaignId}
           noSelectionReadiness={noSelectionReadiness}
         />
-      </div>
-
-      <div>
-        <SectionHeader
-          icon={errorSummary.active.length > 0 ? ShieldAlert : Activity}
-          title="Activity & Issues"
-          description="What's happened recently, and what needs a look"
-        />
-        <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-          <RecentActivity activity={activity} />
-          <RecentErrors errors={errorSummary.active} hiddenCount={errorSummary.hiddenCount} />
-        </div>
       </div>
     </div>
   );

@@ -44,19 +44,6 @@ export function CampaignReadinessCard({ readiness }: { readiness: CampaignReadin
             );
           })}
         </ul>
-
-        {!readiness.canRun && (
-          <div className="mt-3 rounded-xl border border-warning/25 bg-warning/10 p-3">
-            <p className="text-[11px] font-medium text-warning">Run Campaign is blocked</p>
-            <ul className="mt-1 list-inside list-disc space-y-0.5">
-              {readiness.blockReasons.map((reason) => (
-                <li key={reason} className="text-[11px] text-warning/90">
-                  {reason}
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
       </div>
     </Card>
   );

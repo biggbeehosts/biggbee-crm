@@ -1,11 +1,16 @@
+import Image from "next/image";
 import { cn } from "@/lib/utils/cn";
 
 export function Logo({ collapsed, className }: { collapsed?: boolean; className?: string }) {
   return (
     <div className={cn("flex items-center gap-2.5", className)}>
-      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-accent to-accent-strong text-sm font-bold text-accent-foreground shadow-lg shadow-accent/30">
-        B
-      </div>
+      <Image
+        src="/branding/biggbee-mark.png"
+        alt="Biggbee AI"
+        width={897}
+        height={855}
+        className="h-8 w-8 shrink-0 object-contain"
+      />
       {!collapsed && (
         <div className="min-w-0 leading-tight">
           <p className="truncate text-sm font-semibold text-text-primary">

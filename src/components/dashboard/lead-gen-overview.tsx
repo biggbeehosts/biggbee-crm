@@ -88,16 +88,17 @@ export function LeadGenOverview({
               </p>
             </div>
           </div>
-          {activeJobs.length > 0 ? (
-            <span className="flex items-center gap-1.5 rounded-full border border-accent/25 bg-accent-soft px-2 py-0.5 text-[10px] font-semibold text-accent">
-              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-accent" />
-              {activeJobs.length} running
-            </span>
-          ) : (
+          <div className="flex items-center gap-2">
+            {activeJobs.length > 0 && (
+              <span className="flex items-center gap-1.5 rounded-full border border-accent/25 bg-accent-soft px-2 py-0.5 text-[10px] font-semibold text-accent">
+                <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-accent" />
+                {activeJobs.length} active
+              </span>
+            )}
             <Link href="/lead-generation/scraping-jobs" className="text-xs font-medium text-accent hover:underline">
               View jobs
             </Link>
-          )}
+          </div>
         </div>
 
         <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
