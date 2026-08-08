@@ -13,6 +13,7 @@ import type { AutomationStatusResult, WorkflowState } from "@/lib/n8n/types";
 import type { CampaignReadiness } from "@/lib/calculations/campaign-readiness";
 import type { Campaign } from "@/types";
 import { RunCampaignDialog } from "./run-campaign-dialog";
+import { RunCampaignGuidanceDialog } from "./run-campaign-guidance-dialog";
 import { formatDateTime } from "@/lib/utils/date";
 import { useToast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils/cn";
@@ -91,27 +92,45 @@ export function AutomationCard({
   activeCampaigns,
   selectedCampaignId,
   onSelectedCampaignChange,
+  onInteract,
 }: {
   initialStatus: AutomationStatusResult;
   configured: ConfiguredActions;
   readiness: CampaignReadiness;
-  /** Campaigns eligible to run (status Active) -- more than one can be Active at a time, so the
-   *  operator picks explicitly rather than the CRM guessing which one to send. */
+  /** Campaigns eligible to run (status Active, production only -- test campaigns never appear
+   *  here, see dashboard/page.tsx) -- more than one can be Active at a time, so the operator picks
+   *  explicitly rather than the CRM guessing which one to send. */
   activeCampaigns: Campaign[];
   selectedCampaignId: string;
   onSelectedCampaignChange: (id: string) => void;
+  /** Flips CampaignReadinessCard from its calm default state to the real checklist -- called the
+   *  first time the operator actually does something (changes the campaign, or clicks Run),
+   *  never just because data loaded (Section 8 of the final polish brief). */
+  onInteract: () => void;
 }) {
   const { run, pendingAction, cooldownRemaining, lastRunResult, clearLastRunResult } = useN8nAction(configured);
   const { result: statusResult, refresh: refreshStatus, refreshing: statusRefreshing } = useAutomationStatus(initialStatus);
   const { toast } = useToast();
   const [confirmOpen, setConfirmOpen] = React.useState(false);
+  const [guidanceOpen, setGuidanceOpen] = React.useState(false);
 
   const status = statusResult.status;
   const meta = statusResult.configured && status ? STATE_META[status.state] : null;
 
   const runCooldown = cooldownRemaining("runCampaign");
   const runBusy = pendingAction === "runCampaign";
-  const runDisabled = !readiness.canRun || pendingAction !== null || runCooldown > 0;
+  // Only a genuine infrastructure/config failure disables the button -- "no eligible leads" or
+  // "no campaign selected" are expected states, validated on click instead (Section 7/22).
+  const runDisabled = readiness.infraBlocked || pendingAction !== null || runCooldown > 0;
+
+  function handleRunClick() {
+    onInteract();
+    if (readiness.canRun) {
+      setConfirmOpen(true);
+    } else {
+      setGuidanceOpen(true);
+    }
+  }
 
   async function confirmRun() {
     await run("runCampaign", { campaignId: selectedCampaignId });
@@ -183,26 +202,35 @@ export function AutomationCard({
           ) : (
             <Select
               value={selectedCampaignId}
-              onChange={(e) => onSelectedCampaignChange(e.target.value)}
+              onChange={(e) => {
+                onInteract();
+                onSelectedCampaignChange(e.target.value);
+              }}
               className="max-w-sm"
               disabled={pendingAction !== null}
             >
+              {activeCampaigns.length > 1 && (
+                <option value="" disabled>
+                  Select campaign
+                </option>
+              )}
               {activeCampaigns.map((c) => (
                 <option key={c.id} value={c.id}>
-                  {c.name} ({c.id})
+                  {c.name}
                 </option>
               ))}
             </Select>
           )}
         </div>
 
-        {/* Primary action */}
+        {/* Primary action -- stays clickable even with zero eligible leads/no campaign selected;
+            only a genuine infra failure disables it (Section 7 of the final polish brief). */}
         <div className="mt-4 flex flex-wrap items-center gap-3">
-          <Button size="lg" onClick={() => setConfirmOpen(true)} disabled={runDisabled}>
+          <Button size="lg" onClick={handleRunClick} disabled={runDisabled}>
             <Play className="h-4 w-4" />
             {runBusy ? "Starting…" : runCooldown > 0 ? `Run Campaign (${runCooldown}s)` : "Run Campaign"}
           </Button>
-          {!readiness.canRun && readiness.blockReasons.length > 0 && (
+          {readiness.infraBlocked && readiness.blockReasons.length > 0 && (
             <span className="max-w-sm text-[11px] font-medium text-warning">
               {readiness.blockReasons[0]}
               {readiness.blockReasons.length > 1 ? ` (+${readiness.blockReasons.length - 1} more)` : ""}
@@ -272,6 +300,7 @@ export function AutomationCard({
       </div>
 
       <RunCampaignDialog open={confirmOpen} onOpenChange={setConfirmOpen} readiness={readiness} pending={runBusy} onConfirm={confirmRun} />
+      <RunCampaignGuidanceDialog open={guidanceOpen} onOpenChange={setGuidanceOpen} readiness={readiness} />
     </Card>
   );
 }

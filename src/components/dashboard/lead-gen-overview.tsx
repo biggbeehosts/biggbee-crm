@@ -119,13 +119,13 @@ export function LeadGenOverview({
           </div>
         </div>
 
-        <div className="mt-4 border-t border-border-subtle pt-3">
+        <div className="mt-3.5 border-t border-border-subtle pt-3">
           <p className="mb-1.5 text-[11px] font-medium text-text-tertiary">Leads by source</p>
           {sourceBreakdown.length === 0 ? (
-            <EmptyState title="No source data yet" className="py-4" />
+            <EmptyState title="No source data yet" className="py-3" />
           ) : (
-            <div style={{ height: 120 }}>
-              <CountBarChart data={sourceBreakdown} maxItems={4} />
+            <div style={{ height: 88 }}>
+              <CountBarChart data={sourceBreakdown} maxItems={3} />
             </div>
           )}
         </div>

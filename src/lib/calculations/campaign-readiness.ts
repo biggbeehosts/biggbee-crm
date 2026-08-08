@@ -29,6 +29,12 @@ export interface CampaignReadiness {
   demoMatch: DemoMatchResult | null;
   canRun: boolean;
   blockReasons: string[];
+  /** True only for genuine infrastructure/config failures (webhook not connected, missing prod
+   *  auth key, Sheets unreachable) -- never for expected data states like "no eligible leads" or
+   *  "no campaign selected". This is the only thing allowed to disable the Run Campaign button
+   *  itself; everything else is validated at click time and explained in a friendly dialog
+   *  instead (Section 7/22 of the final polish brief -- lack of data is not an error). */
+  infraBlocked: boolean;
 }
 
 export interface ReadinessInput {
@@ -279,5 +285,6 @@ export function computeCampaignReadiness(input: ReadinessInput): CampaignReadine
     demoMatch,
     canRun: blockReasons.length === 0,
     blockReasons,
+    infraBlocked: !runCampaignConfigured || n8nApiKeyRequiredButMissing || sheetsBlocked,
   };
 }

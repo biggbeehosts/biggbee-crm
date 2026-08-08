@@ -27,8 +27,14 @@ export function CampaignRunPanel({
   initialStatus: AutomationStatusResult;
   configured: ConfiguredActions;
 }) {
-  const [selectedCampaignId, setSelectedCampaignId] = React.useState(activeCampaigns[0]?.id ?? "");
+  // Only auto-select when there's exactly one production Active campaign -- safe and obvious.
+  // With none or several, the operator picks explicitly (Section 11 of the final polish brief).
+  const [selectedCampaignId, setSelectedCampaignId] = React.useState(activeCampaigns.length === 1 ? activeCampaigns[0].id : "");
   const readiness = (selectedCampaignId && readinessByCampaignId[selectedCampaignId]) || noSelectionReadiness;
+
+  // Gates CampaignReadinessCard's calm default vs. the real checklist -- flips true the first
+  // time the operator actually does something, never just because the page loaded (Section 8).
+  const [hasInteracted, setHasInteracted] = React.useState(false);
 
   return (
     <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
@@ -40,9 +46,10 @@ export function CampaignRunPanel({
           activeCampaigns={activeCampaigns}
           selectedCampaignId={selectedCampaignId}
           onSelectedCampaignChange={setSelectedCampaignId}
+          onInteract={() => setHasInteracted(true)}
         />
       </div>
-      <CampaignReadinessCard readiness={readiness} />
+      <CampaignReadinessCard readiness={readiness} hasInteracted={hasInteracted} />
     </div>
   );
 }

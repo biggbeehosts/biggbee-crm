@@ -80,10 +80,17 @@ export default async function DashboardPage() {
     retryFailed: configuredActionsRaw.retryFailed,
   };
 
+  // Test campaigns never appear in the Run Campaign selector -- the real, persisted isTest flag
+  // is the only signal used (never the campaign name). Legacy rows written before the Is Test
+  // column existed read isTest=false the same as any other missing-field default, so they still
+  // count as production here; Campaign.isTestUnset flags them separately (surfaced on /campaigns)
+  // for manual review instead of guessing from their name.
+  const productionCampaigns = campaigns.filter((c) => !c.isTest);
+
   // More than one campaign can be Active at once, so readiness is computed per campaign -- the
   // operator picks which one to run client-side (see CampaignRunPanel) rather than the CRM
   // guessing "the" active campaign.
-  const activeCampaigns = campaigns.filter((c) => c.status === "Active");
+  const activeCampaigns = productionCampaigns.filter((c) => c.status === "Active");
   const readinessBase = {
     leads,
     runCampaignConfigured: configuredActions.runCampaign ?? false,
@@ -103,17 +110,19 @@ export default async function DashboardPage() {
   const summaryCampaign = activeCampaigns[0] ?? null;
   const summaryReadiness = summaryCampaign ? readinessByCampaignId[summaryCampaign.id] : noSelectionReadiness;
 
-  // Calm-language overall state (Section 18: reserve "action needed" for a genuinely active
-  // failure, never for "not configured yet"). sheetsDown/anyProviderDown are real current
-  // failures; everything else is an expected first-run gap.
+  // Calm-language overall state, infrastructure only (final polish pass, Section 6): 0 leads, no
+  // campaign selected, and no outreach sent yet are normal first-run states and must never move
+  // this off "Ready" -- only genuine Sheets/provider connectivity problems or a real recent
+  // workflow error do that. sheetsDown/anyProviderDown are active current failures; mock mode and
+  // an unconfigured provider/webhook are "hasn't been connected yet", not a failure.
   const sheetsDown = connection.mode === "google-sheets" && !connection.connected;
   const anyProviderDown = providers.some((p) => p.configured && !p.connected);
   const anyProviderUnconfigured = providers.some((p) => !p.configured);
-  const setupIncomplete = mock || campaigns.length === 0 || productionLeads.length === 0 || !(configuredActions.runCampaign ?? false);
+  const setupIncomplete = mock || anyProviderUnconfigured || !(configuredActions.runCampaign ?? false);
   const overallState: OverallState =
     errorSummary.hasCritical || sheetsDown || anyProviderDown
       ? "action-needed"
-      : setupIncomplete || anyProviderUnconfigured
+      : setupIncomplete
         ? "setup-incomplete"
         : "ready";
 
@@ -161,7 +170,7 @@ export default async function DashboardPage() {
       id: "campaign",
       title: "Create a Campaign",
       description: "A campaign defines who Run Campaign should reach out to.",
-      state: campaigns.length > 0 ? "complete" : "needs-setup",
+      state: productionCampaigns.length > 0 ? "complete" : "needs-setup",
       href: "/campaigns",
     },
     {

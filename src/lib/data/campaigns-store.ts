@@ -166,6 +166,10 @@ function fromRow(row: Record<string, string>, rowNumber: number): Campaign {
     websiteId: row["Website ID"] || undefined,
     // Additive column -- missing/blank on every row written before it existed reads as false.
     isTest: parseYesNo(row["Is Test"], false),
+    // Distinct from isTest itself: true only when the cell was never explicitly set, so legacy
+    // rows can be flagged for manual review (see Campaign.isTestUnset doc comment) rather than
+    // silently trusted as production.
+    isTestUnset: !(row["Is Test"] ?? "").trim(),
     createdAt: row["Created At"] || now(),
     updatedAt: row["Updated At"] || now(),
     rowNumber,

@@ -65,6 +65,14 @@ export interface Campaign {
    *  exclude this campaign's leads by default. Missing/blank on any row written before this column
    *  existed reads as `false` -- see normalizeCampaign. Never inferred from the campaign's name. */
   isTest: boolean;
+  /** Read-only, derived at load time -- true only when the raw "Is Test" cell is genuinely blank
+   *  (never explicitly set to TRUE or FALSE), as opposed to a row that was explicitly marked
+   *  production. Never written back, never used to change `isTest`'s own value or default (that
+   *  stays `false` either way, per the additive-schema backwards-compatibility rule) -- this
+   *  exists solely so legacy pre-Is-Test rows (e.g. old internal QA campaigns created before this
+   *  column existed) can be surfaced for manual admin review instead of being silently assumed
+   *  production, without resorting to name-based detection. See fromRow() in campaigns-store.ts. */
+  isTestUnset?: boolean;
   createdAt: string;
   updatedAt: string;
   /** Row position in the Campaigns sheet tab, used for targeted updates. Absent in mock mode. */

@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 
-import { Megaphone } from "lucide-react";
+import { Megaphone, Info } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { getLeads } from "@/lib/data/repository";
 import { getCampaigns } from "@/lib/data/campaigns-store";
 import { getDemoLibrary } from "@/lib/data/demo-library-store";
@@ -27,6 +28,13 @@ export default async function CampaignsPage() {
     getWebsiteRegistry(),
   ]);
 
+  // Rows written before the Is Test column existed read isTest=false the same as any other
+  // missing-field default (correct, backwards-compatible behavior) -- but that also means a
+  // legacy internal QA campaign with a never-set cell is currently indistinguishable from a real
+  // production one by value alone. Rather than guessing from the name, these are surfaced here
+  // for a human to actually mark (see Campaign.isTestUnset doc comment).
+  const legacyUnsetCampaigns = campaigns.filter((c) => c.isTestUnset);
+
   const to = new Date().toISOString();
   // Lifetime, per-campaign snapshot (Part I) -- one getEvents() call above, reduced N times
   // in-memory below, never a second query per campaign.
@@ -46,6 +54,17 @@ export default async function CampaignsPage() {
         icon={Megaphone}
         tone="warning"
       />
+      {legacyUnsetCampaigns.length > 0 && (
+        <div className="mb-4 flex items-start gap-2.5 rounded-lg border border-border-subtle bg-panel p-3">
+          <Info className="mt-0.5 h-3.5 w-3.5 shrink-0 text-text-tertiary" />
+          <p className="text-xs text-text-secondary">
+            {legacyUnsetCampaigns.length} campaign{legacyUnsetCampaigns.length === 1 ? "" : "s"} never had a Test/Production value set (
+            {legacyUnsetCampaigns.map((c) => c.name).join(", ")}) -- currently treated as production by default. Open <Badge variant="outline">Edit</Badge>{" "}
+            on each and set the <span className="font-medium text-text-primary">Test Campaign</span> switch explicitly if any of these
+            are actually internal test data.
+          </p>
+        </div>
+      )}
       <CampaignsView
         campaigns={campaigns}
         leads={leads}

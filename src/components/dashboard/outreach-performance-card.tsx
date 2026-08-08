@@ -68,7 +68,7 @@ export function OutreachPerformanceCard({ leads, volume, replies }: { leads: Lea
             </div>
           ))}
         </div>
-        <div style={{ height: 180 }}>
+        <div style={{ height: 130 }}>
           <OutreachVolumeChart data={volume} />
         </div>
       </CardContent>

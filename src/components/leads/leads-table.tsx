@@ -373,8 +373,10 @@ export function LeadsTable({
       </div>
 
       {selectedCount > 0 && (
-        <div className="flex flex-wrap items-center gap-2.5 rounded-xl border border-accent/25 bg-accent-soft px-3.5 py-2.5">
-          <Badge variant="accent">{selectedCount} selected</Badge>
+        <div className="sticky top-14 z-20 flex flex-wrap items-center gap-2.5 rounded-xl border border-accent/40 bg-accent-soft px-3.5 py-2.5 shadow-lg shadow-black/10">
+          <Badge variant="accent" className="text-sm">
+            {selectedCount} selected{table.getPageCount() > 1 ? " on this page" : ""}
+          </Badge>
 
           <Select value={bulkCampaignId} onChange={(e) => setBulkCampaignId(e.target.value)} disabled={bulkPending} className="h-8 w-40 text-xs">
             <option value="">Assign campaign…</option>
@@ -408,7 +410,7 @@ export function LeadsTable({
 
           <Button size="sm" variant="destructive" onClick={handleBulkDelete} disabled={bulkPending}>
             <Trash2 className="h-3.5 w-3.5" />
-            {bulkPending ? "Working…" : "Delete"}
+            {bulkPending ? "Working…" : "Delete Selected"}
           </Button>
           <button onClick={() => setRowSelection({})} className="ml-auto text-xs font-medium text-text-tertiary hover:text-text-primary">
             Clear selection
@@ -520,15 +522,32 @@ export function LeadsTable({
       <Dialog open={bulkDeleteConfirmOpen} onOpenChange={setBulkDeleteConfirmOpen}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
-            <DialogTitle className="text-danger">Delete {selectedCount} lead{selectedCount === 1 ? "" : "s"}</DialogTitle>
-            <DialogDescription>This permanently removes {selectedCount === 1 ? "this lead" : "these leads"} from the Leads sheet and cannot be undone.</DialogDescription>
+            <DialogTitle className="text-danger">
+              Delete {selectedCount} lead{selectedCount === 1 ? "" : "s"}?
+            </DialogTitle>
+            <DialogDescription>
+              This permanently removes {selectedCount === 1 ? "this lead" : "these leads"} from the Leads sheet and cannot be undone.
+            </DialogDescription>
           </DialogHeader>
+          {bulkDeleteConfirmOpen && (
+            <ul className="max-h-32 space-y-1 overflow-y-auto rounded-lg border border-border-subtle bg-panel p-2.5 text-xs text-text-secondary">
+              {table
+                .getSelectedRowModel()
+                .rows.slice(0, 5)
+                .map((r) => (
+                  <li key={r.original.email} className="truncate">
+                    {r.original.company || r.original.email}
+                  </li>
+                ))}
+              {selectedCount > 5 && <li className="text-text-tertiary">+{selectedCount - 5} more</li>}
+            </ul>
+          )}
           <DialogFooter>
             <Button variant="secondary" size="sm" onClick={() => setBulkDeleteConfirmOpen(false)} disabled={bulkPending}>
               Cancel
             </Button>
             <Button variant="destructive" size="sm" onClick={confirmBulkDelete} disabled={bulkPending}>
-              <Trash2 className="h-3.5 w-3.5" /> {bulkPending ? "Deleting…" : `Delete ${selectedCount}`}
+              <Trash2 className="h-3.5 w-3.5" /> {bulkPending ? "Deleting…" : "Delete Leads"}
             </Button>
           </DialogFooter>
         </DialogContent>
