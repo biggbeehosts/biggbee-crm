@@ -120,6 +120,13 @@ export function LeadsTable({
   const table = useReactTable({
     data: filtered,
     columns,
+    // Stable row identity by email (Lead's real primary key -- see types/lead.ts) instead of
+    // TanStack's default array-index id. Without this, rowSelection and the <tr key={row.id}>
+    // below both key off position: any reorder/refetch (every bulk/individual action calls
+    // router.refresh(), which hands LeadsTable a brand-new `leads` array) silently reassigns
+    // selection to the wrong rows and can remount checkboxes, which is what made selection feel
+    // unreliable.
+    getRowId: (row) => row.email,
     state: { sorting, columnVisibility, rowSelection, columnFilters, globalFilter },
     onSortingChange: setSorting,
     onColumnVisibilityChange: setColumnVisibility,
@@ -195,12 +202,25 @@ export function LeadsTable({
   }
 
   async function runBulk(fn: () => Promise<{ success: boolean; message: string }>) {
+    if (bulkPending) return; // guard against a fast double-click firing the same action twice
     setBulkPending(true);
-    const result = await fn();
-    toast(result.message, result.success ? "success" : "error");
-    setRowSelection({});
-    router.refresh();
-    setBulkPending(false);
+    try {
+      const result = await fn();
+      toast(result.message, result.success ? "success" : "error");
+      // Only clear selection once the action actually completed -- a failed action leaves the
+      // selected leads selected so the admin can see what didn't apply and retry.
+      if (result.success) {
+        setRowSelection({});
+        router.refresh();
+      }
+    } catch (err) {
+      // A thrown (not returned) failure -- e.g. an expired session -- must still release the
+      // pending state, or every bulk button stays disabled for the rest of the session even
+      // though the table itself is fine.
+      toast(err instanceof Error ? err.message : "Something went wrong. Please try again.", "error");
+    } finally {
+      setBulkPending(false);
+    }
   }
 
   function handleBulkDelete() {
@@ -215,13 +235,20 @@ export function LeadsTable({
   }
 
   async function confirmDeleteLead() {
-    if (!deletingLead) return;
+    if (!deletingLead || deletingLeadPending) return;
     setDeletingLeadPending(true);
-    const result = await deleteLeadAction(deletingLead.email);
-    toast(result.message, result.success ? "success" : "error");
-    setDeletingLeadPending(false);
-    setDeletingLead(null);
-    if (result.success) router.refresh();
+    try {
+      const result = await deleteLeadAction(deletingLead.email);
+      toast(result.message, result.success ? "success" : "error");
+      if (result.success) {
+        setDeletingLead(null);
+        router.refresh();
+      }
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "Something went wrong. Please try again.", "error");
+    } finally {
+      setDeletingLeadPending(false);
+    }
   }
 
   async function handleBulkAssignCampaign() {

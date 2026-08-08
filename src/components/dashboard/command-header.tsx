@@ -68,7 +68,7 @@ export function CommandHeader({
         <div className="flex flex-wrap items-center gap-2">
           <DashboardControls lastSyncedAt={lastSyncedAt} />
           <Button variant="secondary" size="sm" asChild>
-            <Link href="/lead-generation/scraping-jobs">
+            <Link href="/automation-hub/lead-sources">
               <UserSearch className="h-3.5 w-3.5" /> Scrape Leads
             </Link>
           </Button>
