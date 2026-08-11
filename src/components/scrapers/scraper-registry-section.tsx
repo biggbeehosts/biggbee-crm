@@ -10,10 +10,11 @@ import { ScraperAgentCard, type ScraperAgentStats } from "./scraper-agent-card";
 import { AgentForm } from "./agent-form";
 
 /**
- * Shared content for the Automation Hub's Lead Sources and AI Agents sub-pages (Stage 6, Part
- * 1/2/9) -- both are the same registry/list/form, filtered to a different `category`. Adding a
- * new agent in either category never needs a new page: it's the same AgentForm, same card, same
- * list, just filtered differently.
+ * Shared registry/list/form content for an Automation Hub agent category (Stage 6, Part 1/2/9),
+ * parametrized by `category` rather than hardcoded per page. Currently only Lead Sources renders
+ * this; the dedicated "AI Agent" category page was removed as redundant, but the category value
+ * itself and this component's filtering stay intact -- adding a new Lead Source agent never needs
+ * a new page, it's the same AgentForm, same card, same list.
  */
 export async function ScraperRegistrySection({
   category,

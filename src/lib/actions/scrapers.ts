@@ -42,7 +42,6 @@ function revalidateLeadGenPaths() {
   revalidatePath("/lead-generation/scraping-jobs");
   revalidatePath("/lead-generation/scraped-leads");
   revalidatePath("/automation-hub/lead-sources");
-  revalidatePath("/automation-hub/ai-agents");
   revalidatePath("/automation-hub");
   revalidatePath("/leads");
   revalidatePath("/dashboard");

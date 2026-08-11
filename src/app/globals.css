@@ -4,10 +4,15 @@
 /*
  * Biggbee AI Operations theme -- warm near-black/graphite base, ELECTRIC LIME as the primary
  * brand/action color (not blue), amber/orange secondary, violet for a real analytics category.
- * Blue survives only as `--info`, a supporting/informational color -- it is never the default
- * button, link, or active-state color anymore. Dark mode is the default; :root[data-theme="light"]
- * flips to the light palette. Tailwind v4 is CSS-first, so brand tokens live here in @theme rather
- * than a JS config.
+ * Dark mode is the default and this personality must never quietly revert to blue.
+ *
+ * LIGHT MODE is intentionally a different primary: a clean professional BLUE (never yellow/lime),
+ * on a white/cool-grey surface system -- see the --accent* tokens inside :root[data-theme="light"]
+ * and the matching @media (prefers-color-scheme: light) block below. Every other token (surfaces,
+ * text, warning/success/danger/purple/orange/teal) stays the same *shape* of relationship between
+ * the two themes; only the primary accent family swaps per-theme. :root[data-theme="light"] flips
+ * to the light palette. Tailwind v4 is CSS-first, so brand tokens live here in @theme rather than
+ * a JS config.
  */
 
 :root {
@@ -86,11 +91,14 @@
   --text-primary: #14140f;
   --text-secondary: #47473f;
   --text-tertiary: #7a7a70;
-  --accent: #5c8a00;
-  --accent-strong: #4a7000;
-  --accent-soft: rgba(92, 138, 0, 0.1);
+  /* LIGHT MODE primary: clean professional blue, never yellow/lime -- see the file-level doc
+     comment above. --accent-strong is darker (not lighter) than --accent here, matching this
+     theme's light-UI hover convention (buttons darken on hover; dark mode's lime brightens). */
+  --accent: #2563eb;
+  --accent-strong: #1d4ed8;
+  --accent-soft: rgba(37, 99, 235, 0.1);
   --accent-foreground: #ffffff;
-  --accent-glow: rgba(92, 138, 0, 0.2);
+  --accent-glow: rgba(37, 99, 235, 0.2);
   --accent-lime: var(--accent-strong);
   --accent-lime-soft: var(--accent-soft);
   --accent-lime-foreground: var(--accent-foreground);
@@ -126,11 +134,12 @@
     --text-primary: #14140f;
     --text-secondary: #47473f;
     --text-tertiary: #7a7a70;
-    --accent: #5c8a00;
-    --accent-strong: #4a7000;
-    --accent-soft: rgba(92, 138, 0, 0.1);
+    /* Mirrors :root[data-theme="light"]'s blue primary -- see the file-level doc comment above. */
+    --accent: #2563eb;
+    --accent-strong: #1d4ed8;
+    --accent-soft: rgba(37, 99, 235, 0.1);
     --accent-foreground: #ffffff;
-    --accent-glow: rgba(92, 138, 0, 0.2);
+    --accent-glow: rgba(37, 99, 235, 0.2);
     --accent-lime: var(--accent-strong);
     --accent-lime-soft: var(--accent-soft);
     --accent-lime-foreground: var(--accent-foreground);

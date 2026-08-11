@@ -1,6 +1,6 @@
 import type { ComponentType } from "react";
 import Link from "next/link";
-import { Bot, Cable, Clapperboard, BookOpen, Sparkles, Plug, SlidersHorizontal, ArrowRight, LayoutGrid } from "lucide-react";
+import { Bot, Cable, Clapperboard, BookOpen, Plug, SlidersHorizontal, ArrowRight, LayoutGrid } from "lucide-react";
 import { getScraperAgents } from "@/lib/data/scraper-registry-store";
 import { getWorkflowIntegrations } from "@/lib/data/workflow-registry-store";
 import { getDemoLibrary } from "@/lib/data/demo-library-store";
@@ -69,8 +69,6 @@ export default async function AutomationHubOverviewPage() {
   const leadSources = agents.filter((a) => a.category === "Lead Source");
   const leadSourcesConnected = leadSources.filter((a) => a.connectionStatus === "connected").length;
 
-  const aiAgents = agents.filter((a) => a.category === "AI Agent");
-
   const activeIntegrations = integrations.filter((i) => i.active).length;
 
   const healthyDemos = demos.filter((d) => computeDemoValidationStatus(d) === "healthy").length;
@@ -122,14 +120,6 @@ export default async function AutomationHubOverviewPage() {
           primary={`${websites.length} website${websites.length === 1 ? "" : "s"}`}
           secondary={`${syncedRecently} synced today`}
           tone={syncedRecently > 0 ? "lime" : "outline"}
-        />
-        <HealthCard
-          href="/automation-hub/ai-agents"
-          icon={Sparkles}
-          title="AI Agents"
-          primary={`${aiAgents.length} registered`}
-          secondary={aiAgents.length > 0 ? "Active" : "None yet"}
-          tone={aiAgents.length > 0 ? "lime" : "outline"}
         />
         <HealthCard
           href="/automation-hub/integrations"

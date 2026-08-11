@@ -77,9 +77,10 @@ export function AgentForm({
 }: {
   agent?: ScraperAgent;
   trigger?: React.ReactNode;
-  /** Pre-selects the category for a brand-new agent -- e.g. the AI Agents hub page passes
-   *  "AI Agent" so "Add Agent" there doesn't default to "Lead Source". Ignored when editing an
-   *  existing agent (its own category always wins). */
+  /** Pre-selects the category for a brand-new agent. Currently only Lead Sources renders this
+   *  form (defaulting to "Lead Source"); the "AI Agent" category value itself is preserved on
+   *  ScraperAgentCategory even though its dedicated hub page was removed as redundant. Ignored
+   *  when editing an existing agent (its own category always wins). */
   defaultCategory?: ScraperAgentCategory;
 }) {
   const router = useRouter();

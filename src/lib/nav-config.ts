@@ -18,7 +18,6 @@ import {
   Activity,
   Inbox,
   Gauge,
-  Sparkles,
   Plug,
   SlidersHorizontal,
   type LucideIcon,
@@ -45,7 +44,6 @@ export const NAV_ITEMS: NavItem[] = [
   { label: "Workflows", href: "/automation-hub/workflows", icon: Cable, group: "Automation Hub" },
   { label: "Demo Library", href: "/automation-hub/demo-library", icon: Clapperboard, group: "Automation Hub" },
   { label: "Knowledge Base", href: "/automation-hub/knowledge-base", icon: BookOpen, group: "Automation Hub" },
-  { label: "AI Agents", href: "/automation-hub/ai-agents", icon: Sparkles, group: "Automation Hub" },
   { label: "Integrations", href: "/automation-hub/integrations", icon: Plug, group: "Automation Hub" },
   { label: "Settings", href: "/automation-hub/settings", icon: SlidersHorizontal, group: "Automation Hub" },
 

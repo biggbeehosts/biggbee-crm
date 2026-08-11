@@ -41,7 +41,7 @@ export function Sidebar({ connected, mode, adminEmail }: { connected: boolean; m
                     className={cn(
                       "group relative flex items-center gap-2.5 rounded-lg py-1.5 pl-3 pr-2.5 text-[13px] font-medium transition-all",
                       active
-                        ? "border border-accent/25 bg-surface-2 text-accent shadow-[0_0_0_1px_rgba(182,240,58,0.08),0_0_14px_-4px_var(--accent-glow)]"
+                        ? "border border-accent/25 bg-surface-2 text-accent shadow-[0_0_0_1px_color-mix(in_srgb,var(--accent)_8%,transparent),0_0_14px_-4px_var(--accent-glow)]"
                         : "border border-transparent text-text-secondary hover:bg-panel hover:text-text-primary",
                       sidebarCollapsed && "justify-center px-0"
                     )}
