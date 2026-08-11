@@ -5,7 +5,7 @@ import { getCampaigns } from "@/lib/data/campaigns-store";
 import { getLeads } from "@/lib/data/repository";
 import { getEnabledOptions } from "@/lib/data/options-store";
 import { getAuditLog } from "@/lib/audit/log";
-import { isAdminApiConfigured, getWorkflowExecutionStats, getWorkflowById } from "@/lib/n8n/admin-client";
+import { isAdminApiConfigured, getWorkflowExecutionStats, getWorkflowById, readableAdminError } from "@/lib/n8n/admin-client";
 import { getN8nEditorUrl, isAdvancedUpdatesEnabled } from "@/lib/n8n/config";
 import { getConfiguredActionsAction } from "@/lib/n8n/actions";
 import { scraperToCardModel, integrationToCardModel, combineCardModels } from "@/lib/n8n/card-adapters";
@@ -36,13 +36,22 @@ export default async function WorkflowManagerPage() {
   // the same parallel batch as everything else above -- getWorkflowExecutionStats and
   // getWorkflowById both honestly return "not available" without hitting n8n when the admin API
   // isn't configured or a card has no n8nWorkflowId yet, so this never adds a failing call.
+  // `active`/`lookupError` are the same getWorkflowById() response the Workflow Status card needs
+  // to report real health (see card-adapters.ts) -- no second n8n call for that, just reading two
+  // more fields off this one already-fetched result.
   async function cardMeta(workflowId: string) {
-    if (!adminApiConfigured || !workflowId.trim()) return { stats: { executionCount: 0, averageRuntimeSeconds: null, lastExecutionAt: null }, n8nUpdatedAt: null };
+    if (!adminApiConfigured || !workflowId.trim()) {
+      return { stats: { executionCount: 0, averageRuntimeSeconds: null, lastExecutionAt: null }, n8nUpdatedAt: null, active: null as boolean | null, lookupError: null as string | null };
+    }
+    let lookupError: string | null = null;
     const [stats, meta] = await Promise.all([
       getWorkflowExecutionStats(workflowId),
-      getWorkflowById(workflowId).catch(() => null),
+      getWorkflowById(workflowId).catch((err) => {
+        lookupError = readableAdminError(err);
+        return null;
+      }),
     ]);
-    return { stats, n8nUpdatedAt: meta?.updatedAt ?? null };
+    return { stats, n8nUpdatedAt: meta?.updatedAt ?? null, active: meta?.active ?? null, lookupError };
   }
 
   const scraperCards = await Promise.all(
@@ -55,8 +64,8 @@ export default async function WorkflowManagerPage() {
   const integrationCards = await Promise.all(
     integrations.map(async (integration) => {
       const runs = integration.purpose === "Outreach" ? runCampaignRuns : 0;
-      const { stats, n8nUpdatedAt } = await cardMeta(integration.n8nWorkflowId);
-      return integrationToCardModel(integration, runs, stats, n8nUpdatedAt);
+      const { stats, n8nUpdatedAt, active, lookupError } = await cardMeta(integration.n8nWorkflowId);
+      return integrationToCardModel(integration, runs, stats, n8nUpdatedAt, { adminApiConfigured, active, lookupError });
     })
   );
   const cards = combineCardModels(scraperCards, integrationCards);

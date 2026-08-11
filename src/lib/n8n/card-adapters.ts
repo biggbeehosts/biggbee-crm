@@ -55,15 +55,52 @@ const ENV_VAR_TO_ACTION: Record<string, N8nActionKey> = {
   N8N_WEBHOOK_STATUS: "status",
 };
 
-export function integrationToCardModel(integration: WorkflowIntegration, linkedCampaignCount: number, stats: WorkflowExecutionStats = EMPTY_STATS, n8nUpdatedAt: string | null = null): WorkflowCardModel {
+/** Real n8n state for the Workflow Status card, from the same getWorkflowById() call
+ *  workflows/page.tsx already makes for every card's "Last deployment" field -- no second n8n
+ *  request. `active`/`lookupError` are null when the admin API isn't configured at all. */
+export interface StatusWorkflowHealth {
+  adminApiConfigured: boolean;
+  active: boolean | null;
+  lookupError: string | null;
+}
+
+export function integrationToCardModel(
+  integration: WorkflowIntegration,
+  linkedCampaignCount: number,
+  stats: WorkflowExecutionStats = EMPTY_STATS,
+  n8nUpdatedAt: string | null = null,
+  statusHealth?: StatusWorkflowHealth
+): WorkflowCardModel {
   const issues: string[] = [];
   if (!integration.n8nWorkflowId.trim()) issues.push("No n8n workflow ID set.");
-  const actionKey = ENV_VAR_TO_ACTION[integration.webhookPath];
-  if (integration.webhookPath && actionKey && !isActionConfigured(actionKey)) {
-    issues.push(`${integration.webhookPath} is not set.`);
-  }
-  if (!integration.webhookPath && integration.purpose !== "Reply Processing") {
-    issues.push("No webhook configured for this integration.");
+
+  let resolvedActive = integration.active;
+
+  if (integration.purpose === "Status") {
+    // Workflow Status doesn't execute anything of its own -- it reports the real state of the
+    // shared outreach workflow via the n8n Admin API (workflow existence + active flag +
+    // reachability), so it never needs its own dedicated N8N_WEBHOOK_STATUS webhook. This branch
+    // replaces the generic webhook-env-var check below for this one purpose only; every other
+    // card (Outreach, Knowledge Base, scrapers) keeps requiring its real webhook exactly as before.
+    if (integration.n8nWorkflowId.trim() && statusHealth) {
+      if (!statusHealth.adminApiConfigured) {
+        issues.push("n8n Admin API is not configured (N8N_ADMIN_API_KEY / N8N_BASE_URL).");
+      } else if (statusHealth.lookupError) {
+        issues.push(statusHealth.lookupError);
+      } else if (statusHealth.active !== null) {
+        // Found and reachable -- config is healthy regardless of active/inactive; that's an
+        // operational state shown via the existing Active/Inactive badge, not a config problem.
+        resolvedActive = statusHealth.active;
+      }
+    }
+  } else {
+    const actionKey = ENV_VAR_TO_ACTION[integration.webhookPath];
+    if (integration.webhookPath && actionKey && !isActionConfigured(actionKey)) {
+      issues.push(`${integration.webhookPath} is not set.`);
+    }
+    if (!integration.webhookPath && integration.purpose !== "Reply Processing") {
+      issues.push("No webhook configured for this integration.");
+    }
   }
   if (!getN8nApiKey() && integration.authRef === "N8N_API_KEY") issues.push("N8N_API_KEY is not set.");
 
@@ -72,7 +109,7 @@ export function integrationToCardModel(integration: WorkflowIntegration, linkedC
     id: integration.id,
     displayName: integration.displayName,
     purpose: integration.purpose,
-    active: integration.active,
+    active: resolvedActive,
     n8nWorkflowId: integration.n8nWorkflowId,
     workflowName: integration.workflowName,
     webhookPath: integration.webhookPath || "(no dedicated webhook)",
