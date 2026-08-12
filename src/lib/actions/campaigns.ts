@@ -47,8 +47,8 @@ export async function saveCampaignAction(formData: FormData): Promise<ActionResu
 
   const parsed = CampaignSchema.safeParse({
     id: String(formData.get("id") || "") || undefined,
-    name: formData.get("name"),
-    status: formData.get("status"),
+    name: String(formData.get("name") ?? ""),
+    status: String(formData.get("status") ?? ""),
     country: String(formData.get("country") || ""),
     industry: String(formData.get("industry") || ""),
     businessType: String(formData.get("businessType") || ""),

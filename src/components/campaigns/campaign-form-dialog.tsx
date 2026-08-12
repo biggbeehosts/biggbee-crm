@@ -11,7 +11,7 @@ import { Input, Label, Textarea } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { saveCampaignAction } from "@/lib/actions/campaigns";
 import { computeDemoValidationStatus } from "@/lib/utils/cloudinary";
 
@@ -22,6 +22,11 @@ const DEMO_STATUS_LABEL: Record<ReturnType<typeof computeDemoValidationStatus>, 
   inactive: "Inactive",
   "invalid-mapping": "Invalid mapping",
 };
+
+/** The four wizard steps, in order -- same four sections/fields that always existed, just gated
+ *  behind Next/Back instead of all being submittable from any tab. See handleNext/handleBack. */
+const STEPS = ["general", "targeting", "limits", "demo"] as const;
+type Step = (typeof STEPS)[number];
 
 /** Options come from the central manageable lists (Settings → Lists), never hardcoded here.
  *  `demos` is the live Demo Library (Part C) -- selecting one persists its Demo ID, never a
@@ -38,9 +43,14 @@ export function CampaignFormDialog({
   websites?: WebsiteRegistryEntry[];
 }) {
   const router = useRouter();
+  const formRef = React.useRef<HTMLFormElement>(null);
   const [open, setOpen] = React.useState(false);
   const [pending, setPending] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
+  const [step, setStep] = React.useState<Step>("general");
+  // How far the operator has already validated forward -- lets them click back to any completed
+  // tab without losing data, while later tabs stay disabled until Next actually clears them.
+  const [maxStepReached, setMaxStepReached] = React.useState(0);
   const [attachDemo, setAttachDemo] = React.useState(campaign?.attachDemo ?? false);
   const [demoSelectionMode, setDemoSelectionMode] = React.useState<DemoSelectionMode>(campaign?.demoSelectionMode ?? "None");
   const [demoId, setDemoId] = React.useState(campaign?.demoId ?? "");
@@ -53,7 +63,80 @@ export function CampaignFormDialog({
 
   const selectedDemo = demos.find((d) => d.demoId === demoId);
 
+  /** Reads a field's live DOM value straight off the (always-mounted, uncontrolled) form element
+   *  -- no shadow/duplicated React state to keep in sync with it. */
+  function fieldValue(name: string): string {
+    const el = formRef.current?.elements.namedItem(name);
+    if (el instanceof HTMLInputElement || el instanceof HTMLSelectElement || el instanceof HTMLTextAreaElement) return el.value;
+    return "";
+  }
+
+  function focusField(name: string) {
+    const el = formRef.current?.elements.namedItem(name);
+    if (el instanceof HTMLElement) el.focus();
+  }
+
+  /** Per-step validation gating Next -- only checks what that step owns, never the whole
+   *  campaign. The full object is validated for real by CampaignSchema when Save actually runs. */
+  function validateStep(s: Step): { message: string; focus: string } | null {
+    if (s === "general") {
+      if (!fieldValue("name").trim()) return { message: "Campaign name is required.", focus: "name" };
+      return null;
+    }
+    if (s === "targeting") {
+      const raw = fieldValue("minConfidence").trim();
+      if (raw) {
+        const n = Number(raw);
+        if (!Number.isFinite(n) || n < 0 || n > 100) return { message: "Minimum confidence must be a number between 0 and 100.", focus: "minConfidence" };
+      }
+      return null;
+    }
+    if (s === "limits") {
+      for (const [name, label] of [
+        ["maxLeadsPerRun", "Max leads per run"],
+        ["dailySendLimit", "Daily send limit"],
+      ] as const) {
+        const raw = fieldValue(name).trim();
+        if (raw) {
+          const n = Number(raw);
+          if (!Number.isFinite(n) || !Number.isInteger(n) || n <= 0) return { message: `${label} must be a positive whole number.`, focus: name };
+        }
+      }
+      return null;
+    }
+    return null;
+  }
+
+  function handleNext() {
+    const invalid = validateStep(step);
+    if (invalid) {
+      setError(invalid.message);
+      focusField(invalid.focus);
+      return;
+    }
+    setError(null);
+    const idx = STEPS.indexOf(step);
+    const next = STEPS[idx + 1];
+    setStep(next);
+    setMaxStepReached((m) => Math.max(m, idx + 1));
+  }
+
+  function handleBack() {
+    setError(null);
+    const idx = STEPS.indexOf(step);
+    setStep(STEPS[idx - 1]);
+  }
+
+  /** Belt-and-suspenders: Save only ever renders as a submit button on the final step, so Enter
+   *  has no submit target to trigger on earlier steps -- this just blocks it explicitly too. */
+  function handleFormKeyDown(e: React.KeyboardEvent<HTMLFormElement>) {
+    if (e.key === "Enter" && step !== "demo" && (e.target as HTMLElement).tagName !== "TEXTAREA") {
+      e.preventDefault();
+    }
+  }
+
   async function handleSubmit(formData: FormData) {
+    if (pending) return;
     formData.set("attachDemo", attachDemo ? "true" : "false");
     formData.set("demoSelectionMode", attachDemo ? demoSelectionMode : "None");
     formData.set("demoId", demoSelectionMode === "Exact" ? demoId : "");
@@ -98,18 +181,25 @@ export function CampaignFormDialog({
             Campaigns define what the outreach workflow should target. Saving here never sends emails -- it only prepares and previews the lead selection.
           </DialogDescription>
         </DialogHeader>
-        <form action={handleSubmit} className="space-y-4">
+        <form ref={formRef} action={handleSubmit} onKeyDown={handleFormKeyDown} className="space-y-4">
           {campaign && <input type="hidden" name="id" value={campaign.id} />}
 
-          <Tabs defaultValue="general">
+          <Tabs value={step} onValueChange={(v) => { setError(null); setStep(v as Step); }}>
             <TabsList>
               <TabsTrigger value="general">General</TabsTrigger>
-              <TabsTrigger value="targeting">Targeting</TabsTrigger>
-              <TabsTrigger value="limits">Sending Limits</TabsTrigger>
-              <TabsTrigger value="demo">Demo &amp; Tracking</TabsTrigger>
+              <TabsTrigger value="targeting" disabled={maxStepReached < 1}>Targeting</TabsTrigger>
+              <TabsTrigger value="limits" disabled={maxStepReached < 2}>Sending Limits</TabsTrigger>
+              <TabsTrigger value="demo" disabled={maxStepReached < 3}>Demo &amp; Tracking</TabsTrigger>
             </TabsList>
+          </Tabs>
 
-            <TabsContent value="general" className="space-y-3">
+          {/* All four sections stay mounted at all times (never conditionally removed from the
+              DOM) so every field is always present in the form's FormData regardless of which
+              step is visually active -- see saveCampaignAction's CampaignSchema.parse for why a
+              field silently missing from FormData used to surface as "expected string, received
+              null". Only CSS visibility toggles between steps; nothing here duplicates state,
+              resyncs via useEffect, or resets on navigation. */}
+          <div className={step === "general" ? "space-y-3" : "hidden"}>
               <div className="space-y-1.5">
                 <Label htmlFor="c-name">Campaign name *</Label>
                 <Input id="c-name" name="name" required defaultValue={campaign?.name} placeholder="UK Instagram Agencies" />
@@ -137,9 +227,9 @@ export function CampaignFormDialog({
                 </div>
                 <Switch checked={isTest} onCheckedChange={setIsTest} aria-label="Test campaign" />
               </div>
-            </TabsContent>
+          </div>
 
-            <TabsContent value="targeting" className="space-y-3">
+          <div className={step === "targeting" ? "space-y-3" : "hidden"}>
               <p className="text-xs text-text-tertiary">
                 Leave any field on &quot;Any&quot; to skip that criterion. This only controls the CRM&apos;s planning preview -- it does not
                 restrict which leads the outreach workflow itself processes.
@@ -160,9 +250,9 @@ export function CampaignFormDialog({
                   <Input id="c-conf" name="minConfidence" type="number" min={0} max={100} defaultValue={campaign?.minConfidence ?? ""} placeholder="70" />
                 </div>
               </div>
-            </TabsContent>
+          </div>
 
-            <TabsContent value="limits" className="space-y-3">
+          <div className={step === "limits" ? "space-y-3" : "hidden"}>
               <p className="text-xs text-text-tertiary">
                 The workflow enforces these caps when it runs -- leave blank for no limit.
               </p>
@@ -176,8 +266,9 @@ export function CampaignFormDialog({
                   <Input id="c-daily" name="dailySendLimit" type="number" min={1} defaultValue={campaign?.dailySendLimit ?? ""} placeholder="200" />
                 </div>
               </div>
-            </TabsContent>
-            <TabsContent value="demo" className="space-y-3">
+          </div>
+
+          <div className={step === "demo" ? "space-y-3" : "hidden"}>
               <div className="space-y-3 rounded-xl border border-border-subtle p-3">
                 <div className="flex items-center justify-between gap-4">
                   <div>
@@ -285,17 +376,50 @@ export function CampaignFormDialog({
                   />
                 </div>
               </div>
-            </TabsContent>
-          </Tabs>
+          </div>
 
           {error && <p className="text-xs text-danger">{error}</p>}
           <DialogFooter>
-            <Button type="button" variant="secondary" size="sm" onClick={() => setOpen(false)}>
-              Cancel
-            </Button>
-            <Button type="submit" size="sm" disabled={pending}>
-              {pending ? "Saving…" : "Save campaign"}
-            </Button>
+            {step === "general" && (
+              <>
+                <Button type="button" variant="secondary" size="sm" onClick={() => setOpen(false)}>
+                  Cancel
+                </Button>
+                <Button type="button" size="sm" onClick={handleNext}>
+                  Next: Targeting →
+                </Button>
+              </>
+            )}
+            {step === "targeting" && (
+              <>
+                <Button type="button" variant="secondary" size="sm" onClick={handleBack}>
+                  ← Back
+                </Button>
+                <Button type="button" size="sm" onClick={handleNext}>
+                  Next: Sending Limits →
+                </Button>
+              </>
+            )}
+            {step === "limits" && (
+              <>
+                <Button type="button" variant="secondary" size="sm" onClick={handleBack}>
+                  ← Back
+                </Button>
+                <Button type="button" size="sm" onClick={handleNext}>
+                  Next: Demo &amp; Tracking →
+                </Button>
+              </>
+            )}
+            {step === "demo" && (
+              <>
+                <Button type="button" variant="secondary" size="sm" onClick={handleBack}>
+                  ← Back
+                </Button>
+                <Button type="submit" size="sm" disabled={pending}>
+                  {pending ? "Saving…" : "Save campaign"}
+                </Button>
+              </>
+            )}
           </DialogFooter>
         </form>
       </DialogContent>
