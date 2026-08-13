@@ -18,7 +18,7 @@ export function CampaignSummary({ summary }: { summary: CampaignMatchSummary }) 
       <CardHeader>
         <div>
           <CardTitle>Campaign Summary</CardTitle>
-          <CardDescription>Based on Campaign ID assignment, not industry or business type</CardDescription>
+          <CardDescription>&quot;Ready for a new-lead run&quot; is based on this campaign&apos;s targeting; &quot;Assigned&quot; is literal Campaign ID membership</CardDescription>
         </div>
       </CardHeader>
       <CardContent className="divide-y divide-border-subtle">

@@ -238,7 +238,7 @@ export function AutomationCard({
           )}
           {readiness.canRun && runCooldown === 0 && !runBusy && readiness.campaignMatches !== null && (
             <span className="text-[11px] text-text-tertiary">
-              {readiness.campaignMatches} lead{readiness.campaignMatches === 1 ? "" : "s"} assigned by Campaign ID and eligible
+              {readiness.campaignMatches} lead{readiness.campaignMatches === 1 ? "" : "s"} match this campaign&apos;s targeting and are eligible
             </span>
           )}
         </div>

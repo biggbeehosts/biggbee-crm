@@ -54,7 +54,7 @@ export function StartOutreachDialog({ campaigns, leads, runCampaignConfigured = 
         <DialogHeader>
           <DialogTitle>Start Campaign Outreach</DialogTitle>
           <DialogDescription>
-            Sends the existing Run Campaign webhook — n8n selects only <strong>approved (Status = New)</strong> leads assigned to the campaign you pick
+            Sends the existing Run Campaign webhook — n8n selects only <strong>approved (Status = New)</strong> leads matching the campaign you pick
             below. Scraping never triggers this on its own.
           </DialogDescription>
         </DialogHeader>

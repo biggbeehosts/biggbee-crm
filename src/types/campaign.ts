@@ -14,8 +14,14 @@ export const CAMPAIGN_ID_PATTERN = /^CMP-\d{6,}$/;
  * A campaign is the stable unit every lead, scraper job, demo choice, outreach run, and result is
  * linked through via `id` (the Campaign ID). It does NOT run outreach itself -- it defines what
  * the current n8n outreach run should focus on, and lets the operator preview exactly which leads
- * are assigned before anything is sent. Leads are matched to a campaign by explicit Campaign ID
- * assignment (see Lead.campaignId), never by inferring industry/business type/status alone.
+ * are eligible before anything is sent. A lead becomes eligible for a run by matching this
+ * campaign's targeting fields (Country/Industry/Business Type/Lead Generation Type/Service --
+ * "Any"/blank means no restriction on that field) and not being claimed by a different campaign;
+ * it does not need to carry this Campaign ID beforehand (see leadEligibleForCampaignRun in
+ * src/lib/calculations/campaign-match.ts). Campaign ID assignment on Lead.campaignId still records
+ * which campaign actually claimed/processed a lead -- Run Campaign writes it onto every matching
+ * lead at the moment it runs, so it remains meaningful for history/reporting and so a lead already
+ * claimed by another campaign is never reassigned or double-processed.
  */
 export interface Campaign {
   /** Stable, unique, never changes on rename/edit. Format CMP-000001 (see CAMPAIGN_ID_PATTERN). */
@@ -80,22 +86,28 @@ export interface Campaign {
 }
 
 /**
- * Funnel-style breakdown of a campaign's membership, based entirely on Campaign ID assignment --
- * never industry, business type, or status alone (see leadBelongsToCampaign).
+ * Funnel-style breakdown of a campaign's Run Campaign eligibility. `assigned` is still literal
+ * Campaign ID membership (reporting/history only, see leadBelongsToCampaign); everything else is
+ * computed over the real candidate pool for a new run -- every lead matching this campaign's
+ * targeting (Country/Industry/Business Type/Lead Generation Type/Service, "Any"/blank = no
+ * restriction) that isn't already claimed by a different campaign, regardless of whether it
+ * carries this Campaign ID yet (see leadEligibleForCampaignRun / summarizeCampaignMatch).
  */
 export interface CampaignMatchSummary {
-  /** Total leads in the pool, regardless of campaign assignment. */
+  /** Total leads in the pool, regardless of campaign assignment or targeting. */
   availableLeads: number;
-  /** Leads whose Campaign ID matches this campaign -- the campaign's actual membership. */
+  /** Leads whose Campaign ID already matches this campaign -- historical/claimed membership,
+   *  not run eligibility. */
   assigned: number;
-  /** Assigned leads currently eligible for a new-lead run (Status = New, not previously
-   *  contacted, meets the confidence floor if one is set). */
+  /** Leads matching this campaign's targeting, not claimed by another campaign, and eligible for
+   *  a new-lead run right now (usable email, Status = New, not previously contacted, meets the
+   *  confidence floor if one is set, production data for a production campaign). */
   matching: number;
-  /** Assigned leads excluded because their status stops outreach or isn't New. */
+  /** Targeting-matched candidates excluded because their status stops outreach or isn't New. */
   excludedByStatus: number;
-  /** Assigned, New-status leads that already have contact history recorded. */
+  /** Targeting-matched, New-status candidates that already have contact history recorded. */
   alreadyContacted: number;
-  /** Assigned, New, uncontacted leads below the campaign's confidence floor. */
+  /** Targeting-matched, New, uncontacted candidates below the campaign's confidence floor. */
   belowConfidence: number;
   /** Informational: matching leads that have no website for the research step. */
   missingWebsite: number;

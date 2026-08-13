@@ -59,7 +59,7 @@ export function RunCampaignDialog({
             </p>
             {readiness.campaignMatches !== null && (
               <p className="mt-1 text-[11px] text-text-tertiary">
-                {readiness.campaignMatches} lead{readiness.campaignMatches === 1 ? "" : "s"} assigned to this campaign by Campaign ID are eligible right now.
+                {readiness.campaignMatches} lead{readiness.campaignMatches === 1 ? "" : "s"} match this campaign&apos;s targeting and are eligible right now.
               </p>
             )}
           </div>
@@ -67,13 +67,12 @@ export function RunCampaignDialog({
           <p className="text-[11px] leading-relaxed text-text-tertiary">
             {readiness.selectedCampaignName ? (
               <>
-                This Campaign ID is sent to n8n with the trigger — it will only process the{" "}
-                <strong>{readiness.campaignMatches}</strong> assigned, eligible lead{readiness.campaignMatches === 1 ? "" : "s"} shown
-                above (capped further by its own max-leads-per-run and daily send limit). n8n rejects the run if the Campaign ID
-                is missing or unknown — it never falls back to processing unrelated leads.
+                Leads matching this campaign&apos;s targeting are assigned this Campaign ID the moment you run it, then n8n
+                processes exactly the <strong>{readiness.campaignMatches}</strong> eligible lead{readiness.campaignMatches === 1 ? "" : "s"} shown
+                above (capped further by its own max-leads-per-run and daily send limit) — never unrelated leads.
               </>
             ) : (
-              <>Select a campaign above before running — Run Campaign always requires a Campaign ID.</>
+              <>Select a campaign above before running — Run Campaign always requires a campaign.</>
             )}
           </p>
         </div>
