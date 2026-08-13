@@ -20,15 +20,21 @@ function fieldMatches(campaignValue: string | undefined, leadValue: string | und
   return c === norm(leadValue);
 }
 
+/** The service value used for campaign Service targeting: Lead.targetService takes priority
+ *  (the service/niche a lead was scraped/targeted for -- see src/lib/actions/scrapers.ts, which
+ *  stamps targetService = campaign.service at scrape time); Lead.serviceOffered is used only as a
+ *  fallback when targetService is blank/null/undefined, since manually-added leads never populate
+ *  targetService but may have serviceOffered filled in by the operator. */
+function resolveLeadService(lead: Lead): string | undefined {
+  return lead.targetService?.trim() || lead.serviceOffered?.trim() || undefined;
+}
+
 /**
  * Whether a lead matches a campaign's targeting criteria -- Country, Industry, Business Type,
  * Lead Generation Type, and Service. This is the primary eligibility test now (Campaign ID
  * assignment is no longer required for a lead to match): "Any"/blank on a campaign field means
- * that field imposes no restriction (see fieldMatches). Campaign.service is matched against
- * Lead.targetService (the service/niche a lead was scraped/targeted for -- see
- * src/lib/actions/scrapers.ts, which stamps targetService = campaign.service at scrape time),
- * never Lead.serviceOffered (what was actually pitched during outreach, populated later by the
- * AI and often still blank on a fresh, unprocessed lead).
+ * that field imposes no restriction (see fieldMatches). Campaign.service is matched against the
+ * lead's resolved service (see resolveLeadService).
  */
 export function leadMatchesCampaignTargeting(lead: Lead, campaign: Campaign): boolean {
   return (
@@ -36,7 +42,7 @@ export function leadMatchesCampaignTargeting(lead: Lead, campaign: Campaign): bo
     fieldMatches(campaign.industry, lead.industry) &&
     fieldMatches(campaign.businessType, lead.businessType) &&
     fieldMatches(campaign.leadGenerationType, lead.leadGenerationType) &&
-    fieldMatches(campaign.service, lead.targetService)
+    fieldMatches(campaign.service, resolveLeadService(lead))
   );
 }
 
