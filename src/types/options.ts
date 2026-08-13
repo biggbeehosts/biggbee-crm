@@ -23,3 +23,15 @@ export const OPTION_LIST_LABELS: Record<OptionListKey, string> = {
 };
 
 export type OptionLists = Record<OptionListKey, OptionItem[]>;
+
+/** Enabled-label-only view of every list, for forms that just need strings to populate a select
+ *  (Add/Edit Lead) -- the same shared taxonomy the Campaign form's targeting fields use, so a
+ *  lead's Industry/Business Type/Service/Lead Generation Type/Country are chosen from the same
+ *  controlled vocabulary a campaign targets against, instead of drifting via free text. */
+export interface LeadTaxonomyOptions {
+  countries: string[];
+  industries: string[];
+  businessTypes: string[];
+  services: string[];
+  leadGenerationTypes: string[];
+}

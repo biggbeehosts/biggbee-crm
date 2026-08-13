@@ -1,4 +1,5 @@
 import type { Campaign, CampaignMatchSummary, Lead } from "@/types";
+import { canonicalizeTaxonomyValue, type AliasField } from "./taxonomy-aliases";
 
 const STOP_STATUSES = new Set(["Unsubscribed", "Spam"]);
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -13,11 +14,18 @@ function norm(v: string | undefined | null): string {
 }
 
 /** "Any", blank, undefined, and null all mean "do not restrict by this field" for an optional
- *  campaign targeting field. Otherwise an exact match against the lead's normalized value. */
-function fieldMatches(campaignValue: string | undefined, leadValue: string | undefined): boolean {
+ *  campaign targeting field -- checked before any alias resolution, so "Any" itself is never
+ *  canonicalized into a real category. Otherwise an exact match against the lead's normalized
+ *  value, or -- when `field` is given -- an exact match after resolving both sides through the
+ *  curated alias table for that field (see taxonomy-aliases.ts). A value with no known alias
+ *  canonicalizes to its own normalized form, so this is a strict exact match whenever no alias
+ *  applies: never fuzzy/similarity scoring. Country is always called without `field`, so it stays
+ *  strict normalized-exact regardless of the alias tables. */
+function fieldMatches(campaignValue: string | undefined, leadValue: string | undefined, field?: AliasField): boolean {
   const c = norm(campaignValue);
   if (!c || c === "any") return true;
-  return c === norm(leadValue);
+  if (!field) return c === norm(leadValue);
+  return canonicalizeTaxonomyValue(field, campaignValue) === canonicalizeTaxonomyValue(field, leadValue);
 }
 
 /** The service value used for campaign Service targeting: Lead.targetService takes priority
@@ -34,15 +42,18 @@ function resolveLeadService(lead: Lead): string | undefined {
  * Lead Generation Type, and Service. This is the primary eligibility test now (Campaign ID
  * assignment is no longer required for a lead to match): "Any"/blank on a campaign field means
  * that field imposes no restriction (see fieldMatches). Campaign.service is matched against the
- * lead's resolved service (see resolveLeadService).
+ * lead's resolved service (see resolveLeadService). Industry, Business Type, Service, and Lead
+ * Generation Type are matched through the curated alias table (see taxonomy-aliases.ts) so known
+ * equivalent taxonomy spellings ("Lead Generation" vs "Lead Generation Agency") match without
+ * fuzzy/similarity logic; Country stays strict normalized-exact.
  */
 export function leadMatchesCampaignTargeting(lead: Lead, campaign: Campaign): boolean {
   return (
     fieldMatches(campaign.country, lead.country) &&
-    fieldMatches(campaign.industry, lead.industry) &&
-    fieldMatches(campaign.businessType, lead.businessType) &&
-    fieldMatches(campaign.leadGenerationType, lead.leadGenerationType) &&
-    fieldMatches(campaign.service, resolveLeadService(lead))
+    fieldMatches(campaign.industry, lead.industry, "industry") &&
+    fieldMatches(campaign.businessType, lead.businessType, "businessType") &&
+    fieldMatches(campaign.leadGenerationType, lead.leadGenerationType, "leadGenerationType") &&
+    fieldMatches(campaign.service, resolveLeadService(lead), "service")
   );
 }
 

@@ -1,5 +1,5 @@
 import "server-only";
-import type { OptionItem, OptionListKey, OptionLists } from "@/types";
+import type { OptionItem, OptionListKey, OptionLists, LeadTaxonomyOptions } from "@/types";
 
 /**
  * Static seed lists feeding the campaign form and Add Lead selects, so those values live in one
@@ -50,4 +50,16 @@ export function getOptionListsSync(): OptionLists {
 
 export function getEnabledOptions(key: OptionListKey): string[] {
   return lists[key].filter((o) => o.enabled).map((o) => o.label);
+}
+
+/** All five lists at once, for the Add/Edit Lead forms -- the same shared taxonomy the Campaign
+ *  form's targeting fields already use (see campaign-form-dialog.tsx's `enabled(...)` calls). */
+export function getLeadTaxonomyOptions(): LeadTaxonomyOptions {
+  return {
+    countries: getEnabledOptions("countries"),
+    industries: getEnabledOptions("industries"),
+    businessTypes: getEnabledOptions("businessTypes"),
+    services: getEnabledOptions("services"),
+    leadGenerationTypes: getEnabledOptions("leadGenerationTypes"),
+  };
 }

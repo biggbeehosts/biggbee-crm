@@ -7,13 +7,11 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
+import { TaxonomyField } from "./taxonomy-field";
 import { addLeadAction } from "@/lib/actions/leads";
-import type { Campaign } from "@/types";
+import type { Campaign, LeadTaxonomyOptions } from "@/types";
 
-export interface AddLeadOptions {
-  countries: string[];
-  industries: string[];
-}
+export type AddLeadOptions = LeadTaxonomyOptions;
 
 export function AddLeadDialog({ options, campaigns = [] }: { options?: AddLeadOptions; campaigns?: Campaign[] }) {
   const router = useRouter();
@@ -69,38 +67,23 @@ export function AddLeadDialog({ options, campaigns = [] }: { options?: AddLeadOp
               <Label htmlFor="website">Website</Label>
               <Input id="website" name="website" placeholder="https://company.com" />
             </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="industry">Industry</Label>
-              {options?.industries.length ? (
-                <Select id="industry" name="industry" defaultValue="">
-                  <option value="">Select…</option>
-                  {options.industries.map((i) => (
-                    <option key={i} value={i}>
-                      {i}
-                    </option>
-                  ))}
-                </Select>
-              ) : (
-                <Input id="industry" name="industry" placeholder="Real Estate" />
-              )}
-            </div>
+            <TaxonomyField id="industry" name="industry" label="Industry" options={options?.industries ?? []} placeholder="Real Estate" />
           </div>
           <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <Label htmlFor="country">Country</Label>
-              {options?.countries.length ? (
-                <Select id="country" name="country" defaultValue="">
-                  <option value="">Select…</option>
-                  {options.countries.map((c) => (
-                    <option key={c} value={c}>
-                      {c}
-                    </option>
-                  ))}
-                </Select>
-              ) : (
-                <Input id="country" name="country" placeholder="United States" />
-              )}
-            </div>
+            <TaxonomyField id="businessType" name="businessType" label="Business Type" options={options?.businessTypes ?? []} placeholder="Marketing Agency" />
+            <TaxonomyField
+              id="leadGenerationType"
+              name="leadGenerationType"
+              label="Lead Generation Type"
+              options={options?.leadGenerationTypes ?? []}
+              placeholder="Google Maps"
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <TaxonomyField id="serviceOffered" name="serviceOffered" label="Service Offered" options={options?.services ?? []} placeholder="Lead Generation Agents" />
+            <TaxonomyField id="country" name="country" label="Country" options={options?.countries ?? []} placeholder="United States" />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label htmlFor="phone">Phone</Label>
               <Input id="phone" name="phone" placeholder="+1 555 555 0100" />

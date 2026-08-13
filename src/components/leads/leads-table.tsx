@@ -516,6 +516,7 @@ export function LeadsTable({
         <EditLeadDialog
           lead={editingLead}
           campaigns={campaigns}
+          options={addLeadOptions}
           open={Boolean(editingLead)}
           onOpenChange={(v) => !v && setEditingLead(null)}
           hideTrigger

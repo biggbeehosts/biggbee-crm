@@ -4,6 +4,7 @@ import { ArrowLeft } from "lucide-react";
 import { getErrors, getLeadMemory, getLeads } from "@/lib/data/repository";
 import { getCampaigns } from "@/lib/data/campaigns-store";
 import { getEvents } from "@/lib/data/analytics-events-store";
+import { getLeadTaxonomyOptions } from "@/lib/data/options-store";
 import { LeadDetailView } from "@/components/lead-detail/lead-detail-view";
 
 export default async function LeadDetailPage({ params }: { params: Promise<{ email: string }> }) {
@@ -11,6 +12,7 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ ema
   const decodedEmail = decodeURIComponent(email).toLowerCase();
 
   const [leads, memory, errors, campaigns] = await Promise.all([getLeads(), getLeadMemory(), getErrors(), getCampaigns()]);
+  const taxonomyOptions = getLeadTaxonomyOptions();
   const lead = leads.find((l) => l.email.toLowerCase() === decodedEmail);
 
   if (!lead) notFound();
@@ -26,7 +28,7 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ ema
       <Link href="/leads" className="mb-4 inline-flex items-center gap-1.5 text-xs font-medium text-text-tertiary hover:text-text-primary">
         <ArrowLeft className="h-3.5 w-3.5" /> Back to Leads
       </Link>
-      <LeadDetailView lead={lead} memory={leadMemory} errors={leadErrors} campaigns={campaigns} events={leadEvents} />
+      <LeadDetailView lead={lead} memory={leadMemory} errors={leadErrors} campaigns={campaigns} events={leadEvents} taxonomyOptions={taxonomyOptions} />
     </div>
   );
 }

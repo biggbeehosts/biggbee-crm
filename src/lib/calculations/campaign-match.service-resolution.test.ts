@@ -78,8 +78,8 @@ test("case-insensitive + trimmed exact match still applies via resolved service"
   assert.equal(leadMatchesCampaignTargeting(lead, campaign), true);
 });
 
-test("no fuzzy matching: partial/substring service value does not match", () => {
-  const lead = makeLead({ targetService: "", serviceOffered: "Lead Generation" });
+test("no fuzzy matching: partial/substring service value does not match (and has no curated alias)", () => {
+  const lead = makeLead({ targetService: "", serviceOffered: "Agents" });
   const campaign = makeCampaign();
   assert.equal(leadMatchesCampaignTargeting(lead, campaign), false);
 });

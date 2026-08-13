@@ -3,13 +3,16 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { Pencil } from "lucide-react";
-import type { Campaign, Lead } from "@/types";
+import type { Campaign, Lead, LeadTaxonomyOptions } from "@/types";
 import { LEAD_STATUSES } from "@/types";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
+import { TaxonomyField } from "@/components/leads/taxonomy-field";
 import { updateLeadAction } from "@/lib/actions/leads";
+
+const EMPTY_OPTIONS: LeadTaxonomyOptions = { countries: [], industries: [], businessTypes: [], services: [], leadGenerationTypes: [] };
 
 /** Uncontrolled by default (renders its own trigger button, as on the lead detail page). Pass
  *  `open`/`onOpenChange` to drive it externally instead -- e.g. from the Leads table's row action
@@ -18,12 +21,14 @@ import { updateLeadAction } from "@/lib/actions/leads";
 export function EditLeadDialog({
   lead,
   campaigns,
+  options = EMPTY_OPTIONS,
   open: openProp,
   onOpenChange: onOpenChangeProp,
   hideTrigger = false,
 }: {
   lead: Lead;
   campaigns: Campaign[];
+  options?: LeadTaxonomyOptions;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
   hideTrigger?: boolean;
@@ -76,30 +81,21 @@ export function EditLeadDialog({
               <Label htmlFor="l-website">Website</Label>
               <Input id="l-website" name="website" defaultValue={lead.website} />
             </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="l-industry">Industry</Label>
-              <Input id="l-industry" name="industry" defaultValue={lead.industry} />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="l-businessType">Business Type</Label>
-              <Input id="l-businessType" name="businessType" defaultValue={lead.businessType} />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="l-leadGenerationType">Lead Generation Type</Label>
-              <Input id="l-leadGenerationType" name="leadGenerationType" defaultValue={lead.leadGenerationType} />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="l-serviceOffered">Service Offered</Label>
-              <Input id="l-serviceOffered" name="serviceOffered" defaultValue={lead.serviceOffered} />
-            </div>
+            <TaxonomyField id="l-industry" name="industry" label="Industry" options={options.industries} defaultValue={lead.industry} />
+            <TaxonomyField id="l-businessType" name="businessType" label="Business Type" options={options.businessTypes} defaultValue={lead.businessType} />
+            <TaxonomyField
+              id="l-leadGenerationType"
+              name="leadGenerationType"
+              label="Lead Generation Type"
+              options={options.leadGenerationTypes}
+              defaultValue={lead.leadGenerationType}
+            />
+            <TaxonomyField id="l-serviceOffered" name="serviceOffered" label="Service Offered" options={options.services} defaultValue={lead.serviceOffered} />
             <div className="space-y-1.5">
               <Label htmlFor="l-phone">Phone</Label>
               <Input id="l-phone" name="phone" defaultValue={lead.phone} />
             </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="l-country">Country</Label>
-              <Input id="l-country" name="country" defaultValue={lead.country} />
-            </div>
+            <TaxonomyField id="l-country" name="country" label="Country" options={options.countries} defaultValue={lead.country} />
             <div className="space-y-1.5">
               <Label htmlFor="l-status">Status</Label>
               <Select id="l-status" name="status" defaultValue={lead.status}>

@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { Globe, Copy, Play, Download, Check, Trash2, FlaskConical } from "lucide-react";
-import type { Campaign, Lead } from "@/types";
+import type { Campaign, Lead, LeadTaxonomyOptions } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { StatusBadge, ConfidenceBadge } from "@/components/ui/status-badge";
@@ -12,7 +12,17 @@ import { resolveDownloadUrl } from "@/lib/utils/cloudinary";
 import { deleteLeadAction, setLeadTestFlagAction } from "@/lib/actions/leads";
 import { EditLeadDialog } from "./edit-lead-dialog";
 
-export function LeadHeader({ lead, campaigns, campaignName }: { lead: Lead; campaigns: Campaign[]; campaignName: string | null }) {
+export function LeadHeader({
+  lead,
+  campaigns,
+  campaignName,
+  taxonomyOptions,
+}: {
+  lead: Lead;
+  campaigns: Campaign[];
+  campaignName: string | null;
+  taxonomyOptions?: LeadTaxonomyOptions;
+}) {
   const router = useRouter();
   const [copied, setCopied] = React.useState(false);
   const [deleting, setDeleting] = React.useState(false);
@@ -103,7 +113,7 @@ export function LeadHeader({ lead, campaigns, campaignName }: { lead: Lead; camp
           {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
           {copied ? "Copied" : "Copy email"}
         </Button>
-        <EditLeadDialog lead={lead} campaigns={campaigns} />
+        <EditLeadDialog lead={lead} campaigns={campaigns} options={taxonomyOptions} />
         <Button variant="secondary" size="sm" onClick={toggleTest} disabled={togglingTest}>
           <FlaskConical className="h-3.5 w-3.5" /> {lead.isTest ? "Mark production" : "Mark test"}
         </Button>
