@@ -89,12 +89,19 @@ async function migrateMissingDemoIds(demos: DemoRecord[]): Promise<DemoRecord[]>
   return demos.map((d) => byRow.get(d.rowNumber) ?? d);
 }
 
+// Same graceful-degrade-to-empty precedent as getLeads/getErrors in repository.ts -- a transient
+// Sheets failure reading the Demo Library must never throw uncaught into a page render (e.g. the
+// Dashboard, which reads this alongside several other tabs in one Promise.all).
 async function getSheetDemoLibrary(): Promise<DemoRecord[]> {
-  await ensureDemoLibraryColumns();
-  const rows = await fetchSheetRows(SHEET_TAB_NAMES.demoLibrary);
-  const objects = rowsToObjects(rows);
-  const demos = objects.map(normalizeDemoRecord).filter((d) => d.demoType || d.publicWatchUrl || d.fileName);
-  return migrateMissingDemoIds(demos);
+  try {
+    await ensureDemoLibraryColumns();
+    const rows = await fetchSheetRows(SHEET_TAB_NAMES.demoLibrary);
+    const objects = rowsToObjects(rows);
+    const demos = objects.map(normalizeDemoRecord).filter((d) => d.demoType || d.publicWatchUrl || d.fileName);
+    return await migrateMissingDemoIds(demos);
+  } catch {
+    return [];
+  }
 }
 
 export async function getDemoLibrary(): Promise<DemoRecord[]> {

@@ -10,7 +10,11 @@ const STATUS_ALIASES: Record<string, LeadStatus> = {
   "needs follow-up": "Sent",
   "needs followup": "Sent",
   "meeting booked": "Meeting Booked",
-  "meeting requested": "Meeting Booked",
+  // A *request* for a meeting is not a confirmed booking (see dashboard-metrics.ts's
+  // meetingsBooked, which counts "Meeting Booked" as real -- a reply merely asking for a call must
+  // never inflate that KPI on its own). It's still a strong signal of interest, so it lands in
+  // Interested rather than a status with no positive-reply signal at all.
+  "meeting requested": "Interested",
   customer: "Customer",
   won: "Customer",
   failed: "Failed",
@@ -19,6 +23,11 @@ const STATUS_ALIASES: Record<string, LeadStatus> = {
   // "bounced" as suppressing, so this alone stops future sends with no workflow change needed.
   bounced: "Bounced",
   unsubscribed: "Unsubscribed",
+  // The reply classifier's own vocabulary is "Unsubscribe" (not "-ed") -- without this alias a
+  // genuine unsubscribe request normalized to "Needs Review" instead of the real stop-status,
+  // meaning campaign-match.ts's STOP_STATUSES check never caught it and future sends were never
+  // suppressed for that lead.
+  unsubscribe: "Unsubscribed",
   "do not contact": "Unsubscribed",
   spam: "Spam",
   "needs review": "Needs Review",

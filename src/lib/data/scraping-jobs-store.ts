@@ -112,11 +112,18 @@ async function ensureJobsTab(): Promise<void> {
   sheetEnsured = true;
 }
 
+// Same graceful-degrade-to-empty precedent as getLeads/getErrors in repository.ts -- a transient
+// Sheets failure reading Scraping Jobs must never throw uncaught into a page render (e.g. the
+// Dashboard, which reads this alongside several other tabs in one Promise.all).
 async function getSheetJobs(): Promise<ScrapingJob[]> {
-  await ensureJobsTab();
-  const rows = await fetchSheetRows(SHEET_TAB_NAMES.scrapingJobs);
-  const objects = rowsToObjects(rows);
-  return objects.map((row, i) => fromRow(row, i + 2)).filter((j) => j.id);
+  try {
+    await ensureJobsTab();
+    const rows = await fetchSheetRows(SHEET_TAB_NAMES.scrapingJobs);
+    const objects = rowsToObjects(rows);
+    return objects.map((row, i) => fromRow(row, i + 2)).filter((j) => j.id);
+  } catch {
+    return [];
+  }
 }
 
 export async function getScrapingJobs(): Promise<ScrapingJob[]> {

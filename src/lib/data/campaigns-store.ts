@@ -222,12 +222,21 @@ async function ensureCampaignsTab(): Promise<void> {
   sheetEnsured = true;
 }
 
+// A transient Sheets failure (rate limit, brief network blip, momentary 5xx) here must never crash
+// a page that reads campaigns -- same graceful-degrade-to-empty precedent as getLeads/getErrors/
+// getKnowledgeBase in repository.ts. getConnectionStatus() (which checks the Leads tab) remains the
+// canonical signal for a genuine, persistent outage; this only prevents one transient blip on the
+// Campaigns tab specifically from throwing an uncaught exception into a Server Component render.
 async function getSheetCampaigns(): Promise<Campaign[]> {
-  await ensureCampaignsTab();
-  const rows = await fetchSheetRows(SHEET_TAB_NAMES.campaigns);
-  const objects = rowsToObjects(rows);
-  const campaigns = objects.map((row, i) => fromRow(row, i + 2)).filter((c) => c.name);
-  return migrateMissingCampaignIds(campaigns);
+  try {
+    await ensureCampaignsTab();
+    const rows = await fetchSheetRows(SHEET_TAB_NAMES.campaigns);
+    const objects = rowsToObjects(rows);
+    const campaigns = objects.map((row, i) => fromRow(row, i + 2)).filter((c) => c.name);
+    return await migrateMissingCampaignIds(campaigns);
+  } catch {
+    return [];
+  }
 }
 
 export async function getCampaigns(): Promise<Campaign[]> {
