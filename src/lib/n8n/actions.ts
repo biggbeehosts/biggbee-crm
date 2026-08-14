@@ -127,9 +127,9 @@ export async function triggerN8nAction(action: N8nActionKey, params: TriggerActi
       return { success: false, message };
     }
 
-    // Campaign targeting (Country/Industry/Business Type/Lead Generation Type/Service/Minimum
-    // Confidence, "Any"/blank = no restriction) now determines eligibility on its own -- a lead no
-    // longer has to carry this Campaign ID beforehand to be picked up (see leadEligibleForCampaignRun
+    // Campaign targeting (Country/Industry/Business Type/Lead Generation Type/Minimum Confidence,
+    // "Any"/blank = no restriction) now determines eligibility on its own -- a lead no longer has
+    // to carry this Campaign ID beforehand to be picked up (see leadEligibleForCampaignRun
     // in campaign-match.ts, the single canonical rule dashboard readiness and this trigger both use).
     // n8n's own "Prepare Leads For Processing" node still selects strictly by Campaign ID, unchanged
     // -- so every matching, currently-unclaimed lead is claimed (Campaign ID assigned) here, right

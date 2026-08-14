@@ -15,13 +15,17 @@ export const CAMPAIGN_ID_PATTERN = /^CMP-\d{6,}$/;
  * linked through via `id` (the Campaign ID). It does NOT run outreach itself -- it defines what
  * the current n8n outreach run should focus on, and lets the operator preview exactly which leads
  * are eligible before anything is sent. A lead becomes eligible for a run by matching this
- * campaign's targeting fields (Country/Industry/Business Type/Lead Generation Type/Service --
- * "Any"/blank means no restriction on that field) and not being claimed by a different campaign;
- * it does not need to carry this Campaign ID beforehand (see leadEligibleForCampaignRun in
- * src/lib/calculations/campaign-match.ts). Campaign ID assignment on Lead.campaignId still records
- * which campaign actually claimed/processed a lead -- Run Campaign writes it onto every matching
- * lead at the moment it runs, so it remains meaningful for history/reporting and so a lead already
- * claimed by another campaign is never reassigned or double-processed.
+ * campaign's TARGETING fields only -- Country, Industry, Business Type, and Lead Generation Type
+ * ("Any"/blank means no restriction on that field) -- and not being claimed by a different
+ * campaign; it does not need to carry this Campaign ID beforehand (see leadEligibleForCampaignRun
+ * in src/lib/calculations/campaign-match.ts). `service` is deliberately NOT a targeting/eligibility
+ * field: it describes the OFFER this campaign pitches (what Biggbee is selling), not a property a
+ * lead must already have, and it flows through to the outbound workflow (n8n reads it directly off
+ * this campaign's sheet row) without ever filtering which leads qualify. Campaign ID assignment on
+ * Lead.campaignId still records which campaign actually claimed/processed a lead -- Run Campaign
+ * writes it onto every matching lead at the moment it runs, so it remains meaningful for
+ * history/reporting and so a lead already claimed by another campaign is never reassigned or
+ * double-processed.
  */
 export interface Campaign {
   /** Stable, unique, never changes on rename/edit. Format CMP-000001 (see CAMPAIGN_ID_PATTERN). */
@@ -31,6 +35,8 @@ export interface Campaign {
   country?: string;
   industry?: string;
   businessType?: string;
+  /** The service/product this campaign pitches -- the OFFER, never a lead-eligibility filter. See
+   *  the class doc comment above. Flows through to the outbound workflow as what to pitch. */
   service?: string;
   leadGenerationType?: string;
   /** Targeting language, e.g. "English", "Spanish" -- matched against DemoRecord.language in the
@@ -89,8 +95,9 @@ export interface Campaign {
  * Funnel-style breakdown of a campaign's Run Campaign eligibility. `assigned` is still literal
  * Campaign ID membership (reporting/history only, see leadBelongsToCampaign); everything else is
  * computed over the real candidate pool for a new run -- every lead matching this campaign's
- * targeting (Country/Industry/Business Type/Lead Generation Type/Service, "Any"/blank = no
- * restriction) that isn't already claimed by a different campaign, regardless of whether it
+ * targeting (Country/Industry/Business Type/Lead Generation Type only -- Service is the offer, not
+ * a targeting field; "Any"/blank = no restriction) that isn't already claimed by a different
+ * campaign, regardless of whether it
  * carries this Campaign ID yet (see leadEligibleForCampaignRun / summarizeCampaignMatch).
  */
 export interface CampaignMatchSummary {

@@ -231,14 +231,21 @@ export function CampaignFormDialog({
 
           <div className={step === "targeting" ? "space-y-3" : "hidden"}>
               <p className="text-xs text-text-tertiary">
-                Leave any field on &quot;Any&quot; to skip that criterion. This only controls the CRM&apos;s planning preview -- it does not
-                restrict which leads the outreach workflow itself processes.
+                Country, Industry, Business Type, and Lead Generation Type describe <strong>who</strong> this campaign targets -- leave any
+                field on &quot;Any&quot; to skip that criterion. A lead must match every targeting field you set (equivalent categories like
+                &quot;Dentist&quot; and &quot;Dental Clinic&quot; are recognized as the same) to be eligible for a run.
               </p>
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <SelectField label="Country" name="country" defaultValue={campaign?.country} items={enabled("countries").map((o) => o.label)} />
                 <SelectField label="Industry" name="industry" defaultValue={campaign?.industry} items={enabled("industries").map((o) => o.label)} />
                 <SelectField label="Business Type" name="businessType" defaultValue={campaign?.businessType} items={enabled("businessTypes").map((o) => o.label)} />
-                <SelectField label="Service" name="service" defaultValue={campaign?.service} items={enabled("services").map((o) => o.label)} />
+                <SelectField
+                  label="Service to Offer"
+                  name="service"
+                  defaultValue={campaign?.service}
+                  items={enabled("services").map((o) => o.label)}
+                  hint="What Biggbee will pitch -- leads don't need this already, it's never used to filter who qualifies."
+                />
                 <SelectField
                   label="Lead Generation Type"
                   name="leadGenerationType"
@@ -449,7 +456,19 @@ function ToggleRow({
   );
 }
 
-function SelectField({ label, name, defaultValue, items }: { label: string; name: string; defaultValue?: string; items: string[] }) {
+function SelectField({
+  label,
+  name,
+  defaultValue,
+  items,
+  hint,
+}: {
+  label: string;
+  name: string;
+  defaultValue?: string;
+  items: string[];
+  hint?: string;
+}) {
   return (
     <div className="space-y-1.5">
       <Label htmlFor={`c-${name}`}>{label}</Label>
@@ -461,6 +480,7 @@ function SelectField({ label, name, defaultValue, items }: { label: string; name
           </option>
         ))}
       </Select>
+      {hint && <p className="text-[11px] text-text-tertiary">{hint}</p>}
     </div>
   );
 }

@@ -17,6 +17,13 @@ const INDUSTRY_ALIASES: Record<string, string> = {
 const BUSINESS_TYPE_ALIASES: Record<string, string> = {
   "lead generation": "lead generation agency",
   "lead gen agency": "lead generation agency",
+  // A lead's real-world business type ("Dentist") and a campaign's taxonomy-picked target
+  // ("Dental Clinic" -- see src/lib/data/options-store.ts) describe the same category of
+  // business from two different angles; both must resolve to one canonical value.
+  dentist: "dental clinic",
+  "dentist practice": "dental clinic",
+  "dental practice": "dental clinic",
+  dentistry: "dental clinic",
 };
 
 const SERVICE_ALIASES: Record<string, string> = {

@@ -75,8 +75,9 @@ export function countEligibleLeads(leads: Lead[]): number {
 
 /**
  * How many leads are eligible for a new Run Campaign send under this campaign right now --
- * matching its targeting fields (Country/Industry/Business Type/Lead Generation Type/Service;
- * "Any"/blank = no restriction) and not claimed by a different campaign, on top of every existing
+ * matching its targeting fields (Country/Industry/Business Type/Lead Generation Type -- Service is
+ * the offer being pitched, never a targeting filter; "Any"/blank = no restriction) and not claimed
+ * by a different campaign, on top of every existing
  * safety rule (usable email, Status = New, not previously contacted, confidence floor, production
  * data for a production campaign). This is the SAME leadEligibleForCampaignRun predicate the Run
  * Campaign trigger uses to decide which leads to claim (assign Campaign ID to) immediately before
@@ -88,13 +89,17 @@ export function countCampaignMatches(leads: Lead[], campaign: Campaign): number 
   return leads.filter((l) => leadEligibleForCampaignRun(l, campaign)).length;
 }
 
-/** Human-readable summary of the campaign's real targeting filters -- these fields now determine
- *  eligibility directly (see leadEligibleForCampaignRun), not just informational notes. */
+/** Human-readable summary shown as "Targeting notes" in the Run Campaign dialog. The first four
+ *  fields are real eligibility filters (see leadEligibleForCampaignRun) and are listed plainly;
+ *  Service is the offer being pitched, not a filter, so it's called out with an explicit label
+ *  ("offering: ...") rather than blended in unlabeled the way it would look like a fifth filter. */
 function describeTargeting(campaign: Campaign): string {
-  const parts = [campaign.country, campaign.industry, campaign.businessType, campaign.leadGenerationType, campaign.service]
+  const parts = [campaign.country, campaign.industry, campaign.businessType, campaign.leadGenerationType]
     .map((p) => (p ?? "").trim())
     .filter(Boolean);
   if (campaign.minConfidence !== null) parts.push(`confidence ≥ ${campaign.minConfidence}%`);
+  const service = (campaign.service ?? "").trim();
+  if (service && service.toLowerCase() !== "any") parts.push(`offering: ${service}`);
   return parts.length ? parts.join(" · ") : "No targeting notes set";
 }
 

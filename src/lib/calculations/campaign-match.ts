@@ -28,32 +28,29 @@ function fieldMatches(campaignValue: string | undefined, leadValue: string | und
   return canonicalizeTaxonomyValue(field, campaignValue) === canonicalizeTaxonomyValue(field, leadValue);
 }
 
-/** The service value used for campaign Service targeting: Lead.targetService takes priority
- *  (the service/niche a lead was scraped/targeted for -- see src/lib/actions/scrapers.ts, which
- *  stamps targetService = campaign.service at scrape time); Lead.serviceOffered is used only as a
- *  fallback when targetService is blank/null/undefined, since manually-added leads never populate
- *  targetService but may have serviceOffered filled in by the operator. */
-function resolveLeadService(lead: Lead): string | undefined {
-  return lead.targetService?.trim() || lead.serviceOffered?.trim() || undefined;
-}
-
 /**
- * Whether a lead matches a campaign's targeting criteria -- Country, Industry, Business Type,
- * Lead Generation Type, and Service. This is the primary eligibility test now (Campaign ID
- * assignment is no longer required for a lead to match): "Any"/blank on a campaign field means
- * that field imposes no restriction (see fieldMatches). Campaign.service is matched against the
- * lead's resolved service (see resolveLeadService). Industry, Business Type, Service, and Lead
- * Generation Type are matched through the curated alias table (see taxonomy-aliases.ts) so known
- * equivalent taxonomy spellings ("Lead Generation" vs "Lead Generation Agency") match without
- * fuzzy/similarity logic; Country stays strict normalized-exact.
+ * Whether a lead matches a campaign's TARGETING criteria -- Country, Industry, Business Type, and
+ * Lead Generation Type: the fields that describe WHO the campaign wants to contact. "Any"/blank on
+ * a campaign field means that field imposes no restriction (see fieldMatches). Industry, Business
+ * Type, and Lead Generation Type are matched through the curated alias table (see
+ * taxonomy-aliases.ts) so known equivalent taxonomy spellings ("Dentist" vs "Dental Clinic") match
+ * without fuzzy/similarity logic; Country stays strict normalized-exact.
+ *
+ * Campaign.service is deliberately NOT part of targeting. It describes WHAT Biggbee is offering
+ * (the service/product being pitched), not a property the lead must already have -- a dental
+ * clinic doesn't need "AI Receptionists" written on its own record before a campaign selling AI
+ * Receptionists can target it. Service instead flows through to the outbound workflow as the
+ * offer to pitch (n8n reads it directly off the Campaigns sheet row via the campaign ID), never as
+ * an eligibility filter. Requiring lead.serviceOffered/targetService to equal campaign.service was
+ * the root cause of leads being wrongly excluded from campaigns they were a genuine targeting
+ * match for.
  */
 export function leadMatchesCampaignTargeting(lead: Lead, campaign: Campaign): boolean {
   return (
     fieldMatches(campaign.country, lead.country) &&
     fieldMatches(campaign.industry, lead.industry, "industry") &&
     fieldMatches(campaign.businessType, lead.businessType, "businessType") &&
-    fieldMatches(campaign.leadGenerationType, lead.leadGenerationType, "leadGenerationType") &&
-    fieldMatches(campaign.service, resolveLeadService(lead), "service")
+    fieldMatches(campaign.leadGenerationType, lead.leadGenerationType, "leadGenerationType")
   );
 }
 
