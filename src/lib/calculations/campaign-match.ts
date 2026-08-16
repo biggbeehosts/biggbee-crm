@@ -13,18 +13,31 @@ function norm(v: string | undefined | null): string {
   return (v ?? "").trim().toLowerCase();
 }
 
+/** Campaign values that impose no restriction on a taxonomy-driven targeting field (Industry,
+ *  Business Type, Lead Generation Type). "Other" is a UI escape hatch meaning "not one of the
+ *  predefined values" -- it is never a literal taxonomy category to match a lead against (a lead
+ *  is never expected to have a real field value that is literally the word "Other"). Comparing it
+ *  literally caused genuinely-matching leads to be excluded from any campaign that used the
+ *  taxonomy dropdown's "Other" option, which is precisely the state it's saved in for existing
+ *  campaigns -- so this must keep them working as unrestricted, not break them. "All" and the
+ *  literal string "null" are included defensively for the same reason blank/undefined are: none of
+ *  them describe a real category a lead could be compared against. */
+const TAXONOMY_WILDCARD_VALUES = new Set(["", "any", "all", "other", "null"]);
+
 /** "Any", blank, undefined, and null all mean "do not restrict by this field" for an optional
- *  campaign targeting field -- checked before any alias resolution, so "Any" itself is never
- *  canonicalized into a real category. Otherwise an exact match against the lead's normalized
- *  value, or -- when `field` is given -- an exact match after resolving both sides through the
- *  curated alias table for that field (see taxonomy-aliases.ts). A value with no known alias
- *  canonicalizes to its own normalized form, so this is a strict exact match whenever no alias
- *  applies: never fuzzy/similarity scoring. Country is always called without `field`, so it stays
- *  strict normalized-exact regardless of the alias tables. */
+ *  campaign targeting field -- checked before any alias resolution, so these are never
+ *  canonicalized into a real category. For a taxonomy-driven field (`field` given -- Industry,
+ *  Business Type, Lead Generation Type), "All"/"Other" are unrestricted too (see
+ *  TAXONOMY_WILDCARD_VALUES); Country is always called without `field`, so it stays strict
+ *  normalized-exact, recognizing only blank/Any. Otherwise this is an exact match against the
+ *  lead's normalized value, or -- when `field` is given -- an exact match after resolving both
+ *  sides through the curated alias table for that field (see taxonomy-aliases.ts). A value with no
+ *  known alias canonicalizes to its own normalized form, so this is a strict exact match whenever
+ *  no alias applies: never fuzzy/similarity scoring. */
 function fieldMatches(campaignValue: string | undefined, leadValue: string | undefined, field?: AliasField): boolean {
   const c = norm(campaignValue);
-  if (!c || c === "any") return true;
-  if (!field) return c === norm(leadValue);
+  if (!field) return !c || c === "any" || c === norm(leadValue);
+  if (TAXONOMY_WILDCARD_VALUES.has(c)) return true;
   return canonicalizeTaxonomyValue(field, campaignValue) === canonicalizeTaxonomyValue(field, leadValue);
 }
 

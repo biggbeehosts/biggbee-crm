@@ -232,8 +232,9 @@ export function CampaignFormDialog({
           <div className={step === "targeting" ? "space-y-3" : "hidden"}>
               <p className="text-xs text-text-tertiary">
                 Country, Industry, Business Type, and Lead Generation Type describe <strong>who</strong> this campaign targets -- leave any
-                field on &quot;Any&quot; to skip that criterion. A lead must match every targeting field you set (equivalent categories like
-                &quot;Dentist&quot; and &quot;Dental Clinic&quot; are recognized as the same) to be eligible for a run.
+                field on &quot;Any&quot; (or pick &quot;Other&quot; on Industry/Business Type/Lead Generation Type) to skip that criterion. A
+                lead must match every targeting field you actually set (equivalent categories like &quot;Dentist&quot; and &quot;Dental
+                Clinic&quot; are recognized as the same) to be eligible for a run.
               </p>
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <SelectField label="Country" name="country" defaultValue={campaign?.country} items={enabled("countries").map((o) => o.label)} />
