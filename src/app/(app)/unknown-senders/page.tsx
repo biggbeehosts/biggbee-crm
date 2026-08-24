@@ -4,10 +4,11 @@ import { MailQuestion } from "lucide-react";
 import { getUnknownSenders } from "@/lib/data/repository";
 import { PageHeader } from "@/components/layout/page-header";
 import { UnknownSendersView } from "@/components/unknown-senders/unknown-senders-view";
-import { DEFAULT_WORKSPACE_ID } from "@/types";
+import { pageWorkspaceContext } from "@/lib/auth/workspace-context";
 
 export default async function UnknownSendersPage() {
-  const senders = await getUnknownSenders(DEFAULT_WORKSPACE_ID);
+  const { workspaceId } = await pageWorkspaceContext();
+  const senders = await getUnknownSenders(workspaceId);
 
   return (
     <div>

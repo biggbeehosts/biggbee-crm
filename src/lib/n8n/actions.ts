@@ -9,14 +9,9 @@ import { getLeads, refreshAllData } from "@/lib/data/repository";
 import { getCampaign } from "@/lib/data/campaigns-store";
 import { bulkUpdateLeadFields, retryFailedLeads } from "@/lib/data/leads-mutations";
 import { leadEligibleForCampaignRun } from "@/lib/calculations/campaign-match";
-import { requireAdmin } from "@/lib/auth/require-admin";
+import { requireWorkspaceContext } from "@/lib/auth/workspace-context";
 import { logAudit } from "@/lib/audit/log";
 import { recordEvent } from "@/lib/data/analytics-events-store";
-import { DEFAULT_WORKSPACE_ID } from "@/types";
-
-// Phase A: every n8n trigger action runs as the default (Biggbee) workspace until Phase B
-// introduces a real session-resolved activeWorkspaceId -- see types/workspace.ts.
-const WORKSPACE_ID = DEFAULT_WORKSPACE_ID;
 
 /** Which trigger actions the UI may call (status and sync go through their own paths). */
 const TRIGGERABLE: N8nActionKey[] = ["runCampaign", "pauseCampaign", "resumeCampaign", "refreshKb", "retryFailed"];
@@ -34,7 +29,11 @@ const TRIGGERABLE: N8nActionKey[] = ["runCampaign", "pauseCampaign", "resumeCamp
  * audit log rather than silently assumed complete (Sheets has no real transaction/rollback
  * primitive to guarantee more than this).
  */
-async function restoreLeads(emails: string[], previousByEmail: Map<string, { campaignId: string; campaignName: string }>): Promise<number> {
+async function restoreLeads(
+  workspaceId: string,
+  emails: string[],
+  previousByEmail: Map<string, { campaignId: string; campaignName: string }>
+): Promise<number> {
   if (emails.length === 0) return 0;
   const groups = new Map<string, string[]>();
   for (const email of emails) {
@@ -48,7 +47,7 @@ async function restoreLeads(emails: string[], previousByEmail: Map<string, { cam
   let restored = 0;
   for (const [key, groupEmails] of groups) {
     const [prevCampaignId, prevCampaignName] = key.split("\u0000");
-    const { updated } = await bulkUpdateLeadFields(WORKSPACE_ID, groupEmails, { campaignId: prevCampaignId, campaignName: prevCampaignName });
+    const { updated } = await bulkUpdateLeadFields(workspaceId, groupEmails, { campaignId: prevCampaignId, campaignName: prevCampaignName });
     restored += updated.length;
   }
   return restored;
@@ -61,7 +60,7 @@ export interface TriggerActionParams {
 }
 
 export async function triggerN8nAction(action: N8nActionKey, params: TriggerActionParams = {}): Promise<TriggerResult> {
-  const actor = await requireAdmin();
+  const { email: actor, workspaceId } = await requireWorkspaceContext();
   if (!TRIGGERABLE.includes(action)) {
     return { success: false, message: "Unknown automation action." };
   }
@@ -81,7 +80,7 @@ export async function triggerN8nAction(action: N8nActionKey, params: TriggerActi
   // needed; the next scheduled/triggered run picks these leads up naturally.
   if (action === "retryFailed") {
     try {
-      const count = await retryFailedLeads(WORKSPACE_ID);
+      const count = await retryFailedLeads(workspaceId);
       await logAudit({ actor, action: "n8n.retryFailed", success: true, details: { count } });
       refreshAllData();
       revalidatePath("/", "layout");
@@ -120,7 +119,7 @@ export async function triggerN8nAction(action: N8nActionKey, params: TriggerActi
       await logAudit({ actor, action: "n8n.runCampaign", success: false, details: { error: message } });
       return { success: false, message };
     }
-    const campaign = await getCampaign(campaignId, WORKSPACE_ID);
+    const campaign = await getCampaign(campaignId, workspaceId);
     if (!campaign) {
       const message = `Unknown campaign "${campaignId}". Refresh and try again.`;
       await logAudit({ actor, action: "n8n.runCampaign", success: false, target: campaignId, details: { error: message } });
@@ -143,7 +142,7 @@ export async function triggerN8nAction(action: N8nActionKey, params: TriggerActi
     // already excludes leads claimed by a DIFFERENT campaign, so nothing below can ever overwrite
     // another campaign's lead -- every eligible lead's Campaign ID is either blank or already this
     // campaign's.
-    const leads = await getLeads(WORKSPACE_ID);
+    const leads = await getLeads(workspaceId);
     const eligibleLeads = leads.filter((l) => leadEligibleForCampaignRun(l, campaign));
     const alreadyAssigned = eligibleLeads.filter((l) => l.campaignId === campaign.id);
     const toClaim = eligibleLeads.filter((l) => l.campaignId !== campaign.id);
@@ -154,7 +153,7 @@ export async function triggerN8nAction(action: N8nActionKey, params: TriggerActi
 
     if (toClaim.length > 0) {
       const { updated, failed } = await bulkUpdateLeadFields(
-        WORKSPACE_ID,
+        workspaceId,
         toClaim.map((l) => l.email),
         { campaignId: campaign.id, campaignName: campaign.name }
       );
@@ -167,7 +166,7 @@ export async function triggerN8nAction(action: N8nActionKey, params: TriggerActi
         // every lead this attempt DID successfully claim, back to its recorded previous value, and
         // report a genuine operational error (this is a real Sheets-write failure, distinct from
         // the non-error "no eligible leads" state).
-        rolledBackCount = await restoreLeads(claimedEmails, previousByEmail);
+        rolledBackCount = await restoreLeads(workspaceId, claimedEmails, previousByEmail);
         const message = `Could not assign ${failed.length} of ${toClaim.length} eligible lead${toClaim.length === 1 ? "" : "s"} to "${campaign.name}" — run cancelled${rolledBackCount > 0 ? ` and ${rolledBackCount} claim${rolledBackCount === 1 ? "" : "s"} rolled back` : ""}. Try again.`;
         await logAudit({
           actor,
@@ -215,7 +214,7 @@ export async function triggerN8nAction(action: N8nActionKey, params: TriggerActi
     // assignments THIS attempt created. Leads that already belonged to this campaign before the
     // run (alreadyAssignedToCampaignCount) are never touched, since they were never added to
     // claimedEmails in the first place.
-    rolledBackCount = await restoreLeads(claimedEmails, previousByEmail);
+    rolledBackCount = await restoreLeads(workspaceId, claimedEmails, previousByEmail);
     newlyClaimedCount = 0;
     // Real writes happened (claim + rollback) even though the run itself failed -- refresh so the
     // UI never shows stale intermediate lead state.

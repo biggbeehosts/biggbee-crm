@@ -9,16 +9,17 @@ import { integrationToCardModel, combineCardModels } from "@/lib/n8n/card-adapte
 import { PageHeader } from "@/components/layout/page-header";
 import { WorkflowIntegrationCard } from "@/components/workflow-control/workflow-integration-card";
 import { AlertTriangle, Cable } from "lucide-react";
-import { DEFAULT_WORKSPACE_ID } from "@/types";
+import { pageWorkspaceContext } from "@/lib/auth/workspace-context";
 
 export default async function WorkflowManagerPage() {
   // Part I: fetch everything this render needs in parallel -- one page load never makes n8n
   // calls sequentially per card. Card-level actions (Test Connection, Refresh Metadata, ...) are
   // separate on-demand server actions, not part of this initial render.
+  const { workspaceId } = await pageWorkspaceContext();
   const [integrations, campaigns, leads, auditLog, configuredActions] = await Promise.all([
     getWorkflowIntegrations(),
-    getCampaigns(DEFAULT_WORKSPACE_ID),
-    getLeads(DEFAULT_WORKSPACE_ID),
+    getCampaigns(workspaceId),
+    getLeads(workspaceId),
     Promise.resolve(getAuditLog(500)),
     getConfiguredActionsAction(),
   ]);

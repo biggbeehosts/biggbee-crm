@@ -6,17 +6,18 @@ import { getCampaigns } from "@/lib/data/campaigns-store";
 import { getEvents } from "@/lib/data/analytics-events-store";
 import { getLeadTaxonomyOptions } from "@/lib/data/options-store";
 import { LeadDetailView } from "@/components/lead-detail/lead-detail-view";
-import { DEFAULT_WORKSPACE_ID } from "@/types";
+import { pageWorkspaceContext } from "@/lib/auth/workspace-context";
 
 export default async function LeadDetailPage({ params }: { params: Promise<{ email: string }> }) {
   const { email } = await params;
   const decodedEmail = decodeURIComponent(email).toLowerCase();
 
+  const { workspaceId } = await pageWorkspaceContext();
   const [leads, memory, errors, campaigns] = await Promise.all([
-    getLeads(DEFAULT_WORKSPACE_ID),
-    getLeadMemory(DEFAULT_WORKSPACE_ID),
-    getErrors(DEFAULT_WORKSPACE_ID),
-    getCampaigns(DEFAULT_WORKSPACE_ID),
+    getLeads(workspaceId),
+    getLeadMemory(workspaceId),
+    getErrors(workspaceId),
+    getCampaigns(workspaceId),
   ]);
   const taxonomyOptions = getLeadTaxonomyOptions();
   const lead = leads.find((l) => l.email.toLowerCase() === decodedEmail);

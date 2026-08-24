@@ -6,11 +6,25 @@ import { ChevronsLeft, ChevronsRight, LifeBuoy } from "lucide-react";
 import { NAV_GROUPS, NAV_ITEMS } from "@/lib/nav-config";
 import { Logo } from "./logo";
 import { StatusIndicator } from "./status-indicator";
+import { WorkspaceSwitcher } from "./workspace-switcher";
 import { useUIState } from "./ui-state-provider";
 import { cn } from "@/lib/utils/cn";
 import { initials } from "@/lib/utils/format";
+import type { Workspace } from "@/types";
 
-export function Sidebar({ connected, mode, adminEmail }: { connected: boolean; mode: "mock" | "google-sheets"; adminEmail?: string }) {
+export function Sidebar({
+  connected,
+  mode,
+  adminEmail,
+  workspaces = [],
+  activeWorkspaceId = "",
+}: {
+  connected: boolean;
+  mode: "mock" | "google-sheets";
+  adminEmail?: string;
+  workspaces?: Workspace[];
+  activeWorkspaceId?: string;
+}) {
   const pathname = usePathname();
   const { sidebarCollapsed, setSidebarCollapsed } = useUIState();
 
@@ -61,6 +75,7 @@ export function Sidebar({ connected, mode, adminEmail }: { connected: boolean; m
       </nav>
 
       <div className="space-y-2.5 border-t border-border-subtle p-2.5">
+        <WorkspaceSwitcher workspaces={workspaces} activeWorkspaceId={activeWorkspaceId} collapsed={sidebarCollapsed} />
         <StatusIndicator connected={connected} mode={mode} collapsed={sidebarCollapsed} />
 
         <div className={cn("flex items-center gap-2.5 rounded-lg px-1.5 py-1.5", !sidebarCollapsed && "hover:bg-panel")}>

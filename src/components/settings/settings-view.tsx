@@ -3,11 +3,13 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { BookOpen, Compass, RefreshCw, Sheet, ShieldCheck, Workflow, Palette, Trash2, ArrowRight, TriangleAlert } from "lucide-react";
+import { BookOpen, Building2, Compass, RefreshCw, Sheet, ShieldCheck, Workflow, Palette, Trash2, ArrowRight, TriangleAlert, Users } from "lucide-react";
 import { DataManagementPanel } from "./data-management-panel";
-import type { ConnectionStatus, KnowledgeBaseRecord } from "@/types";
+import { AccountsPanel } from "./accounts-panel";
+import type { ConnectionStatus, KnowledgeBaseRecord, Workspace } from "@/types";
 import type { EnvValidation } from "@/lib/config/env-validation";
 import type { N8nActionKey } from "@/lib/n8n/config";
+import type { AccountSummary } from "@/lib/actions/workspace";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -31,12 +33,20 @@ export function SettingsView({
   knowledgeBase,
   refreshKbConfigured,
   n8nActions,
+  currentWorkspace,
+  isFullAdmin,
+  allWorkspaces,
+  initialAccounts,
 }: {
   status: ConnectionStatus;
   env: EnvValidation;
   knowledgeBase: KnowledgeBaseRecord;
   refreshKbConfigured: boolean;
   n8nActions: N8nActionStatus[];
+  currentWorkspace: Workspace | null;
+  isFullAdmin: boolean;
+  allWorkspaces: Workspace[];
+  initialAccounts: AccountSummary[];
 }) {
   const router = useRouter();
   const { theme, toggleTheme } = useUIState();
@@ -75,6 +85,82 @@ export function SettingsView({
 
   return (
     <div className="max-w-2xl space-y-6">
+      <Card>
+        <CardHeader>
+          <div className="flex items-center gap-2.5">
+            <IconBadge icon={Building2} tone="accent" />
+            <div>
+              <CardTitle>Workspace</CardTitle>
+              <CardDescription>The sending identity every campaign in this workspace uses -- read-only for now</CardDescription>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {currentWorkspace ? (
+            <>
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-text-tertiary">Workspace</span>
+                <span className="text-xs font-medium text-text-secondary">{currentWorkspace.workspaceName}</span>
+              </div>
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-text-tertiary">Sender name</span>
+                <span className="text-xs font-medium text-text-secondary">{currentWorkspace.senderDisplayName}</span>
+              </div>
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-text-tertiary">Sender email</span>
+                <span className="font-mono text-xs text-text-secondary">{currentWorkspace.senderEmail}</span>
+              </div>
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-text-tertiary">Reply-to</span>
+                <span className="font-mono text-xs text-text-secondary">{currentWorkspace.replyToEmail}</span>
+              </div>
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-text-tertiary">Report email</span>
+                <span className="font-mono text-xs text-text-secondary">{currentWorkspace.reportEmail}</span>
+              </div>
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-text-tertiary">Website</span>
+                <span className="text-xs font-medium text-text-secondary">{currentWorkspace.website}</span>
+              </div>
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-text-tertiary">SMTP</span>
+                <Badge variant={currentWorkspace.smtpCredentialRef ? "lime" : "outline"}>
+                  {currentWorkspace.smtpCredentialRef ? "Connected" : "Not connected"}
+                </Badge>
+              </div>
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-text-tertiary">IMAP</span>
+                <Badge variant={currentWorkspace.imapCredentialRef ? "lime" : "outline"}>
+                  {currentWorkspace.imapCredentialRef ? "Connected" : "Not connected"}
+                </Badge>
+              </div>
+              <p className="pt-1 text-[11px] text-text-tertiary">
+                Sending identity and SMTP/IMAP routing aren&apos;t editable here yet -- this is a read-only view of what&apos;s already live.
+              </p>
+            </>
+          ) : (
+            <p className="text-xs text-text-tertiary">This workspace could not be loaded.</p>
+          )}
+        </CardContent>
+      </Card>
+
+      {isFullAdmin && (
+        <Card>
+          <CardHeader>
+            <div className="flex items-center gap-2.5">
+              <IconBadge icon={Users} />
+              <div>
+                <CardTitle>Accounts</CardTitle>
+                <CardDescription>Who can log into this CRM, and which workspace(s) each login can see</CardDescription>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <AccountsPanel workspaces={allWorkspaces} initialAccounts={initialAccounts} />
+          </CardContent>
+        </Card>
+      )}
+
       <Card>
         <CardHeader>
           <div className="flex items-center gap-2.5">

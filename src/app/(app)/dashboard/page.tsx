@@ -6,7 +6,8 @@ import { getDemoLibrary } from "@/lib/data/demo-library-store";
 import { getEvents } from "@/lib/data/analytics-events-store";
 import { getAllProviderHealth } from "@/lib/providers/registry";
 import { getLastSyncAt } from "@/lib/data/cache";
-import { getAdmin } from "@/lib/auth/admin-store";
+import { getAccountByEmail } from "@/lib/auth/admin-store";
+import { pageWorkspaceContext } from "@/lib/auth/workspace-context";
 import { computeDashboardMetrics, outreachVolumeOverTime } from "@/lib/calculations/dashboard-metrics";
 import { summarizeDashboardErrors } from "@/lib/calculations/dashboard-alerts";
 import { computeCampaignReadiness } from "@/lib/calculations/campaign-readiness";
@@ -20,7 +21,6 @@ import { type ConfiguredActions } from "@/components/dashboard/automation-card";
 import { CampaignRunPanel } from "@/components/dashboard/campaign-run-panel";
 import { getAutomationStatusAction, getConfiguredActionsAction } from "@/lib/n8n/actions";
 import { isN8nApiKeyRequiredButMissing } from "@/lib/config/env-validation";
-import { DEFAULT_WORKSPACE_ID } from "@/types";
 
 /** All-time lower bound for the Replies KPI, matching the other primary KPIs (Total Leads, Emails
  *  Sent, ...), which are cumulative rather than range-limited -- getEvents() defaults to a 2-month
@@ -28,19 +28,20 @@ import { DEFAULT_WORKSPACE_ID } from "@/types";
 const EPOCH = new Date(0).toISOString();
 
 export default async function DashboardPage() {
+  const { email, workspaceId } = await pageWorkspaceContext();
   const [leads, errors, automationStatus, connection, knowledgeBase, campaigns, configuredActionsRaw, demos, providers, replyEvents, admin] =
     await Promise.all([
-      getLeads(DEFAULT_WORKSPACE_ID),
-      getErrors(DEFAULT_WORKSPACE_ID),
+      getLeads(workspaceId),
+      getErrors(workspaceId),
       getAutomationStatusAction(),
       getConnectionStatus(),
       getKnowledgeBase(),
-      getCampaigns(DEFAULT_WORKSPACE_ID),
+      getCampaigns(workspaceId),
       getConfiguredActionsAction(),
-      getDemoLibrary(DEFAULT_WORKSPACE_ID),
+      getDemoLibrary(workspaceId),
       getAllProviderHealth(),
       getEvents({ from: EPOCH, to: new Date().toISOString(), type: "reply_received" }),
-      getAdmin(),
+      getAccountByEmail(email),
     ]);
 
   // Dashboard metrics/charts exclude test data by default (Leads/Campaigns tagged isTest) so a

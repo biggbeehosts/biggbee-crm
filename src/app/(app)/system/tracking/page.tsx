@@ -7,14 +7,15 @@ import { getInternalSenderAllowlist } from "@/lib/utils/internal-senders";
 import { getAuditLog } from "@/lib/audit/log";
 import { PageHeader } from "@/components/layout/page-header";
 import { TrackingAdminView } from "@/components/system/tracking-admin-view";
-import { DEFAULT_WORKSPACE_ID } from "@/types";
+import { pageWorkspaceContext } from "@/lib/auth/workspace-context";
 
 const RECENT_FROM = new Date(Date.now() - 30 * 86_400_000).toISOString();
 
 export default async function TrackingAdminPage() {
+  const { workspaceId } = await pageWorkspaceContext();
   const [leads, campaigns, recentEvents, auditLog] = await Promise.all([
-    getLeads(DEFAULT_WORKSPACE_ID),
-    getCampaigns(DEFAULT_WORKSPACE_ID),
+    getLeads(workspaceId),
+    getCampaigns(workspaceId),
     getEvents({ from: RECENT_FROM, includeTest: true }),
     Promise.resolve(getAuditLog(500)),
   ]);

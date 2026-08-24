@@ -7,10 +7,11 @@ import { countCampaignDemoUsage } from "@/lib/calculations/demo-match";
 import { getActiveStorageProvider } from "@/lib/storage";
 import { PageHeader } from "@/components/layout/page-header";
 import { DemoLibraryView } from "@/components/demo-library/demo-library-view";
-import { DEFAULT_WORKSPACE_ID } from "@/types";
+import { pageWorkspaceContext } from "@/lib/auth/workspace-context";
 
 export default async function DemoLibraryPage() {
-  const [demos, campaigns] = await Promise.all([getDemoLibrary(DEFAULT_WORKSPACE_ID), getCampaigns(DEFAULT_WORKSPACE_ID)]);
+  const { workspaceId } = await pageWorkspaceContext();
+  const [demos, campaigns] = await Promise.all([getDemoLibrary(workspaceId), getCampaigns(workspaceId)]);
   const usageCounts = countCampaignDemoUsage(campaigns);
   const storageConfigured = getActiveStorageProvider().isConfigured();
 

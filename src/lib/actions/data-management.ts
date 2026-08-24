@@ -2,6 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/auth/require-admin";
+import { requireWorkspaceContext } from "@/lib/auth/workspace-context";
+import { getAccountByEmail } from "@/lib/auth/admin-store";
 import { verifyAdminPasswordAction } from "@/lib/auth/actions";
 import { logAudit } from "@/lib/audit/log";
 import { invalidateCache } from "@/lib/data/cache";
@@ -14,12 +16,7 @@ import { getUnknownSenders } from "@/lib/data/repository";
 import { deleteSenderRecord } from "@/lib/data/unknown-senders-mutations";
 import { getEvents, deleteTestEvents } from "@/lib/data/analytics-events-store";
 import { getErrors, getLeadMemory } from "@/lib/data/repository";
-import { DEFAULT_WORKSPACE_ID } from "@/types";
 import type { ActionResult } from "./leads";
-
-// Phase A: every data-management action runs as the default (Biggbee) workspace until Phase B
-// introduces a real session-resolved activeWorkspaceId -- see types/workspace.ts.
-const WORKSPACE_ID = DEFAULT_WORKSPACE_ID;
 
 /**
  * What "test data" means across this CRM's real stores, and exactly how much of it this pass can
@@ -40,17 +37,17 @@ export interface TestDataPreview {
   errors: { count: number; canDelete: false; reason: string };
 }
 
-async function computePreview(): Promise<{
+async function computePreview(workspaceId: string): Promise<{
   preview: TestDataPreview;
   testLeadEmails: Set<string>;
   testCampaignIds: Set<string>;
 }> {
   const [leads, campaigns, senders, memory, errors] = await Promise.all([
-    getLeads(WORKSPACE_ID),
-    getCampaigns(WORKSPACE_ID),
-    getUnknownSenders(WORKSPACE_ID),
-    getLeadMemory(WORKSPACE_ID),
-    getErrors(WORKSPACE_ID),
+    getLeads(workspaceId),
+    getCampaigns(workspaceId),
+    getUnknownSenders(workspaceId),
+    getLeadMemory(workspaceId),
+    getErrors(workspaceId),
   ]);
   const wideRange = { from: new Date(0).toISOString(), to: new Date().toISOString() };
   const events = await getEvents(wideRange);
@@ -78,8 +75,8 @@ async function computePreview(): Promise<{
 }
 
 export async function getTestDataPreviewAction(): Promise<TestDataPreview> {
-  await requireAdmin();
-  const { preview } = await computePreview();
+  const { workspaceId } = await requireWorkspaceContext();
+  const { preview } = await computePreview(workspaceId);
   return preview;
 }
 
@@ -95,16 +92,16 @@ export interface CleanTestDataResult extends ActionResult {
  *  here is scoped to rows already identified as isTest=true (Leads/Campaigns) or derived from a
  *  test lead's email (everything else). */
 export async function cleanTestDataAction(confirmPhrase: string): Promise<CleanTestDataResult> {
-  const actor = await requireAdmin();
+  const { email: actor, workspaceId } = await requireWorkspaceContext();
   if (confirmPhrase !== "DELETE TEST DATA") {
     return { success: false, message: 'Type "DELETE TEST DATA" exactly to confirm.', results: {}, skipped: [] };
   }
 
-  const { preview, testLeadEmails, testCampaignIds } = await computePreview();
+  const { preview, testLeadEmails, testCampaignIds } = await computePreview(workspaceId);
   const results: Record<string, { deleted: number; failed: number }> = {};
 
   // Leads
-  const { deleted: deletedLeads, failed: failedLeads } = await bulkDeleteLeads(WORKSPACE_ID, Array.from(testLeadEmails));
+  const { deleted: deletedLeads, failed: failedLeads } = await bulkDeleteLeads(workspaceId, Array.from(testLeadEmails));
   results.leads = { deleted: deletedLeads.length, failed: failedLeads.length };
 
   // Campaigns
@@ -112,7 +109,7 @@ export async function cleanTestDataAction(confirmPhrase: string): Promise<CleanT
   let campaignFailed = 0;
   for (const id of testCampaignIds) {
     try {
-      await deleteCampaignById(id, WORKSPACE_ID);
+      await deleteCampaignById(id, workspaceId);
       campaignDeleted++;
     } catch {
       campaignFailed++;
@@ -121,12 +118,12 @@ export async function cleanTestDataAction(confirmPhrase: string): Promise<CleanT
   results.campaigns = { deleted: campaignDeleted, failed: campaignFailed };
 
   // Unknown Senders
-  const senders = await getUnknownSenders(WORKSPACE_ID);
+  const senders = await getUnknownSenders(workspaceId);
   let senderDeleted = 0;
   let senderFailed = 0;
   for (const s of senders.filter((s) => testLeadEmails.has(s.fromEmail))) {
     try {
-      await deleteSenderRecord(s.fromEmail, s.timestamp);
+      await deleteSenderRecord(workspaceId, s.fromEmail, s.timestamp);
       senderDeleted++;
     } catch {
       senderFailed++;
@@ -199,16 +196,22 @@ export interface ResetCrmDataResult extends ActionResult {
  * Knowledge Base cache, n8n workflows, and the audit log itself (so the reset's own record
  * survives it).
  *
- * PHASE A WARNING -- not yet workspace-scoped: clearTabDataRows clears every data row of the
+ * PHASE A/B WARNING -- not yet workspace-scoped: clearTabDataRows clears every data row of the
  * whole tab, not just one workspace's rows (unlike the isTest-only cleanTestDataAction above,
  * which already is). This is safe today because only the Biggbee workspace's data exists in
- * these tabs. It becomes a real cross-workspace risk (an admin working in Workspace B's context
- * could wipe Biggbee's production rows too, or vice versa) the moment a second workspace's rows
- * coexist here -- this must be redesigned to selectively delete only the active workspace's rows
- * before Phase G ever ships a second live workspace using the same tabs.
+ * these tabs. It becomes a real cross-workspace risk (a restricted admin could wipe another
+ * workspace's production rows too) the moment a second workspace's rows coexist here -- this must
+ * be redesigned to selectively delete only the active workspace's rows before Phase G ever ships
+ * a second live workspace using the same tabs. Until then, Phase B restricts this action to
+ * full-access ("all") admins only -- a workspace-restricted account can never trigger it, since it
+ * cannot be scoped to only its own workspace.
  */
 export async function resetCrmDataAction(password: string, confirmPhrase: string, finalConfirm: boolean): Promise<ResetCrmDataResult> {
   const actor = await requireAdmin();
+  const caller = await getAccountByEmail(actor);
+  if (!caller || caller.workspaceIds !== "all") {
+    return { success: false, message: "Only a full-access admin can reset CRM data.", results: {} };
+  }
 
   if (confirmPhrase !== "RESET BIGGBEE") {
     return { success: false, message: 'Type "RESET BIGGBEE" exactly to confirm.', results: {} };

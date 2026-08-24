@@ -1,12 +1,12 @@
 import { redirect } from "next/navigation";
-import { adminExists } from "@/lib/auth/admin-store";
+import { accountsExist } from "@/lib/auth/admin-store";
 import { Logo } from "@/components/layout/logo";
 import { SetupForm } from "./setup-form";
 
 export default async function SetupPage() {
   // Setup is a one-time flow: once an admin record exists (env-seeded or previously created
   // here), this route refuses to run again and sends the visitor to /login instead.
-  if (await adminExists()) {
+  if (await accountsExist()) {
     redirect("/login");
   }
 

@@ -4,10 +4,11 @@ import { getCampaigns } from "@/lib/data/campaigns-store";
 import { getLeadTaxonomyOptions } from "@/lib/data/options-store";
 import { PageHeader } from "@/components/layout/page-header";
 import { LeadsTable } from "@/components/leads/leads-table";
-import { DEFAULT_WORKSPACE_ID } from "@/types";
+import { pageWorkspaceContext } from "@/lib/auth/workspace-context";
 
 export default async function LeadsPage({ searchParams }: { searchParams: Promise<{ search?: string }> }) {
-  const [{ search }, leads, campaigns] = await Promise.all([searchParams, getLeads(DEFAULT_WORKSPACE_ID), getCampaigns(DEFAULT_WORKSPACE_ID)]);
+  const { workspaceId } = await pageWorkspaceContext();
+  const [{ search }, leads, campaigns] = await Promise.all([searchParams, getLeads(workspaceId), getCampaigns(workspaceId)]);
   const addLeadOptions = getLeadTaxonomyOptions();
 
   return (

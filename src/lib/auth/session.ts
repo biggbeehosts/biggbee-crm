@@ -11,6 +11,15 @@ const REISSUE_THRESHOLD_MS = SESSION_TTL_MS / 2;
 
 export interface SessionPayload {
   email: string;
+  /** Authorized workspace grants as of login/last reissue -- a convenience hint carried in the
+   *  signed cookie, never trusted on its own for an authorization decision. Every real read/write
+   *  re-checks the account's CURRENT grants from the store (see workspace-context.ts), so a grant
+   *  revoked mid-session stops working immediately rather than at next login. */
+  workspaceIds: string[] | "all";
+  /** The workspace this session is currently operating in. Always re-validated server-side against
+   *  the account's live grants before use -- never trusted as already-authorized just because it's
+   *  present in a signed cookie (grants can shrink after the cookie was issued). */
+  activeWorkspaceId: string;
   loginAt: number;
   exp: number;
 }
@@ -45,15 +54,17 @@ async function decode(token: string): Promise<SessionPayload | null> {
   try {
     const payload = JSON.parse(base64UrlDecode(body)) as SessionPayload;
     if (typeof payload.email !== "string" || typeof payload.exp !== "number" || typeof payload.loginAt !== "number") return null;
+    if (typeof payload.activeWorkspaceId !== "string" || !payload.activeWorkspaceId) return null;
+    if (payload.workspaceIds !== "all" && !Array.isArray(payload.workspaceIds)) return null;
     return payload;
   } catch {
     return null;
   }
 }
 
-export async function createSessionToken(email: string): Promise<string> {
+export async function createSessionToken(email: string, workspaceIds: string[] | "all", activeWorkspaceId: string): Promise<string> {
   const now = Date.now();
-  return encode({ email: email.toLowerCase(), loginAt: now, exp: now + SESSION_TTL_MS });
+  return encode({ email: email.toLowerCase(), workspaceIds, activeWorkspaceId, loginAt: now, exp: now + SESSION_TTL_MS });
 }
 
 /**
@@ -75,7 +86,13 @@ export async function verifySessionToken(
   let reissue: string | null = null;
   if (payload.exp - now < REISSUE_THRESHOLD_MS) {
     const nextExp = Math.min(now + SESSION_TTL_MS, payload.loginAt + MAX_SESSION_AGE_MS);
-    reissue = await encode({ email: payload.email, loginAt: payload.loginAt, exp: nextExp });
+    reissue = await encode({
+      email: payload.email,
+      workspaceIds: payload.workspaceIds,
+      activeWorkspaceId: payload.activeWorkspaceId,
+      loginAt: payload.loginAt,
+      exp: nextExp,
+    });
   }
   return { session: payload, reissue };
 }

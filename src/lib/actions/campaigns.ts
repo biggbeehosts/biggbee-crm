@@ -3,17 +3,12 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { deleteCampaignById, generateNextCampaignId, getCampaign, upsertCampaign } from "@/lib/data/campaigns-store";
-import { requireAdmin } from "@/lib/auth/require-admin";
+import { requireWorkspaceContext } from "@/lib/auth/workspace-context";
 import { logAudit } from "@/lib/audit/log";
 import { invalidateCache } from "@/lib/data/cache";
 import type { Campaign, CampaignStatus, DemoSelectionMode } from "@/types";
 import { getDemo } from "@/lib/data/demo-library-store";
-import { DEFAULT_WORKSPACE_ID } from "@/types";
 import type { ActionResult } from "./leads";
-
-// Phase A: every campaign action runs as the default (Biggbee) workspace until Phase B
-// introduces a real session-resolved activeWorkspaceId -- see types/workspace.ts.
-const WORKSPACE_ID = DEFAULT_WORKSPACE_ID;
 
 const CampaignSchema = z.object({
   id: z.string().optional(),
@@ -48,7 +43,7 @@ function numOrNull(v: FormDataEntryValue | null): number | null {
 }
 
 export async function saveCampaignAction(formData: FormData): Promise<ActionResult> {
-  const actor = await requireAdmin();
+  const { email: actor, workspaceId } = await requireWorkspaceContext();
 
   const parsed = CampaignSchema.safeParse({
     id: String(formData.get("id") || "") || undefined,
@@ -84,19 +79,19 @@ export async function saveCampaignAction(formData: FormData): Promise<ActionResu
   if (parsed.data.attachDemo && parsed.data.demoSelectionMode === "Exact") {
     const demoId = (parsed.data.demoId ?? "").trim();
     if (!demoId) return { success: false, message: "Exact mode requires selecting a demo." };
-    const demo = await getDemo(demoId, WORKSPACE_ID);
+    const demo = await getDemo(demoId, workspaceId);
     if (!demo) return { success: false, message: `Unknown demo "${demoId}".` };
     if (!demo.active) return { success: false, message: `"${demo.name || demo.demoType}" is inactive — choose an active demo or a different mode.` };
   }
 
   try {
-    const existing = parsed.data.id ? await getCampaign(parsed.data.id, WORKSPACE_ID) : undefined;
+    const existing = parsed.data.id ? await getCampaign(parsed.data.id, workspaceId) : undefined;
     const isNew = !existing;
     // Campaign ID is assigned once, on creation, and never changes on rename/edit -- an edit
     // always carries the existing id in `parsed.data.id` (see the hidden form field).
     const campaign: Campaign = {
       id: parsed.data.id ?? (await generateNextCampaignId()),
-      workspaceId: WORKSPACE_ID,
+      workspaceId,
       name: parsed.data.name,
       status: parsed.data.status,
       country: parsed.data.country,
@@ -142,9 +137,9 @@ export async function saveCampaignAction(formData: FormData): Promise<ActionResu
 }
 
 export async function setCampaignStatusAction(id: string, status: CampaignStatus): Promise<ActionResult> {
-  const actor = await requireAdmin();
+  const { email: actor, workspaceId } = await requireWorkspaceContext();
   try {
-    const campaign = await getCampaign(id, WORKSPACE_ID);
+    const campaign = await getCampaign(id, workspaceId);
     if (!campaign) return { success: false, message: "Campaign not found." };
     await upsertCampaign({ ...campaign, status, updatedAt: new Date().toISOString() });
     invalidateCache();
@@ -162,9 +157,9 @@ export async function setCampaignStatusAction(id: string, status: CampaignStatus
 /** Duplicates a campaign as a new Draft, so admins can iterate on targeting without touching a
  *  live campaign in place. */
 export async function duplicateCampaignAction(id: string): Promise<ActionResult> {
-  const actor = await requireAdmin();
+  const { email: actor, workspaceId } = await requireWorkspaceContext();
   try {
-    const source = await getCampaign(id, WORKSPACE_ID);
+    const source = await getCampaign(id, workspaceId);
     if (!source) return { success: false, message: "Campaign not found." };
     const copy: Campaign = {
       ...source,
@@ -187,10 +182,10 @@ export async function duplicateCampaignAction(id: string): Promise<ActionResult>
 }
 
 export async function deleteCampaignAction(id: string): Promise<ActionResult> {
-  const actor = await requireAdmin();
+  const { email: actor, workspaceId } = await requireWorkspaceContext();
   try {
-    const campaign = await getCampaign(id, WORKSPACE_ID);
-    await deleteCampaignById(id, WORKSPACE_ID);
+    const campaign = await getCampaign(id, workspaceId);
+    await deleteCampaignById(id, workspaceId);
     invalidateCache();
     revalidatePath("/campaigns");
     revalidatePath("/dashboard");

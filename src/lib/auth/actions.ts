@@ -3,11 +3,12 @@
 import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { z } from "zod";
-import { adminExists, createAdmin, getAdmin, setSetupGuideDismissed } from "./admin-store";
+import { accountsExist, createAdmin, getAccountByEmail, preferredDefaultWorkspaceId, setSetupGuideDismissed } from "./admin-store";
 import { hashPassword, verifyPassword } from "./crypto";
 import { checkRateLimit, clearLoginFailures, recordLoginFailure } from "./rate-limit";
 import { createSessionToken, verifySessionToken, SESSION_COOKIE, sessionCookieOptions } from "./session";
 import { requireAdmin } from "./require-admin";
+import { getActiveWorkspaces } from "@/lib/data/workspace-store";
 import { logAudit } from "@/lib/audit/log";
 
 export interface AuthActionResult {
@@ -27,6 +28,21 @@ const LoginSchema = z.object({
   email: z.string().email(),
   password: z.string().min(1),
 });
+
+/** Resolves the workspace a fresh session should start in: preferredDefaultWorkspaceId's pick
+ *  (biggbee for an "all" grant, else the account's first granted id) if it's a real, active
+ *  workspace, otherwise the first of the account's grants that is. Null only if the account is
+ *  somehow granted no workspace that currently exists/is active -- an account-provisioning
+ *  problem, not something a login attempt can fix. */
+async function resolveLoginWorkspaceId(workspaceIds: string[] | "all"): Promise<string | null> {
+  const active = await getActiveWorkspaces();
+  const activeIds = new Set(active.map((w) => w.workspaceId));
+  const preferred = preferredDefaultWorkspaceId(workspaceIds);
+  if (preferred && activeIds.has(preferred)) return preferred;
+  if (workspaceIds === "all") return active[0]?.workspaceId ?? null;
+  const firstValid = workspaceIds.find((id) => activeIds.has(id));
+  return firstValid ?? null;
+}
 
 export async function loginAction(formData: FormData): Promise<AuthActionResult> {
   const parsed = LoginSchema.safeParse({
@@ -48,23 +64,29 @@ export async function loginAction(formData: FormData): Promise<AuthActionResult>
     };
   }
 
-  const admin = await getAdmin();
-  if (!admin) {
+  const account = await getAccountByEmail(email);
+  if (!account) {
     return { success: false, message: "No admin account exists yet. Visit /setup to create one." };
   }
 
-  const valid = admin.email === email.toLowerCase() && (await verifyPassword(password, admin.passwordHash));
+  const valid = account.active && (await verifyPassword(password, account.passwordHash));
   if (!valid) {
     await recordLoginFailure(email, ip);
     await logAudit({ actor: email, action: "login.failed", success: false, details: { ip } });
     return { success: false, message: "Incorrect email or password." };
   }
 
+  const activeWorkspaceId = await resolveLoginWorkspaceId(account.workspaceIds);
+  if (!activeWorkspaceId) {
+    await logAudit({ actor: account.email, action: "login.no_workspace", success: false });
+    return { success: false, message: "Your account has no accessible workspace. Contact an admin." };
+  }
+
   await clearLoginFailures(email, ip);
-  const token = await createSessionToken(admin.email);
+  const token = await createSessionToken(account.email, account.workspaceIds, activeWorkspaceId);
   const store = await cookies();
   store.set(SESSION_COOKIE, token, sessionCookieOptions());
-  await logAudit({ actor: admin.email, action: "login.success", success: true, details: { ip } });
+  await logAudit({ actor: account.email, action: "login.success", success: true, details: { ip, activeWorkspaceId } });
   return { success: true, message: "Signed in." };
 }
 
@@ -92,7 +114,7 @@ const SetupSchema = z
   });
 
 export async function setupAction(formData: FormData): Promise<AuthActionResult> {
-  if (await adminExists()) {
+  if (await accountsExist()) {
     return { success: false, message: "Setup has already been completed. Go to /login." };
   }
   const parsed = SetupSchema.safeParse({
@@ -106,7 +128,11 @@ export async function setupAction(formData: FormData): Promise<AuthActionResult>
 
   try {
     const admin = await createAdmin(parsed.data.email, parsed.data.password);
-    const token = await createSessionToken(admin.email);
+    const activeWorkspaceId = await resolveLoginWorkspaceId(admin.workspaceIds);
+    if (!activeWorkspaceId) {
+      return { success: false, message: "Account created, but no workspace exists yet to sign into. Contact an operator." };
+    }
+    const token = await createSessionToken(admin.email, admin.workspaceIds, activeWorkspaceId);
     const store = await cookies();
     store.set(SESSION_COOKIE, token, sessionCookieOptions());
     await logAudit({ actor: admin.email, action: "admin.setup_completed", success: true });
@@ -124,7 +150,7 @@ export async function hashPasswordForEnv(password: string): Promise<string> {
 /**
  * Step-up re-authentication for destructive admin operations (Data Management's Clean Test Data
  * / Reset CRM Data) -- an active session alone is not enough to run those; the admin must also
- * re-enter their password in the moment. Reuses the exact same verifyPassword/getAdmin path login
+ * re-enter their password in the moment. Reuses the exact same verifyPassword/getAccountByEmail path login
  * already trusts (never a parallel/weaker check), and the same rate-limit bucket as login failures
  * so a step-up brute-force attempt locks out the same way a login brute-force would. Returns only
  * a boolean -- callers never see or log the password itself, and the caller is still responsible
@@ -143,8 +169,8 @@ export async function verifyAdminPasswordAction(password: string): Promise<AuthA
     };
   }
 
-  const admin = await getAdmin();
-  const valid = Boolean(admin) && (await verifyPassword(password, admin!.passwordHash));
+  const account = await getAccountByEmail(actorEmail);
+  const valid = Boolean(account?.active) && (await verifyPassword(password, account!.passwordHash));
   if (!valid) {
     await recordLoginFailure(actorEmail, ip);
     await logAudit({ actor: actorEmail, action: "stepup.failed", success: false, details: { ip } });

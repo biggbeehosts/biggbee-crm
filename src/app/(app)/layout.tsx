@@ -1,17 +1,29 @@
 import { AppShell } from "@/components/layout/app-shell";
 import { getConnectionStatus, getLeads } from "@/lib/data/repository";
 import { buildNeedsAttention } from "@/lib/calculations/activity";
-import { getCurrentSession } from "@/lib/auth/current-session";
-import { DEFAULT_WORKSPACE_ID } from "@/types";
+import { pageWorkspaceContext, getAccessibleWorkspaces } from "@/lib/auth/workspace-context";
 
 export default async function AppLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  // Phase A: every page runs as the default (Biggbee) workspace until Phase B introduces a real
-  // session-resolved activeWorkspaceId -- see types/workspace.ts.
-  const [status, leads, session] = await Promise.all([getConnectionStatus(), getLeads(DEFAULT_WORKSPACE_ID), getCurrentSession()]);
+  // Redirects to /login itself if the session, account, or active workspace no longer resolves
+  // (e.g. the account was deactivated or its grants changed mid-session) -- every page under this
+  // layout can trust that by the time it renders, pageWorkspaceContext() here already succeeded.
+  const ctx = await pageWorkspaceContext();
+  const [status, leads, workspaces] = await Promise.all([
+    getConnectionStatus(),
+    getLeads(ctx.workspaceId),
+    getAccessibleWorkspaces(ctx.workspaceIds),
+  ]);
   const attentionCount = buildNeedsAttention(leads).length;
 
   return (
-    <AppShell connected={status.connected} mode={status.mode} attentionCount={attentionCount} adminEmail={session?.email ?? ""}>
+    <AppShell
+      connected={status.connected}
+      mode={status.mode}
+      attentionCount={attentionCount}
+      adminEmail={ctx.email}
+      workspaces={workspaces}
+      activeWorkspaceId={ctx.workspaceId}
+    >
       {children}
     </AppShell>
   );

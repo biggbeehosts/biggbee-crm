@@ -3,14 +3,14 @@
 import { revalidatePath } from "next/cache";
 import type { UnknownSenderClassification } from "@/types";
 import { deleteSenderRecord, markSenderReviewed, reclassifySender } from "@/lib/data/unknown-senders-mutations";
-import { requireAdmin } from "@/lib/auth/require-admin";
+import { requireWorkspaceContext } from "@/lib/auth/workspace-context";
 import { logAudit } from "@/lib/audit/log";
 import type { ActionResult } from "./leads";
 
 export async function markReviewedAction(fromEmail: string, timestamp: string | null, reviewed: boolean): Promise<ActionResult> {
-  const actor = await requireAdmin();
+  const { email: actor, workspaceId } = await requireWorkspaceContext();
   try {
-    await markSenderReviewed(fromEmail, timestamp, reviewed);
+    await markSenderReviewed(workspaceId, fromEmail, timestamp, reviewed);
     revalidatePath("/unknown-senders");
     await logAudit({ actor, action: "unknown_sender.mark_reviewed", target: fromEmail, success: true, details: { reviewed, timestamp } });
     return { success: true, message: reviewed ? "Marked reviewed." : "Marked unreviewed." };
@@ -25,9 +25,9 @@ export async function reclassifySenderAction(
   timestamp: string | null,
   classification: UnknownSenderClassification
 ): Promise<ActionResult> {
-  const actor = await requireAdmin();
+  const { email: actor, workspaceId } = await requireWorkspaceContext();
   try {
-    await reclassifySender(fromEmail, timestamp, classification);
+    await reclassifySender(workspaceId, fromEmail, timestamp, classification);
     revalidatePath("/unknown-senders");
     await logAudit({
       actor,
@@ -44,9 +44,9 @@ export async function reclassifySenderAction(
 }
 
 export async function deleteSenderRecordAction(fromEmail: string, timestamp: string | null): Promise<ActionResult> {
-  const actor = await requireAdmin();
+  const { email: actor, workspaceId } = await requireWorkspaceContext();
   try {
-    await deleteSenderRecord(fromEmail, timestamp);
+    await deleteSenderRecord(workspaceId, fromEmail, timestamp);
     revalidatePath("/unknown-senders");
     await logAudit({ actor, action: "unknown_sender.delete", target: fromEmail, success: true, details: { timestamp } });
     return { success: true, message: "Record deleted." };

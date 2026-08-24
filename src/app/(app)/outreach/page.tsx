@@ -6,10 +6,11 @@ import { PageHeader } from "@/components/layout/page-header";
 import { OutreachSummary } from "@/components/outreach/outreach-summary";
 import { OutreachTable } from "@/components/outreach/outreach-table";
 import { ValidationFailures } from "@/components/outreach/validation-failures";
-import { DEFAULT_WORKSPACE_ID } from "@/types";
+import { pageWorkspaceContext } from "@/lib/auth/workspace-context";
 
 export default async function OutreachPage() {
-  const [leads, errors] = await Promise.all([getLeads(DEFAULT_WORKSPACE_ID), getErrors(DEFAULT_WORKSPACE_ID)]);
+  const { workspaceId } = await pageWorkspaceContext();
+  const [leads, errors] = await Promise.all([getLeads(workspaceId), getErrors(workspaceId)]);
 
   return (
     <div className="space-y-6">

@@ -1,10 +1,10 @@
 import { redirect } from "next/navigation";
-import { adminExists } from "@/lib/auth/admin-store";
+import { accountsExist } from "@/lib/auth/admin-store";
 import { Logo } from "@/components/layout/logo";
 import { LoginForm } from "./login-form";
 
 export default async function LoginPage({ searchParams }: { searchParams: Promise<{ next?: string }> }) {
-  if (!(await adminExists())) {
+  if (!(await accountsExist())) {
     redirect("/setup");
   }
   const { next } = await searchParams;

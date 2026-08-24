@@ -4,10 +4,11 @@ import { ShieldAlert } from "lucide-react";
 import { getErrors, getLeads } from "@/lib/data/repository";
 import { PageHeader } from "@/components/layout/page-header";
 import { ErrorsView } from "@/components/errors/errors-view";
-import { DEFAULT_WORKSPACE_ID } from "@/types";
+import { pageWorkspaceContext } from "@/lib/auth/workspace-context";
 
 export default async function ErrorsPage() {
-  const [errors, leads] = await Promise.all([getErrors(DEFAULT_WORKSPACE_ID), getLeads(DEFAULT_WORKSPACE_ID)]);
+  const { workspaceId } = await pageWorkspaceContext();
+  const [errors, leads] = await Promise.all([getErrors(workspaceId), getLeads(workspaceId)]);
   // Errors has no Is Test column of its own (n8n-owned, read-only) -- test status is derived by
   // matching leadEmail against known test leads, same rule Analytics/Dashboard use.
   const testLeadEmails = new Set(leads.filter((l) => l.isTest).map((l) => l.email));

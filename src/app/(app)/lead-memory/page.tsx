@@ -4,10 +4,11 @@ import { Brain } from "lucide-react";
 import { getLeadMemory } from "@/lib/data/repository";
 import { PageHeader } from "@/components/layout/page-header";
 import { MemoryTable } from "@/components/lead-memory/memory-table";
-import { DEFAULT_WORKSPACE_ID } from "@/types";
+import { pageWorkspaceContext } from "@/lib/auth/workspace-context";
 
 export default async function LeadMemoryPage() {
-  const memory = await getLeadMemory(DEFAULT_WORKSPACE_ID);
+  const { workspaceId } = await pageWorkspaceContext();
+  const memory = await getLeadMemory(workspaceId);
 
   return (
     <div>

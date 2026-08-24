@@ -12,17 +12,12 @@ import {
   updateLeadStatus,
 } from "@/lib/data/leads-mutations";
 import { getCampaign } from "@/lib/data/campaigns-store";
-import { requireAdmin } from "@/lib/auth/require-admin";
+import { requireWorkspaceContext } from "@/lib/auth/workspace-context";
 import { logAudit } from "@/lib/audit/log";
 import type { Lead, LeadStatus } from "@/types";
 import { LEAD_STATUSES } from "@/types";
 import { recordEvent } from "@/lib/data/analytics-events-store";
 import { sha256Hex } from "@/lib/auth/crypto";
-import { DEFAULT_WORKSPACE_ID } from "@/types";
-
-// Phase A: every lead action runs as the default (Biggbee) workspace until Phase B
-// introduces a real session-resolved activeWorkspaceId -- see types/workspace.ts.
-const WORKSPACE_ID = DEFAULT_WORKSPACE_ID;
 
 export interface ActionResult {
   success: boolean;
@@ -46,9 +41,9 @@ const NewLeadSchema = z.object({
 /** Stage 6, Part 4: every lead must carry a Campaign ID -- blank is never accepted here, and the
  *  id must be a real, existing campaign, never a free-typed value that silently fails to link
  *  anything. */
-async function validateCampaignId(campaignId: string | undefined): Promise<string | null> {
+async function validateCampaignId(workspaceId: string, campaignId: string | undefined): Promise<string | null> {
   if (!campaignId) return "Select a campaign.";
-  const campaign = await getCampaign(campaignId, WORKSPACE_ID);
+  const campaign = await getCampaign(campaignId, workspaceId);
   if (!campaign) return `Unknown campaign "${campaignId}".`;
   return null;
 }
@@ -62,7 +57,7 @@ function revalidateLeadPaths(email?: string) {
 }
 
 export async function addLeadAction(formData: FormData): Promise<ActionResult> {
-  const actor = await requireAdmin();
+  const { email: actor, workspaceId } = await requireWorkspaceContext();
   const parsed = NewLeadSchema.safeParse({
     name: formData.get("name"),
     company: formData.get("company"),
@@ -81,14 +76,14 @@ export async function addLeadAction(formData: FormData): Promise<ActionResult> {
     return { success: false, message: parsed.error.issues[0]?.message ?? "Invalid lead data." };
   }
 
-  const campaignError = await validateCampaignId(parsed.data.campaignId);
+  const campaignError = await validateCampaignId(workspaceId, parsed.data.campaignId);
   if (campaignError) return { success: false, message: campaignError };
   // Inherits the assigned campaign's Is Test flag at creation -- a lead added under a test
   // campaign is test data too.
-  const assignedCampaign = await getCampaign(parsed.data.campaignId, WORKSPACE_ID);
+  const assignedCampaign = await getCampaign(parsed.data.campaignId, workspaceId);
 
   const lead: Lead = {
-    workspaceId: WORKSPACE_ID,
+    workspaceId,
     email: parsed.data.email.toLowerCase(),
     name: parsed.data.name,
     company: parsed.data.company,
@@ -132,9 +127,9 @@ export async function addLeadAction(formData: FormData): Promise<ActionResult> {
 }
 
 export async function updateLeadStatusAction(email: string, status: LeadStatus): Promise<ActionResult> {
-  const actor = await requireAdmin();
+  const { email: actor, workspaceId } = await requireWorkspaceContext();
   try {
-    await updateLeadStatus(WORKSPACE_ID, email, status);
+    await updateLeadStatus(workspaceId, email, status);
     revalidateLeadPaths(email);
     await logAudit({ actor, action: "lead.status_change", target: email, success: true, details: { status } });
     return { success: true, message: "Status updated." };
@@ -146,9 +141,9 @@ export async function updateLeadStatusAction(email: string, status: LeadStatus):
 }
 
 export async function setLeadTestFlagAction(email: string, isTest: boolean): Promise<ActionResult> {
-  const actor = await requireAdmin();
+  const { email: actor, workspaceId } = await requireWorkspaceContext();
   try {
-    await updateLeadFields(WORKSPACE_ID, email, { isTest });
+    await updateLeadFields(workspaceId, email, { isTest });
     revalidateLeadPaths(email);
     await logAudit({ actor, action: "lead.test_flag_change", target: email, success: true, details: { isTest } });
     return { success: true, message: isTest ? "Marked as test data." : "Marked as production." };
@@ -177,7 +172,7 @@ const EditLeadSchema = z.object({
 
 /** Generic partial-field edit, used by the lead detail page's "Edit" action. */
 export async function updateLeadAction(email: string, formData: FormData): Promise<ActionResult> {
-  const actor = await requireAdmin();
+  const { email: actor, workspaceId } = await requireWorkspaceContext();
   const raw: Record<string, string> = {};
   for (const key of ["name", "company", "website", "industry", "businessType", "leadGenerationType", "phone", "country", "serviceOffered", "status"]) {
     const value = formData.get(key);
@@ -192,12 +187,12 @@ export async function updateLeadAction(email: string, formData: FormData): Promi
   }
 
   if ("campaignId" in raw) {
-    const campaignError = await validateCampaignId(parsed.data.campaignId || undefined);
+    const campaignError = await validateCampaignId(workspaceId, parsed.data.campaignId || undefined);
     if (campaignError) return { success: false, message: campaignError };
   }
 
   try {
-    await updateLeadFields(WORKSPACE_ID, email, parsed.data);
+    await updateLeadFields(workspaceId, email, parsed.data);
     revalidateLeadPaths(email);
     await logAudit({
       actor,
@@ -215,9 +210,9 @@ export async function updateLeadAction(email: string, formData: FormData): Promi
 }
 
 export async function deleteLeadAction(email: string): Promise<ActionResult> {
-  const actor = await requireAdmin();
+  const { email: actor, workspaceId } = await requireWorkspaceContext();
   try {
-    await deleteLead(WORKSPACE_ID, email);
+    await deleteLead(workspaceId, email);
     revalidateLeadPaths();
     await logAudit({ actor, action: "lead.delete", target: email, success: true });
     return { success: true, message: "Lead deleted." };
@@ -278,8 +273,8 @@ function recordLeadDecisionEvents(type: "lead_approved" | "lead_rejected", email
 }
 
 export async function approveLeadsAction(emails: string[]): Promise<BulkActionResult> {
-  const actor = await requireAdmin();
-  const { updated, failed } = await bulkUpdateLeadStatus(WORKSPACE_ID, emails, "New");
+  const { email: actor, workspaceId } = await requireWorkspaceContext();
+  const { updated, failed } = await bulkUpdateLeadStatus(workspaceId, emails, "New");
   revalidateScrapedLeadsPaths();
   recordLeadDecisionEvents("lead_approved", updated);
   await logAudit({ actor, action: "lead.bulk_approve", success: failed.length === 0, details: { count: updated.length, failed: failed.length } });
@@ -287,8 +282,8 @@ export async function approveLeadsAction(emails: string[]): Promise<BulkActionRe
 }
 
 export async function rejectLeadsAction(emails: string[]): Promise<BulkActionResult> {
-  const actor = await requireAdmin();
-  const { updated, failed } = await bulkUpdateLeadStatus(WORKSPACE_ID, emails, "Not Interested");
+  const { email: actor, workspaceId } = await requireWorkspaceContext();
+  const { updated, failed } = await bulkUpdateLeadStatus(workspaceId, emails, "Not Interested");
   revalidateScrapedLeadsPaths();
   recordLeadDecisionEvents("lead_rejected", updated);
   await logAudit({ actor, action: "lead.bulk_reject", success: failed.length === 0, details: { count: updated.length, failed: failed.length } });
@@ -296,8 +291,8 @@ export async function rejectLeadsAction(emails: string[]): Promise<BulkActionRes
 }
 
 export async function bulkDeleteLeadsAction(emails: string[]): Promise<BulkActionResult> {
-  const actor = await requireAdmin();
-  const { deleted, failed } = await bulkDeleteLeads(WORKSPACE_ID, emails);
+  const { email: actor, workspaceId } = await requireWorkspaceContext();
+  const { deleted, failed } = await bulkDeleteLeads(workspaceId, emails);
   revalidateScrapedLeadsPaths();
   await logAudit({ actor, action: "lead.bulk_delete", success: failed.length === 0, details: { count: deleted.length, failed: failed.length } });
   return summarizeBulk("deleted", deleted, failed);
@@ -307,27 +302,27 @@ export async function bulkDeleteLeadsAction(emails: string[]): Promise<BulkActio
  *  campaign, change status, and mark test/production all go through the same generic
  *  bulkUpdateLeadFields path rather than one bespoke implementation per action. */
 export async function bulkAssignCampaignAction(emails: string[], campaignId: string): Promise<BulkActionResult> {
-  const actor = await requireAdmin();
-  const campaignError = await validateCampaignId(campaignId);
+  const { email: actor, workspaceId } = await requireWorkspaceContext();
+  const campaignError = await validateCampaignId(workspaceId, campaignId);
   if (campaignError) return { success: false, message: campaignError, succeeded: [], failed: [] };
-  const campaign = await getCampaign(campaignId, WORKSPACE_ID);
-  const { updated, failed } = await bulkUpdateLeadFields(WORKSPACE_ID, emails, { campaignId, campaignName: campaign?.name ?? "" });
+  const campaign = await getCampaign(campaignId, workspaceId);
+  const { updated, failed } = await bulkUpdateLeadFields(workspaceId, emails, { campaignId, campaignName: campaign?.name ?? "" });
   revalidateLeadPaths();
   await logAudit({ actor, action: "lead.bulk_assign_campaign", success: failed.length === 0, details: { campaignId, count: updated.length, failed: failed.length } });
   return summarizeBulk("reassigned", updated, failed);
 }
 
 export async function bulkChangeStatusAction(emails: string[], status: LeadStatus): Promise<BulkActionResult> {
-  const actor = await requireAdmin();
-  const { updated, failed } = await bulkUpdateLeadFields(WORKSPACE_ID, emails, { status });
+  const { email: actor, workspaceId } = await requireWorkspaceContext();
+  const { updated, failed } = await bulkUpdateLeadFields(workspaceId, emails, { status });
   revalidateLeadPaths();
   await logAudit({ actor, action: "lead.bulk_status_change", success: failed.length === 0, details: { status, count: updated.length, failed: failed.length } });
   return summarizeBulk("updated", updated, failed);
 }
 
 export async function bulkSetTestFlagAction(emails: string[], isTest: boolean): Promise<BulkActionResult> {
-  const actor = await requireAdmin();
-  const { updated, failed } = await bulkUpdateLeadFields(WORKSPACE_ID, emails, { isTest });
+  const { email: actor, workspaceId } = await requireWorkspaceContext();
+  const { updated, failed } = await bulkUpdateLeadFields(workspaceId, emails, { isTest });
   revalidateLeadPaths();
   await logAudit({
     actor,

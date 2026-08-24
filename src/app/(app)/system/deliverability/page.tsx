@@ -4,10 +4,11 @@ import { getInboxPlacementTests, getSeedRecipients } from "@/lib/data/deliverabi
 import { summarizeDeliverability, deliverabilityByProvider } from "@/lib/calculations/deliverability-metrics";
 import { PageHeader } from "@/components/layout/page-header";
 import { DeliverabilityAdminView } from "@/components/system/deliverability-admin-view";
-import { DEFAULT_WORKSPACE_ID } from "@/types";
+import { pageWorkspaceContext } from "@/lib/auth/workspace-context";
 
 export default async function DeliverabilityAdminPage() {
-  const [campaigns, tests, seeds] = await Promise.all([getCampaigns(DEFAULT_WORKSPACE_ID), getInboxPlacementTests(), getSeedRecipients()]);
+  const { workspaceId } = await pageWorkspaceContext();
+  const [campaigns, tests, seeds] = await Promise.all([getCampaigns(workspaceId), getInboxPlacementTests(), getSeedRecipients()]);
   const summary = summarizeDeliverability(tests);
   const byProvider = deliverabilityByProvider(tests);
 

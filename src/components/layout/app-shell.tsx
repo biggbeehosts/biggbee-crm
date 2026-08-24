@@ -7,6 +7,7 @@ import { useUIState } from "./ui-state-provider";
 import { cn } from "@/lib/utils/cn";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ToastProvider } from "@/components/ui/toast";
+import type { Workspace } from "@/types";
 
 export function AppShell({
   children,
@@ -14,19 +15,23 @@ export function AppShell({
   mode,
   attentionCount,
   adminEmail,
+  workspaces,
+  activeWorkspaceId,
 }: {
   children: React.ReactNode;
   connected: boolean;
   mode: "mock" | "google-sheets";
   attentionCount: number;
   adminEmail: string;
+  workspaces: Workspace[];
+  activeWorkspaceId: string;
 }) {
   const { sidebarCollapsed } = useUIState();
 
   return (
     <TooltipProvider delayDuration={200}>
       <ToastProvider>
-        <Sidebar connected={connected} mode={mode} adminEmail={adminEmail} />
+        <Sidebar connected={connected} mode={mode} adminEmail={adminEmail} workspaces={workspaces} activeWorkspaceId={activeWorkspaceId} />
         <MobileNav connected={connected} mode={mode} />
         <div className={cn("flex min-h-screen flex-col transition-[margin] duration-200", sidebarCollapsed ? "lg:ml-[76px]" : "lg:ml-64")}>
           <Header attentionCount={attentionCount} adminEmail={adminEmail} />

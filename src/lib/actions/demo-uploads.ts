@@ -7,11 +7,7 @@ import { createDemo, generateNextDemoId, replaceDemoVersion, updateDemoMetadata,
 import { recordUploadAttempt, summarizeUploadLog, type UploadLogSummary } from "@/lib/data/demo-upload-log-store";
 import { logAudit } from "@/lib/audit/log";
 import type { DemoRecord } from "@/types";
-import { DEFAULT_WORKSPACE_ID } from "@/types";
-
-// Phase A: every demo action runs as the default (Biggbee) workspace until Phase B introduces a
-// real session-resolved activeWorkspaceId -- see types/workspace.ts.
-const WORKSPACE_ID = DEFAULT_WORKSPACE_ID;
+import { requireWorkspaceContext } from "@/lib/auth/workspace-context";
 
 /**
  * Server side of the Cloudinary upload pipeline (Stage 6, Part 6). The browser never sees the
@@ -95,7 +91,7 @@ export interface RegisterUploadResult {
  * the workflow's "Read Demo Library" node), so the Sheet write above IS the n8n-side refresh.
  */
 export async function registerDemoUploadAction(input: RegisterUploadInput): Promise<RegisterUploadResult> {
-  const actor = await requireAdmin();
+  const { email: actor, workspaceId } = await requireWorkspaceContext();
   const provider = getActiveStorageProvider();
 
   try {
@@ -104,7 +100,7 @@ export async function registerDemoUploadAction(input: RegisterUploadInput): Prom
 
     const demoData = {
       demoId: input.demoId,
-      workspaceId: WORKSPACE_ID,
+      workspaceId,
       name: input.name,
       demoType: "video",
       service: input.service,
@@ -127,7 +123,7 @@ export async function registerDemoUploadAction(input: RegisterUploadInput): Prom
       storagePublicId: input.publicId,
     };
 
-    const demo = input.replacesDemoId ? await replaceDemoVersion(input.replacesDemoId, WORKSPACE_ID, demoData) : await createDemo(demoData);
+    const demo = input.replacesDemoId ? await replaceDemoVersion(input.replacesDemoId, workspaceId, demoData) : await createDemo(demoData);
 
     await recordUploadAttempt({ demoId: demo.demoId, fileName: input.fileName, outcome: "success", bytes: input.bytes, at: new Date().toISOString() });
     await logAudit({ actor, action: "demo.uploaded", target: demo.demoId, success: true, details: { fileName: input.fileName, replacesDemoId: input.replacesDemoId } });
@@ -146,9 +142,9 @@ export async function registerDemoUploadAction(input: RegisterUploadInput): Prom
 }
 
 export async function updateDemoMetadataAction(demoId: string, fields: Partial<DemoRecord>): Promise<RegisterUploadResult> {
-  const actor = await requireAdmin();
+  const { email: actor, workspaceId } = await requireWorkspaceContext();
   try {
-    await updateDemoMetadata(demoId, WORKSPACE_ID, fields);
+    await updateDemoMetadata(demoId, workspaceId, fields);
     await logAudit({ actor, action: "demo.updated", target: demoId, success: true, details: { fields: Object.keys(fields) } });
     revalidatePath("/demo-library");
     revalidatePath("/automation-hub/demo-library");
@@ -161,9 +157,9 @@ export async function updateDemoMetadataAction(demoId: string, fields: Partial<D
 }
 
 export async function archiveDemoAction(demoId: string): Promise<RegisterUploadResult> {
-  const actor = await requireAdmin();
+  const { email: actor, workspaceId } = await requireWorkspaceContext();
   try {
-    await archiveDemo(demoId, WORKSPACE_ID);
+    await archiveDemo(demoId, workspaceId);
     await logAudit({ actor, action: "demo.archived", target: demoId, success: true });
     revalidatePath("/demo-library");
     revalidatePath("/automation-hub/demo-library");

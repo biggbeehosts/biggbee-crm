@@ -16,7 +16,7 @@ import { getCampaign } from "@/lib/data/campaigns-store";
 import { recordEvent } from "@/lib/data/analytics-events-store";
 import { INBOX_PLACEMENT_RESULTS } from "@/types";
 import type { AnalyticsEventType } from "@/types";
-import { DEFAULT_WORKSPACE_ID } from "@/types";
+import { requireWorkspaceContext } from "@/lib/auth/workspace-context";
 import type { ActionResult } from "./leads";
 
 /** Only these four placement results have a dedicated event type -- "NotTested"/"Unknown" are the
@@ -44,7 +44,7 @@ const PlacementResultSchema = z.object({
  *  test-result entry if no placement provider is connected." This is the only way a placement
  *  result is ever recorded today; see src/lib/deliverability/provider-adapter.ts for why. */
 export async function recordManualPlacementResultAction(formData: FormData): Promise<ActionResult> {
-  const actor = await requireAdmin();
+  const { email: actor, workspaceId } = await requireWorkspaceContext();
 
   const parsed = PlacementResultSchema.safeParse({
     campaignId: formData.get("campaignId"),
@@ -59,7 +59,7 @@ export async function recordManualPlacementResultAction(formData: FormData): Pro
     return { success: false, message: parsed.error.issues[0]?.message ?? "Invalid placement result." };
   }
 
-  const campaign = await getCampaign(parsed.data.campaignId, DEFAULT_WORKSPACE_ID);
+  const campaign = await getCampaign(parsed.data.campaignId, workspaceId);
   if (!campaign) {
     return { success: false, message: `Unknown campaign "${parsed.data.campaignId}".` };
   }

@@ -14,15 +14,16 @@ import { buildCampaignTimeline, type TimelineEvent } from "@/lib/calculations/ti
 import { PageHeader } from "@/components/layout/page-header";
 import { CampaignsView } from "@/components/campaigns/campaigns-view";
 import { CampaignFormDialog } from "@/components/campaigns/campaign-form-dialog";
-import { DEFAULT_WORKSPACE_ID } from "@/types";
+import { pageWorkspaceContext } from "@/lib/auth/workspace-context";
 
 const ALL_TIME_FROM = "2020-01-01T00:00:00.000Z";
 
 export default async function CampaignsPage() {
+  const { workspaceId } = await pageWorkspaceContext();
   const [leads, campaigns, demos, options, events, placementTests, websites] = await Promise.all([
-    getLeads(DEFAULT_WORKSPACE_ID),
-    getCampaigns(DEFAULT_WORKSPACE_ID),
-    getDemoLibrary(DEFAULT_WORKSPACE_ID),
+    getLeads(workspaceId),
+    getCampaigns(workspaceId),
+    getDemoLibrary(workspaceId),
     getOptionListsSync(),
     getEvents({ from: ALL_TIME_FROM }),
     getInboxPlacementTests(),

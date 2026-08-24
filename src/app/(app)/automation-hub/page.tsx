@@ -11,7 +11,7 @@ import { isSheetsConfigured, getDataMode } from "@/lib/data/config";
 import { PageHeader } from "@/components/layout/page-header";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { DEFAULT_WORKSPACE_ID } from "@/types";
+import { pageWorkspaceContext } from "@/lib/auth/workspace-context";
 
 function HealthCard({
   href,
@@ -58,9 +58,10 @@ function syncedWithin(lastSyncAt: string | null, withinMs: number): boolean {
 }
 
 export default async function AutomationHubOverviewPage() {
+  const { workspaceId } = await pageWorkspaceContext();
   const [integrations, demos, websites, providers] = await Promise.all([
     getWorkflowIntegrations(),
-    getDemoLibrary(DEFAULT_WORKSPACE_ID),
+    getDemoLibrary(workspaceId),
     getWebsiteRegistry(),
     getAllProviderHealth(),
   ]);

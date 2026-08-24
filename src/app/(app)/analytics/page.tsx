@@ -5,7 +5,7 @@ import { getCampaigns } from "@/lib/data/campaigns-store";
 import { getDemoLibrary } from "@/lib/data/demo-library-store";
 import { getEvents } from "@/lib/data/analytics-events-store";
 import { getInboxPlacementTests } from "@/lib/data/deliverability-store";
-import { DEFAULT_WORKSPACE_ID } from "@/types";
+import { pageWorkspaceContext } from "@/lib/auth/workspace-context";
 import {
   confidenceDistribution,
   emailStyleDistribution as leadEmailStyleDistribution,
@@ -90,10 +90,11 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
   const { from, to, range } = resolveRange(sp);
   const dataMode: "production" | "test" | "all" = sp.data === "test" ? "test" : sp.data === "all" ? "all" : "production";
 
+  const { workspaceId } = await pageWorkspaceContext();
   const [allLeads, campaigns, demos, allEvents, placementTests] = await Promise.all([
-    getLeads(DEFAULT_WORKSPACE_ID),
-    getCampaigns(DEFAULT_WORKSPACE_ID),
-    getDemoLibrary(DEFAULT_WORKSPACE_ID),
+    getLeads(workspaceId),
+    getCampaigns(workspaceId),
+    getDemoLibrary(workspaceId),
     getEvents({ from, to }),
     getInboxPlacementTests(),
   ]);

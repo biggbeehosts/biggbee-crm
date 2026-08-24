@@ -10,7 +10,7 @@ import { addAllowlistEntry, removeAllowlistEntry } from "@/lib/data/internal-sen
 import { computeTrackingSnapshot, type TrackingFilter } from "@/lib/calculations/tracking-metrics";
 import { getLeads } from "@/lib/data/repository";
 import { getCampaigns } from "@/lib/data/campaigns-store";
-import { DEFAULT_WORKSPACE_ID } from "@/types";
+import { requireWorkspaceContext } from "@/lib/auth/workspace-context";
 import { getInboxPlacementTests } from "@/lib/data/deliverability-store";
 import type { ActionResult } from "./leads";
 
@@ -89,8 +89,8 @@ export async function removeInternalSenderAction(entry: string): Promise<ActionR
 /** Part N: "export campaign analytics" -- plain CSV, no library, matching this app's no-heavy-deps
  *  convention. Recomputes the same aggregation the campaign card shows, all-time for one campaign. */
 export async function exportCampaignAnalyticsCsvAction(campaignId: string): Promise<{ success: boolean; csv?: string; message?: string }> {
-  await requireAdmin();
-  const [leads, campaigns, placementTests] = await Promise.all([getLeads(DEFAULT_WORKSPACE_ID), getCampaigns(DEFAULT_WORKSPACE_ID), getInboxPlacementTests()]);
+  const { workspaceId } = await requireWorkspaceContext();
+  const [leads, campaigns, placementTests] = await Promise.all([getLeads(workspaceId), getCampaigns(workspaceId), getInboxPlacementTests()]);
   const campaign = campaigns.find((c) => c.id === campaignId);
   if (!campaign) return { success: false, message: "Unknown campaign." };
 
