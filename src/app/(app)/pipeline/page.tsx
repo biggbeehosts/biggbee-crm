@@ -7,9 +7,10 @@ import { getCampaigns } from "@/lib/data/campaigns-store";
 import { PageHeader } from "@/components/layout/page-header";
 import { KanbanBoard } from "@/components/pipeline/kanban-board";
 import { Badge } from "@/components/ui/badge";
+import { DEFAULT_WORKSPACE_ID } from "@/types";
 
 export default async function PipelinePage() {
-  const [leads, campaigns] = await Promise.all([getLeads(), getCampaigns()]);
+  const [leads, campaigns] = await Promise.all([getLeads(DEFAULT_WORKSPACE_ID), getCampaigns(DEFAULT_WORKSPACE_ID)]);
   const mock = isUsingMockData();
 
   return (

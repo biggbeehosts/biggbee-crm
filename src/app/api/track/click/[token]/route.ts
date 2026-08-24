@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getLeads } from "@/lib/data/repository";
+import { findLeadByTrackingToken } from "@/lib/data/repository";
 import { getCampaign } from "@/lib/data/campaigns-store";
 import { updateLeadFields } from "@/lib/data/leads-mutations";
 import { recordEvent } from "@/lib/data/analytics-events-store";
@@ -59,11 +59,10 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ toke
   try {
     if (!trimmed) return NextResponse.redirect(destination.toString(), { status: 302 });
 
-    const leads = await getLeads();
-    const lead = leads.find((l) => l.trackingToken === trimmed);
+    const lead = await findLeadByTrackingToken(trimmed);
     if (!lead) return NextResponse.redirect(destination.toString(), { status: 302 });
 
-    const campaign = lead.campaignId ? await getCampaign(lead.campaignId) : undefined;
+    const campaign = lead.campaignId ? await getCampaign(lead.campaignId, lead.workspaceId) : undefined;
     if (campaign && !campaign.clickTrackingEnabled) return NextResponse.redirect(destination.toString(), { status: 302 });
 
     const ipHash = hashIp(req);
@@ -96,7 +95,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ toke
       isTestEvent: false,
     });
 
-    updateLeadFields(lead.email, {
+    updateLeadFields(lead.workspaceId, lead.email, {
       clickCount: (lead.clickCount ?? 0) + 1,
       firstClickedAt: lead.firstClickedAt ?? at,
       lastClickedAt: at,

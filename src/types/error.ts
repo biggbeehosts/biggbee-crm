@@ -1,5 +1,7 @@
 export interface ErrorRecord {
   id: string;
+  /** Which workspace this error belongs to (see types/workspace.ts). */
+  workspaceId: string;
   timestamp: string | null;
   source?: string;
   leadEmail?: string;
@@ -19,6 +21,9 @@ export interface ErrorRecord {
 export type UnknownSenderClassification = "Unknown" | "Internal" | "Lead Reply" | "System Notification" | "Needs Review";
 
 export interface UnknownSender {
+  /** Which workspace this sender was seen by (i.e. which mailbox received it) -- see
+   *  types/workspace.ts. */
+  workspaceId: string;
   timestamp: string | null;
   fromEmail: string;
   subject?: string;

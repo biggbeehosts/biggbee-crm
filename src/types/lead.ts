@@ -53,7 +53,13 @@ export const PIPELINE_STAGES: PipelineStage[] = [
 ];
 
 export interface Lead {
-  /** Primary key across the whole app -- matches the n8n workflow's matching column. */
+  /** Which workspace this lead belongs to (see types/workspace.ts). Combined with `email`, this
+   *  is the real primary key across the whole app -- `email` alone is never sufficient, since the
+   *  same address may legitimately exist once per workspace (two brands independently marketing
+   *  to the same company). Every lookup/mutation must match on both. */
+  workspaceId: string;
+  /** Matches the n8n workflow's matching column. Unique only within a workspace -- see
+   *  workspaceId above. */
   email: string;
   name: string;
   company: string;

@@ -1,5 +1,6 @@
 import "server-only";
 import type { DemoRecord, ErrorRecord, KnowledgeBaseRecord, Lead, LeadMemory, UnknownSender } from "@/types";
+import { DEFAULT_WORKSPACE_ID } from "@/types";
 import { coalesceString, parseNumber, parseStringList, parseYesNo, safeTrim } from "@/lib/utils/fallback";
 import { normalizeStatus } from "@/lib/utils/status";
 import { isInternalSender, isKnownPlatformSender, isSystemNotificationSender } from "@/lib/utils/internal-senders";
@@ -15,9 +16,18 @@ function pick(row: Row, ...keys: string[]): string {
   return "";
 }
 
+/** Every pre-Phase-A row (written before the "Workspace ID" column existed) reads as the default
+ *  workspace -- same "missing/blank reads as X" convention as every other additive column in this
+ *  file (isTest, Active, ...), not a guess: the migration backfills every real row with this exact
+ *  value, so this fallback only ever matters for a legacy row the backfill somehow missed. */
+function pickWorkspaceId(row: Row): string {
+  return pick(row, "Workspace ID", "WorkspaceID") || DEFAULT_WORKSPACE_ID;
+}
+
 export function normalizeLead(row: Row, index: number): Lead {
   const confidence = parseNumber(pick(row, "Confidence"));
   return {
+    workspaceId: pickWorkspaceId(row),
     email: safeTrim(pick(row, "Email")).toLowerCase(),
     name: coalesceString("Unknown", pick(row, "Name")),
     company: coalesceString("Unknown Company", pick(row, "Company")),
@@ -75,6 +85,7 @@ export function normalizeLead(row: Row, index: number): Lead {
 
 export function normalizeLeadMemory(row: Row): LeadMemory {
   return {
+    workspaceId: pickWorkspaceId(row),
     email: safeTrim(pick(row, "Email")).toLowerCase(),
     servicesDiscussed: pick(row, "Services Discussed", "ServicesDiscussed"),
     painPoints: pick(row, "PainPoints", "Pain Points"),
@@ -93,6 +104,7 @@ export function normalizeLeadMemory(row: Row): LeadMemory {
 
 export function normalizeDemoRecord(row: Row, index: number): DemoRecord {
   return {
+    workspaceId: pickWorkspaceId(row),
     // Left blank (never a row-position guess) when the ID column is empty -- see
     // migrateMissingDemoIds in demo-library-mutations.ts, which assigns and persists a real id.
     demoId: pick(row, "Demo ID", "DemoID"),
@@ -130,6 +142,7 @@ export function normalizeDemoRecord(row: Row, index: number): DemoRecord {
 export function normalizeErrorRecord(row: Row, index: number): ErrorRecord {
   return {
     id: `sheet-${index}`,
+    workspaceId: pickWorkspaceId(row),
     timestamp: pick(row, "Timestamp") || null,
     source: pick(row, "Source"),
     leadEmail: pick(row, "Lead Email", "LeadEmail"),
@@ -158,6 +171,7 @@ export function normalizeUnknownSender(row: Row, index: number): UnknownSender {
           ? "System Notification"
           : "Needs Review";
   return {
+    workspaceId: pickWorkspaceId(row),
     timestamp: pick(row, "TimeStamp", "Timestamp") || null,
     fromEmail,
     subject,

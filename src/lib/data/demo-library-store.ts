@@ -12,12 +12,18 @@ import { readCollection, writeCollection } from "@/lib/store/json-store";
  * Demo Library store (Stage 6, Part 6: the CRM is now the source of truth -- uploads go through
  * here, never a manual Sheet edit). Read path stays a live Sheet read on every call, same as
  * before; writes (createDemo/updateDemoMetadata/archiveDemo/replaceDemoVersion) are new.
+ *
+ * Phase A: demos are workspace-specific by default (decision 3) -- nothing is shared globally.
+ * Demo IDs themselves stay globally unique across every workspace (same precedent as Campaign
+ * IDs), but every read/write below is scoped or ownership-checked by workspaceId so a workspace
+ * can never see, auto-match against, or edit another workspace's demo.
  */
 
 /** Additive-only -- see ensureTabWithHeaders (never reorders/removes the six pre-existing
  *  columns: Demo Type, Public Watch URL, Public Download URL, File Name, Thumbnail URL, Duration). */
 const DEMO_LIBRARY_NEW_HEADERS = [
   "Demo ID",
+  "Workspace ID",
   "Demo Name",
   "Service",
   "Business Type",
@@ -104,12 +110,25 @@ async function getSheetDemoLibrary(): Promise<DemoRecord[]> {
   }
 }
 
-export async function getDemoLibrary(): Promise<DemoRecord[]> {
+/** Unfiltered by workspace -- internal only, the one legitimate reason being generateNextDemoId's
+ *  need for every id in use regardless of owner (demo ids are globally unique, same precedent as
+ *  Campaign ids). Every other caller must go through getDemoLibrary(workspaceId)/
+ *  getDemo(demoId, workspaceId) below. */
+async function getAllDemosUnfiltered(): Promise<DemoRecord[]> {
   return getDataMode() === "mock" ? MOCK_DEMO_LIBRARY : getSheetDemoLibrary();
 }
 
-export async function getDemo(demoId: string): Promise<DemoRecord | undefined> {
-  const all = await getDemoLibrary();
+/** workspaceId is required -- there is no unscoped overload. Demos are workspace-specific by
+ *  default (decision 3): nothing is shared across workspaces yet. */
+export async function getDemoLibrary(workspaceId: string): Promise<DemoRecord[]> {
+  const all = await getAllDemosUnfiltered();
+  return all.filter((d) => d.workspaceId === workspaceId);
+}
+
+/** workspaceId is required and enforced: a demo owned by a different workspace is
+ *  indistinguishable from a demo that doesn't exist, to every caller of this function. */
+export async function getDemo(demoId: string, workspaceId: string): Promise<DemoRecord | undefined> {
+  const all = await getDemoLibrary(workspaceId);
   return all.find((d) => d.demoId === demoId);
 }
 
@@ -134,6 +153,7 @@ function nowIso() {
 function demoToRow(demo: Partial<DemoRecord>): Record<string, string> {
   const row: Record<string, string> = {};
   if (demo.demoId !== undefined) row["Demo ID"] = demo.demoId;
+  if (demo.workspaceId !== undefined) row["Workspace ID"] = demo.workspaceId;
   if (demo.name !== undefined) row["Demo Name"] = demo.name;
   if (demo.demoType !== undefined) row["Demo Type"] = demo.demoType;
   if (demo.service !== undefined) row.Service = demo.service;
@@ -162,18 +182,19 @@ function demoToRow(demo: Partial<DemoRecord>): Record<string, string> {
   return row;
 }
 
-async function findDemoRowUncached(demoId: string): Promise<DemoRecord | undefined> {
+async function findDemoRowUncached(demoId: string, workspaceId: string): Promise<DemoRecord | undefined> {
   const rows = await fetchSheetRows(SHEET_TAB_NAMES.demoLibrary);
   const objects = rowsToObjects(rows);
-  const index = objects.findIndex((row) => (row["Demo ID"] ?? "").trim() === demoId);
+  const index = objects.findIndex((row) => (row["Demo ID"] ?? "").trim() === demoId && (row["Workspace ID"] ?? "biggbee").trim() === workspaceId);
   if (index === -1) return undefined;
   return normalizeDemoRecord(objects[index], index);
 }
 
 /** Generates the next free demo-XXXXXX id -- exported so upload actions can reserve an id (and
- *  therefore a Cloudinary public_id) before the file finishes uploading. */
+ *  therefore a Cloudinary public_id) before the file finishes uploading. Global across every
+ *  workspace, same precedent as generateNextCampaignId. */
 export async function generateNextDemoId(): Promise<string> {
-  const all = await getDemoLibrary();
+  const all = await getAllDemosUnfiltered();
   return generateDemoId(all.map((d) => d.demoId).filter(Boolean));
 }
 
@@ -184,7 +205,8 @@ export type NewDemoInput = Omit<DemoRecord, "rowNumber" | "createdAt" | "updated
 
 /** Creates a brand-new demo row -- always an insert, never an update, so an existing demo can
  *  never be silently overwritten (Part 6 versioning). Used both for first-time uploads (version 1)
- *  and for replaceDemoVersion's new-row half. */
+ *  and for replaceDemoVersion's new-row half. `demo.workspaceId` (required on the type) decides
+ *  which workspace owns it. */
 export async function createDemo(demo: NewDemoInput): Promise<DemoRecord> {
   const at = nowIso();
   const full: DemoRecord = { ...demo, version: demo.version ?? 1, archived: demo.archived ?? false, createdAt: at, updatedAt: at };
@@ -198,32 +220,33 @@ export async function createDemo(demo: NewDemoInput): Promise<DemoRecord> {
   await ensureDemoLibraryColumns();
   await appendRow(SHEET_TAB_NAMES.demoLibrary, demoToRow(full));
   invalidateCache();
-  await logAudit({ actor: "system", action: "demo.created", target: full.demoId, success: true, details: { service: full.service, industry: full.industry } });
+  await logAudit({ actor: "system", action: "demo.created", target: full.demoId, success: true, details: { workspaceId: full.workspaceId, service: full.service, industry: full.industry } });
   return full;
 }
 
 /** In-place metadata update (Service/Industry/Language/Priority/Active/Notes/etc.) -- never
  *  touches the video file or bumps the version, since correcting metadata isn't "replacing the
- *  demo" (see replaceDemoVersion for that). */
-export async function updateDemoMetadata(demoId: string, fields: Partial<DemoRecord>): Promise<void> {
+ *  demo" (see replaceDemoVersion for that). workspaceId is required and enforced via
+ *  findDemoRowUncached -- a demo owned by a different workspace cannot be edited. */
+export async function updateDemoMetadata(demoId: string, workspaceId: string, fields: Partial<DemoRecord>): Promise<void> {
   const patch = { ...fields, updatedAt: nowIso() };
 
   if (getDataMode() === "mock") {
     const demos = await getLocalDemos();
-    await saveLocalDemos(demos.map((d) => (d.demoId === demoId ? { ...d, ...patch } : d)));
+    await saveLocalDemos(demos.map((d) => (d.demoId === demoId && d.workspaceId === workspaceId ? { ...d, ...patch } : d)));
     return;
   }
 
   await ensureDemoLibraryColumns();
-  const current = await findDemoRowUncached(demoId);
-  if (!current?.rowNumber) throw new Error(`Demo "${demoId}" was not found in the Demo Library sheet.`);
+  const current = await findDemoRowUncached(demoId, workspaceId);
+  if (!current?.rowNumber) throw new Error(`Demo "${demoId}" was not found in workspace "${workspaceId}".`);
   await updateRowFields(SHEET_TAB_NAMES.demoLibrary, current.rowNumber, demoToRow(patch), { header: "Demo ID", value: demoId });
   invalidateCache();
 }
 
-export async function archiveDemo(demoId: string): Promise<void> {
-  await updateDemoMetadata(demoId, { active: false, archived: true });
-  await logAudit({ actor: "system", action: "demo.archived", target: demoId, success: true });
+export async function archiveDemo(demoId: string, workspaceId: string): Promise<void> {
+  await updateDemoMetadata(demoId, workspaceId, { active: false, archived: true });
+  await logAudit({ actor: "system", action: "demo.archived", target: demoId, success: true, details: { workspaceId } });
 }
 
 /**
@@ -231,11 +254,12 @@ export async function archiveDemo(demoId: string): Promise<void> {
  * versioning): archives `oldDemoId` in place, then creates a fresh row carrying the new file,
  * `version = old.version + 1`, and `previousVersionId = oldDemoId`. The old row's Demo ID (and
  * therefore any lead that already referenced it) keeps working exactly as before -- only new
- * matching picks up the replacement, since matching filters out archived rows.
+ * matching picks up the replacement, since matching filters out archived rows. `newDemo` must
+ * carry the same workspaceId as `oldDemoId` (enforced by archiveDemo's ownership check).
  */
-export async function replaceDemoVersion(oldDemoId: string, newDemo: Omit<NewDemoInput, "previousVersionId" | "version">): Promise<DemoRecord> {
-  const old = await getDemo(oldDemoId);
+export async function replaceDemoVersion(oldDemoId: string, workspaceId: string, newDemo: Omit<NewDemoInput, "previousVersionId" | "version">): Promise<DemoRecord> {
+  const old = await getDemo(oldDemoId, workspaceId);
   const nextVersion = (old?.version ?? 1) + 1;
-  await archiveDemo(oldDemoId);
+  await archiveDemo(oldDemoId, workspaceId);
   return createDemo({ ...newDemo, previousVersionId: oldDemoId, version: nextVersion });
 }

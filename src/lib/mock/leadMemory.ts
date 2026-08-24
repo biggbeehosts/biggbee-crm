@@ -1,8 +1,9 @@
 import type { LeadMemory } from "@/types";
+import { DEFAULT_WORKSPACE_ID } from "@/types";
 
 const daysAgo = (n: number) => new Date(Date.now() - n * 86_400_000).toISOString();
 
-export const MOCK_LEAD_MEMORY: LeadMemory[] = [
+const RAW_MOCK_LEAD_MEMORY: Omit<LeadMemory, "workspaceId">[] = [
   {
     email: "hello@pulsegrowth.co",
     servicesDiscussed: "Lead Generation Agent",
@@ -196,3 +197,5 @@ export const MOCK_LEAD_MEMORY: LeadMemory[] = [
     lastContactedAt: daysAgo(1),
   },
 ];
+
+export const MOCK_LEAD_MEMORY: LeadMemory[] = RAW_MOCK_LEAD_MEMORY.map((m) => ({ ...m, workspaceId: DEFAULT_WORKSPACE_ID }));

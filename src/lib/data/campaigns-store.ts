@@ -1,5 +1,6 @@
 import "server-only";
 import type { Campaign, CampaignStatus, DemoSelectionMode } from "@/types";
+import { DEFAULT_WORKSPACE_ID } from "@/types";
 import { getDataMode, SHEET_TAB_NAMES } from "./config";
 import { ensureTabWithHeaders, appendRow, updateRowFields, deleteSheetRow, fetchSheetRows, rowsToObjects } from "./sheets-client";
 import { readCollection, writeCollection } from "@/lib/store/json-store";
@@ -12,6 +13,7 @@ const now = () => new Date().toISOString();
  *  data exists (see ensureTabWithHeaders). */
 const CAMPAIGN_HEADERS = [
   "ID",
+  "Workspace ID",
   "Name",
   "Status",
   "Country",
@@ -41,6 +43,7 @@ const CAMPAIGN_HEADERS = [
 function toRow(c: Campaign): Record<string, string> {
   return {
     ID: c.id,
+    "Workspace ID": c.workspaceId,
     Name: c.name,
     Status: c.status,
     Country: c.country ?? "",
@@ -75,8 +78,10 @@ function numOrNull(v: string | undefined): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
-/** Next free CMP-XXXXXX id given the campaign ids already in use. Pads to 6 digits but grows
- *  beyond that rather than colliding once more than 999,999 campaigns exist. */
+/** Next free CMP-XXXXXX id given the campaign ids already in use, across every workspace --
+ *  Campaign IDs are globally unique app-wide, not per-workspace, so this must see every campaign
+ *  regardless of who's asking. Pads to 6 digits but grows beyond that rather than colliding once
+ *  more than 999,999 campaigns exist. */
 function generateCampaignId(existingIds: Iterable<string>): string {
   const idSet = existingIds instanceof Set ? existingIds : new Set(existingIds);
   let max = 0;
@@ -94,9 +99,10 @@ function generateCampaignId(existingIds: Iterable<string>): string {
 }
 
 /** Public helper for server actions that need a fresh id before a campaign exists yet
- *  (new campaign, duplicate). Stable and unique across both mock and Sheets modes. */
+ *  (new campaign, duplicate). Stable and unique across both mock and Sheets modes, and across
+ *  every workspace -- see generateCampaignId. */
 export async function generateNextCampaignId(): Promise<string> {
-  const existing = await getCampaigns();
+  const existing = await getAllCampaignsUnfiltered();
   return generateCampaignId(existing.map((c) => c.id).filter(Boolean));
 }
 
@@ -136,6 +142,10 @@ function fromRow(row: Record<string, string>, rowNumber: number): Campaign {
     // Left blank (never a row-position guess) when the ID column is empty -- see
     // migrateMissingCampaignIds, which assigns and persists a real id for any row like this.
     id: row.ID || "",
+    // Additive column (Phase A) -- missing/blank on every row written before it existed reads as
+    // the default workspace; the migration backfills every real row with this exact value, so
+    // this fallback only matters for a legacy row the backfill somehow missed.
+    workspaceId: row["Workspace ID"] || DEFAULT_WORKSPACE_ID,
     name: row.Name || "Untitled campaign",
     status: (row.Status as CampaignStatus) || "Draft",
     country: row.Country || undefined,
@@ -179,6 +189,7 @@ function fromRow(row: Record<string, string>, rowNumber: number): Campaign {
 const SEED_CAMPAIGNS: Campaign[] = [
   {
     id: "camp-us-instagram",
+    workspaceId: DEFAULT_WORKSPACE_ID,
     name: "US Instagram Agencies",
     status: "Active",
     country: "United States",
@@ -239,15 +250,30 @@ async function getSheetCampaigns(): Promise<Campaign[]> {
   }
 }
 
-export async function getCampaigns(): Promise<Campaign[]> {
+/** Unfiltered by workspace -- internal only. The one legitimate reason to see every campaign
+ *  regardless of owner is generating a globally-unique next ID; every other caller must go
+ *  through getCampaigns(workspaceId)/getCampaign(id, workspaceId) below. */
+async function getAllCampaignsUnfiltered(): Promise<Campaign[]> {
   return getDataMode() === "mock" ? getLocalCampaigns() : getSheetCampaigns();
 }
 
-export async function getCampaign(id: string): Promise<Campaign | undefined> {
-  const all = await getCampaigns();
+/** workspaceId is required -- there is no unscoped overload. */
+export async function getCampaigns(workspaceId: string): Promise<Campaign[]> {
+  const all = await getAllCampaignsUnfiltered();
+  return all.filter((c) => c.workspaceId === workspaceId);
+}
+
+/** workspaceId is required and enforced: a campaign owned by a different workspace is
+ *  indistinguishable from a campaign that doesn't exist, to every caller of this function. */
+export async function getCampaign(id: string, workspaceId: string): Promise<Campaign | undefined> {
+  const all = await getCampaigns(workspaceId);
   return all.find((c) => c.id === id);
 }
 
+/** `campaign.workspaceId` (required on the type) is the source of truth for ownership -- the
+ *  existing-row lookup below is itself workspace-scoped, so this can never silently "update" a
+ *  same-ID campaign that turns out to belong to a different workspace (defense in depth; campaign
+ *  IDs are already globally unique via generateNextCampaignId). */
 export async function upsertCampaign(campaign: Campaign): Promise<void> {
   if (getDataMode() === "mock") {
     const campaigns = await getLocalCampaigns();
@@ -258,7 +284,7 @@ export async function upsertCampaign(campaign: Campaign): Promise<void> {
   }
 
   await ensureCampaignsTab();
-  const existing = await getCampaign(campaign.id);
+  const existing = await getCampaign(campaign.id, campaign.workspaceId);
   if (existing?.rowNumber) {
     await updateRowFields(SHEET_TAB_NAMES.campaigns, existing.rowNumber, toRow(campaign), { header: "ID", value: campaign.id });
   } else {
@@ -266,14 +292,16 @@ export async function upsertCampaign(campaign: Campaign): Promise<void> {
   }
 }
 
-export async function deleteCampaignById(id: string): Promise<void> {
+export async function deleteCampaignById(id: string, workspaceId: string): Promise<void> {
   if (getDataMode() === "mock") {
     const campaigns = await getLocalCampaigns();
+    const target = campaigns.find((c) => c.id === id);
+    if (!target || target.workspaceId !== workspaceId) return;
     await saveLocalCampaigns(campaigns.filter((c) => c.id !== id));
     return;
   }
 
-  const existing = await getCampaign(id);
+  const existing = await getCampaign(id, workspaceId);
   if (!existing?.rowNumber) return;
   await deleteSheetRow(SHEET_TAB_NAMES.campaigns, existing.rowNumber);
 }

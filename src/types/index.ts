@@ -9,6 +9,7 @@ export * from "./settings";
 export * from "./campaign";
 export * from "./options";
 export * from "./workflow-registry";
+export * from "./workspace";
 export * from "./analytics-event";
 export * from "./deliverability";
 export * from "./website-registry";

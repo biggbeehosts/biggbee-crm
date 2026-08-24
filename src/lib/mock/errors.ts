@@ -1,8 +1,9 @@
 import type { ErrorRecord } from "@/types";
+import { DEFAULT_WORKSPACE_ID } from "@/types";
 
 const daysAgo = (n: number, h = 0) => new Date(Date.now() - n * 86_400_000 - h * 3_600_000).toISOString();
 
-export const MOCK_ERRORS: ErrorRecord[] = [
+const RAW_MOCK_ERRORS: Omit<ErrorRecord, "workspaceId">[] = [
   {
     id: "err-1",
     timestamp: daysAgo(0, 2),
@@ -92,3 +93,5 @@ export const MOCK_ERRORS: ErrorRecord[] = [
     validationWarnings: [],
   },
 ];
+
+export const MOCK_ERRORS: ErrorRecord[] = RAW_MOCK_ERRORS.map((e) => ({ ...e, workspaceId: DEFAULT_WORKSPACE_ID }));

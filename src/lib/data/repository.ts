@@ -5,7 +5,7 @@ import { getDataMode, SHEET_TAB_NAMES, getSheetsEnv, maskSheetId, getMissingShee
 import { fetchSheetRows, rowsToObjects } from "./sheets-client";
 import { normalizeErrorRecord, normalizeKnowledgeBase, normalizeLead, normalizeLeadMemory, normalizeUnknownSender } from "./normalize";
 import { getCached, getLastSyncAt, invalidateCache } from "./cache";
-import { getMockLeads } from "./mock-store";
+import { getMockLeads, getAllMockLeadsUnfiltered } from "./mock-store";
 import type { ConnectionStatus } from "@/types";
 
 let lastSheetsError: string | null = null;
@@ -33,31 +33,33 @@ async function safeLoadTab(tabKey: keyof typeof SHEET_TAB_NAMES) {
 // rows while the operator believes they're looking at the live sheet would be worse than an
 // empty page. The sidebar status indicator and Settings surface the connection error.
 
-export async function getLeads(): Promise<Lead[]> {
-  if (getDataMode() === "mock") return getMockLeads();
+/** workspaceId is required -- there is no unscoped overload. Every caller must know which
+ *  workspace it's reading for; see types/lead.ts on why email alone is never a safe filter. */
+export async function getLeads(workspaceId: string): Promise<Lead[]> {
+  if (getDataMode() === "mock") return getMockLeads(workspaceId);
   try {
     const rows = await safeLoadTab("leads");
-    return rows.map(normalizeLead).filter((l) => l.email);
+    return rows.map(normalizeLead).filter((l) => l.email && l.workspaceId === workspaceId);
   } catch {
     return [];
   }
 }
 
-export async function getLeadMemory(): Promise<LeadMemory[]> {
-  if (getDataMode() === "mock") return MOCK_LEAD_MEMORY;
+export async function getLeadMemory(workspaceId: string): Promise<LeadMemory[]> {
+  if (getDataMode() === "mock") return MOCK_LEAD_MEMORY.filter((m) => m.workspaceId === workspaceId);
   try {
     const rows = await safeLoadTab("leadMemory");
-    return rows.map(normalizeLeadMemory).filter((m) => m.email);
+    return rows.map(normalizeLeadMemory).filter((m) => m.email && m.workspaceId === workspaceId);
   } catch {
     return [];
   }
 }
 
-export async function getErrors(): Promise<ErrorRecord[]> {
-  if (getDataMode() === "mock") return MOCK_ERRORS;
+export async function getErrors(workspaceId: string): Promise<ErrorRecord[]> {
+  if (getDataMode() === "mock") return MOCK_ERRORS.filter((e) => e.workspaceId === workspaceId);
   try {
     const rows = await safeLoadTab("errors");
-    return rows.map(normalizeErrorRecord);
+    return rows.map(normalizeErrorRecord).filter((e) => e.workspaceId === workspaceId);
   } catch {
     return [];
   }
@@ -80,8 +82,8 @@ export async function getKnowledgeBase(cacheKey: string = "latest"): Promise<Kno
   }
 }
 
-export async function getUnknownSenders(): Promise<UnknownSender[]> {
-  if (getDataMode() === "mock") return MOCK_UNKNOWN_SENDERS;
+export async function getUnknownSenders(workspaceId: string): Promise<UnknownSender[]> {
+  if (getDataMode() === "mock") return MOCK_UNKNOWN_SENDERS.filter((u) => u.workspaceId === workspaceId);
   try {
     const rows = await safeLoadTab("unknownSenders");
     // Internal/system mail (office@ report loop, DSNs, etc.) is classified but never surfaced as a
@@ -89,9 +91,28 @@ export async function getUnknownSenders(): Promise<UnknownSender[]> {
     // describes but that was missing here.
     return rows
       .map((row, i) => normalizeUnknownSender(row, i))
-      .filter((u) => u.fromEmail && u.classification !== "Internal");
+      .filter((u) => u.fromEmail && u.classification !== "Internal" && u.workspaceId === workspaceId);
   } catch {
     return [];
+  }
+}
+
+/**
+ * The one legitimate cross-workspace lead lookup: the tracking pixel/click-redirect routes only
+ * ever have an opaque per-send trackingToken to go on, never a workspaceId (there is nothing in
+ * a `/api/track/*` URL to resolve one from). A trackingToken is unique to exactly one lead by
+ * construction (see n8n's randomOpaqueToken), so scanning across every workspace to find its one
+ * match is safe -- this is a narrow, single-purpose lookup, not a general unscoped "list every
+ * lead" escape hatch, and returns at most one row. Once found, `lead.workspaceId` is the real
+ * answer for every subsequent scoped call (getCampaign, updateLeadFields, ...) in that request.
+ */
+export async function findLeadByTrackingToken(token: string): Promise<Lead | undefined> {
+  if (getDataMode() === "mock") return getAllMockLeadsUnfiltered().find((l) => l.trackingToken === token);
+  try {
+    const rows = await safeLoadTab("leads");
+    return rows.map(normalizeLead).find((l) => l.email && l.trackingToken === token);
+  } catch {
+    return undefined;
   }
 }
 

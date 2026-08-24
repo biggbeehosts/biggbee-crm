@@ -20,6 +20,7 @@ import { type ConfiguredActions } from "@/components/dashboard/automation-card";
 import { CampaignRunPanel } from "@/components/dashboard/campaign-run-panel";
 import { getAutomationStatusAction, getConfiguredActionsAction } from "@/lib/n8n/actions";
 import { isN8nApiKeyRequiredButMissing } from "@/lib/config/env-validation";
+import { DEFAULT_WORKSPACE_ID } from "@/types";
 
 /** All-time lower bound for the Replies KPI, matching the other primary KPIs (Total Leads, Emails
  *  Sent, ...), which are cumulative rather than range-limited -- getEvents() defaults to a 2-month
@@ -29,14 +30,14 @@ const EPOCH = new Date(0).toISOString();
 export default async function DashboardPage() {
   const [leads, errors, automationStatus, connection, knowledgeBase, campaigns, configuredActionsRaw, demos, providers, replyEvents, admin] =
     await Promise.all([
-      getLeads(),
-      getErrors(),
+      getLeads(DEFAULT_WORKSPACE_ID),
+      getErrors(DEFAULT_WORKSPACE_ID),
       getAutomationStatusAction(),
       getConnectionStatus(),
       getKnowledgeBase(),
-      getCampaigns(),
+      getCampaigns(DEFAULT_WORKSPACE_ID),
       getConfiguredActionsAction(),
-      getDemoLibrary(),
+      getDemoLibrary(DEFAULT_WORKSPACE_ID),
       getAllProviderHealth(),
       getEvents({ from: EPOCH, to: new Date().toISOString(), type: "reply_received" }),
       getAdmin(),

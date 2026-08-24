@@ -9,6 +9,7 @@ import { integrationToCardModel, combineCardModels } from "@/lib/n8n/card-adapte
 import { PageHeader } from "@/components/layout/page-header";
 import { WorkflowIntegrationCard } from "@/components/workflow-control/workflow-integration-card";
 import { AlertTriangle, Cable } from "lucide-react";
+import { DEFAULT_WORKSPACE_ID } from "@/types";
 
 export default async function WorkflowManagerPage() {
   // Part I: fetch everything this render needs in parallel -- one page load never makes n8n
@@ -16,8 +17,8 @@ export default async function WorkflowManagerPage() {
   // separate on-demand server actions, not part of this initial render.
   const [integrations, campaigns, leads, auditLog, configuredActions] = await Promise.all([
     getWorkflowIntegrations(),
-    getCampaigns(),
-    getLeads(),
+    getCampaigns(DEFAULT_WORKSPACE_ID),
+    getLeads(DEFAULT_WORKSPACE_ID),
     Promise.resolve(getAuditLog(500)),
     getConfiguredActionsAction(),
   ]);

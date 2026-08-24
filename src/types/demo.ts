@@ -11,6 +11,10 @@ export interface DemoRecord {
    *  that row -- never inferred from row position (see migrateMissingDemoIds). Every uploaded
    *  video gets its own fresh id (Part 6 versioning: re-uploading never reuses/overwrites an id). */
   demoId: string;
+  /** Which workspace owns this demo (see types/workspace.ts). Demos are workspace-specific by
+   *  default -- a demo never appears in another workspace's auto-match candidates unless
+   *  explicitly shared (not yet implemented; every demo is single-workspace today). */
+  workspaceId: string;
   name?: string;
   demoType: string;
   service?: string;

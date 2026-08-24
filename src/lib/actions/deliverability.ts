@@ -16,6 +16,7 @@ import { getCampaign } from "@/lib/data/campaigns-store";
 import { recordEvent } from "@/lib/data/analytics-events-store";
 import { INBOX_PLACEMENT_RESULTS } from "@/types";
 import type { AnalyticsEventType } from "@/types";
+import { DEFAULT_WORKSPACE_ID } from "@/types";
 import type { ActionResult } from "./leads";
 
 /** Only these four placement results have a dedicated event type -- "NotTested"/"Unknown" are the
@@ -58,7 +59,7 @@ export async function recordManualPlacementResultAction(formData: FormData): Pro
     return { success: false, message: parsed.error.issues[0]?.message ?? "Invalid placement result." };
   }
 
-  const campaign = await getCampaign(parsed.data.campaignId);
+  const campaign = await getCampaign(parsed.data.campaignId, DEFAULT_WORKSPACE_ID);
   if (!campaign) {
     return { success: false, message: `Unknown campaign "${parsed.data.campaignId}".` };
   }

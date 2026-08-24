@@ -1,8 +1,9 @@
 import type { UnknownSender } from "@/types";
+import { DEFAULT_WORKSPACE_ID } from "@/types";
 
 const daysAgo = (n: number) => new Date(Date.now() - n * 86_400_000).toISOString();
 
-export const MOCK_UNKNOWN_SENDERS: UnknownSender[] = [
+const RAW_MOCK_UNKNOWN_SENDERS: Omit<UnknownSender, "workspaceId">[] = [
   {
     timestamp: daysAgo(2),
     fromEmail: "marketing-noreply@somevendor.com",
@@ -31,3 +32,5 @@ export const MOCK_UNKNOWN_SENDERS: UnknownSender[] = [
     rowNumber: 4,
   },
 ];
+
+export const MOCK_UNKNOWN_SENDERS: UnknownSender[] = RAW_MOCK_UNKNOWN_SENDERS.map((s) => ({ ...s, workspaceId: DEFAULT_WORKSPACE_ID }));

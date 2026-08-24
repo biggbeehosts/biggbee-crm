@@ -14,7 +14,12 @@ import { getUnknownSenders } from "@/lib/data/repository";
 import { deleteSenderRecord } from "@/lib/data/unknown-senders-mutations";
 import { getEvents, deleteTestEvents } from "@/lib/data/analytics-events-store";
 import { getErrors, getLeadMemory } from "@/lib/data/repository";
+import { DEFAULT_WORKSPACE_ID } from "@/types";
 import type { ActionResult } from "./leads";
+
+// Phase A: every data-management action runs as the default (Biggbee) workspace until Phase B
+// introduces a real session-resolved activeWorkspaceId -- see types/workspace.ts.
+const WORKSPACE_ID = DEFAULT_WORKSPACE_ID;
 
 /**
  * What "test data" means across this CRM's real stores, and exactly how much of it this pass can
@@ -41,11 +46,11 @@ async function computePreview(): Promise<{
   testCampaignIds: Set<string>;
 }> {
   const [leads, campaigns, senders, memory, errors] = await Promise.all([
-    getLeads(),
-    getCampaigns(),
-    getUnknownSenders(),
-    getLeadMemory(),
-    getErrors(),
+    getLeads(WORKSPACE_ID),
+    getCampaigns(WORKSPACE_ID),
+    getUnknownSenders(WORKSPACE_ID),
+    getLeadMemory(WORKSPACE_ID),
+    getErrors(WORKSPACE_ID),
   ]);
   const wideRange = { from: new Date(0).toISOString(), to: new Date().toISOString() };
   const events = await getEvents(wideRange);
@@ -99,7 +104,7 @@ export async function cleanTestDataAction(confirmPhrase: string): Promise<CleanT
   const results: Record<string, { deleted: number; failed: number }> = {};
 
   // Leads
-  const { deleted: deletedLeads, failed: failedLeads } = await bulkDeleteLeads(Array.from(testLeadEmails));
+  const { deleted: deletedLeads, failed: failedLeads } = await bulkDeleteLeads(WORKSPACE_ID, Array.from(testLeadEmails));
   results.leads = { deleted: deletedLeads.length, failed: failedLeads.length };
 
   // Campaigns
@@ -107,7 +112,7 @@ export async function cleanTestDataAction(confirmPhrase: string): Promise<CleanT
   let campaignFailed = 0;
   for (const id of testCampaignIds) {
     try {
-      await deleteCampaignById(id);
+      await deleteCampaignById(id, WORKSPACE_ID);
       campaignDeleted++;
     } catch {
       campaignFailed++;
@@ -116,7 +121,7 @@ export async function cleanTestDataAction(confirmPhrase: string): Promise<CleanT
   results.campaigns = { deleted: campaignDeleted, failed: campaignFailed };
 
   // Unknown Senders
-  const senders = await getUnknownSenders();
+  const senders = await getUnknownSenders(WORKSPACE_ID);
   let senderDeleted = 0;
   let senderFailed = 0;
   for (const s of senders.filter((s) => testLeadEmails.has(s.fromEmail))) {
@@ -193,6 +198,14 @@ export interface ResetCrmDataResult extends ActionResult {
  * environment secrets (Google/n8n/Cloudinary/SMTP/webhook), Website Registry, Demo Library,
  * Knowledge Base cache, n8n workflows, and the audit log itself (so the reset's own record
  * survives it).
+ *
+ * PHASE A WARNING -- not yet workspace-scoped: clearTabDataRows clears every data row of the
+ * whole tab, not just one workspace's rows (unlike the isTest-only cleanTestDataAction above,
+ * which already is). This is safe today because only the Biggbee workspace's data exists in
+ * these tabs. It becomes a real cross-workspace risk (an admin working in Workspace B's context
+ * could wipe Biggbee's production rows too, or vice versa) the moment a second workspace's rows
+ * coexist here -- this must be redesigned to selectively delete only the active workspace's rows
+ * before Phase G ever ships a second live workspace using the same tabs.
  */
 export async function resetCrmDataAction(password: string, confirmPhrase: string, finalConfirm: boolean): Promise<ResetCrmDataResult> {
   const actor = await requireAdmin();

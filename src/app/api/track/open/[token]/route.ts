@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getLeads } from "@/lib/data/repository";
+import { findLeadByTrackingToken } from "@/lib/data/repository";
 import { getCampaign } from "@/lib/data/campaigns-store";
 import { updateLeadFields } from "@/lib/data/leads-mutations";
 import { recordEvent } from "@/lib/data/analytics-events-store";
@@ -42,11 +42,10 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ toke
     const trimmed = (token || "").replace(/\.(gif|png)$/i, "").trim();
     if (!trimmed) return pixelResponse();
 
-    const leads = await getLeads();
-    const lead = leads.find((l) => l.trackingToken === trimmed);
+    const lead = await findLeadByTrackingToken(trimmed);
     if (!lead) return pixelResponse(); // Unknown/stale token -- never error, never leak validity.
 
-    const campaign = lead.campaignId ? await getCampaign(lead.campaignId) : undefined;
+    const campaign = lead.campaignId ? await getCampaign(lead.campaignId, lead.workspaceId) : undefined;
     if (campaign && !campaign.openTrackingEnabled) return pixelResponse();
 
     const ipHash = hashIp(req);
@@ -80,7 +79,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ toke
 
     // Best-effort rollup write-back -- never blocks or fails the pixel response (fire-and-forget,
     // errors swallowed; Sheets being briefly unavailable must never break email rendering).
-    updateLeadFields(lead.email, {
+    updateLeadFields(lead.workspaceId, lead.email, {
       openCount: (lead.openCount ?? 0) + 1,
       firstOpenedAt: lead.firstOpenedAt ?? at,
       lastOpenedAt: at,

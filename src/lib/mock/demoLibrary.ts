@@ -1,6 +1,7 @@
 import type { DemoRecord } from "@/types";
+import { DEFAULT_WORKSPACE_ID } from "@/types";
 
-export const MOCK_DEMO_LIBRARY: DemoRecord[] = [
+const RAW_MOCK_DEMO_LIBRARY: Omit<DemoRecord, "workspaceId">[] = [
   {
     demoId: "demo-000001",
     name: "Lead Generation Agent",
@@ -173,3 +174,5 @@ export const MOCK_DEMO_LIBRARY: DemoRecord[] = [
     updatedAt: "2025-06-01T00:00:00.000Z",
   },
 ];
+
+export const MOCK_DEMO_LIBRARY: DemoRecord[] = RAW_MOCK_DEMO_LIBRARY.map((d) => ({ ...d, workspaceId: DEFAULT_WORKSPACE_ID }));

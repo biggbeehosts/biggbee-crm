@@ -12,6 +12,11 @@ import { leadEligibleForCampaignRun } from "@/lib/calculations/campaign-match";
 import { requireAdmin } from "@/lib/auth/require-admin";
 import { logAudit } from "@/lib/audit/log";
 import { recordEvent } from "@/lib/data/analytics-events-store";
+import { DEFAULT_WORKSPACE_ID } from "@/types";
+
+// Phase A: every n8n trigger action runs as the default (Biggbee) workspace until Phase B
+// introduces a real session-resolved activeWorkspaceId -- see types/workspace.ts.
+const WORKSPACE_ID = DEFAULT_WORKSPACE_ID;
 
 /** Which trigger actions the UI may call (status and sync go through their own paths). */
 const TRIGGERABLE: N8nActionKey[] = ["runCampaign", "pauseCampaign", "resumeCampaign", "refreshKb", "retryFailed"];
@@ -43,7 +48,7 @@ async function restoreLeads(emails: string[], previousByEmail: Map<string, { cam
   let restored = 0;
   for (const [key, groupEmails] of groups) {
     const [prevCampaignId, prevCampaignName] = key.split("\u0000");
-    const { updated } = await bulkUpdateLeadFields(groupEmails, { campaignId: prevCampaignId, campaignName: prevCampaignName });
+    const { updated } = await bulkUpdateLeadFields(WORKSPACE_ID, groupEmails, { campaignId: prevCampaignId, campaignName: prevCampaignName });
     restored += updated.length;
   }
   return restored;
@@ -76,7 +81,7 @@ export async function triggerN8nAction(action: N8nActionKey, params: TriggerActi
   // needed; the next scheduled/triggered run picks these leads up naturally.
   if (action === "retryFailed") {
     try {
-      const count = await retryFailedLeads();
+      const count = await retryFailedLeads(WORKSPACE_ID);
       await logAudit({ actor, action: "n8n.retryFailed", success: true, details: { count } });
       refreshAllData();
       revalidatePath("/", "layout");
@@ -115,7 +120,7 @@ export async function triggerN8nAction(action: N8nActionKey, params: TriggerActi
       await logAudit({ actor, action: "n8n.runCampaign", success: false, details: { error: message } });
       return { success: false, message };
     }
-    const campaign = await getCampaign(campaignId);
+    const campaign = await getCampaign(campaignId, WORKSPACE_ID);
     if (!campaign) {
       const message = `Unknown campaign "${campaignId}". Refresh and try again.`;
       await logAudit({ actor, action: "n8n.runCampaign", success: false, target: campaignId, details: { error: message } });
@@ -138,7 +143,7 @@ export async function triggerN8nAction(action: N8nActionKey, params: TriggerActi
     // already excludes leads claimed by a DIFFERENT campaign, so nothing below can ever overwrite
     // another campaign's lead -- every eligible lead's Campaign ID is either blank or already this
     // campaign's.
-    const leads = await getLeads();
+    const leads = await getLeads(WORKSPACE_ID);
     const eligibleLeads = leads.filter((l) => leadEligibleForCampaignRun(l, campaign));
     const alreadyAssigned = eligibleLeads.filter((l) => l.campaignId === campaign.id);
     const toClaim = eligibleLeads.filter((l) => l.campaignId !== campaign.id);
@@ -149,6 +154,7 @@ export async function triggerN8nAction(action: N8nActionKey, params: TriggerActi
 
     if (toClaim.length > 0) {
       const { updated, failed } = await bulkUpdateLeadFields(
+        WORKSPACE_ID,
         toClaim.map((l) => l.email),
         { campaignId: campaign.id, campaignName: campaign.name }
       );

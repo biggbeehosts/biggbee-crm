@@ -104,8 +104,10 @@ export async function fetchSheetRows(tabName: string): Promise<string[][]> {
   try {
     const res = await sheets.spreadsheets.values.get({
       spreadsheetId: env.sheetId,
-      // A:AZ covers the current 26 Leads columns with headroom for columns added later.
-      range: `${tabName}!A1:AZ10000`,
+      // Leads alone is already at 53 columns (Phase A's "Workspace ID" pushed it past the old
+      // "AZ" (52-column) cap, which silently dropped that column from every read -- see Phase A
+      // report). ZZ (702 columns) is comfortable headroom for any tab's real column growth.
+      range: `${tabName}!A1:ZZ10000`,
     });
     return (res.data.values as string[][] | undefined) ?? [];
   } catch (err) {

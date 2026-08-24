@@ -8,7 +8,12 @@ import { logAudit } from "@/lib/audit/log";
 import { invalidateCache } from "@/lib/data/cache";
 import type { Campaign, CampaignStatus, DemoSelectionMode } from "@/types";
 import { getDemo } from "@/lib/data/demo-library-store";
+import { DEFAULT_WORKSPACE_ID } from "@/types";
 import type { ActionResult } from "./leads";
+
+// Phase A: every campaign action runs as the default (Biggbee) workspace until Phase B
+// introduces a real session-resolved activeWorkspaceId -- see types/workspace.ts.
+const WORKSPACE_ID = DEFAULT_WORKSPACE_ID;
 
 const CampaignSchema = z.object({
   id: z.string().optional(),
@@ -79,18 +84,19 @@ export async function saveCampaignAction(formData: FormData): Promise<ActionResu
   if (parsed.data.attachDemo && parsed.data.demoSelectionMode === "Exact") {
     const demoId = (parsed.data.demoId ?? "").trim();
     if (!demoId) return { success: false, message: "Exact mode requires selecting a demo." };
-    const demo = await getDemo(demoId);
+    const demo = await getDemo(demoId, WORKSPACE_ID);
     if (!demo) return { success: false, message: `Unknown demo "${demoId}".` };
     if (!demo.active) return { success: false, message: `"${demo.name || demo.demoType}" is inactive — choose an active demo or a different mode.` };
   }
 
   try {
-    const existing = parsed.data.id ? await getCampaign(parsed.data.id) : undefined;
+    const existing = parsed.data.id ? await getCampaign(parsed.data.id, WORKSPACE_ID) : undefined;
     const isNew = !existing;
     // Campaign ID is assigned once, on creation, and never changes on rename/edit -- an edit
     // always carries the existing id in `parsed.data.id` (see the hidden form field).
     const campaign: Campaign = {
       id: parsed.data.id ?? (await generateNextCampaignId()),
+      workspaceId: WORKSPACE_ID,
       name: parsed.data.name,
       status: parsed.data.status,
       country: parsed.data.country,
@@ -138,7 +144,7 @@ export async function saveCampaignAction(formData: FormData): Promise<ActionResu
 export async function setCampaignStatusAction(id: string, status: CampaignStatus): Promise<ActionResult> {
   const actor = await requireAdmin();
   try {
-    const campaign = await getCampaign(id);
+    const campaign = await getCampaign(id, WORKSPACE_ID);
     if (!campaign) return { success: false, message: "Campaign not found." };
     await upsertCampaign({ ...campaign, status, updatedAt: new Date().toISOString() });
     invalidateCache();
@@ -158,7 +164,7 @@ export async function setCampaignStatusAction(id: string, status: CampaignStatus
 export async function duplicateCampaignAction(id: string): Promise<ActionResult> {
   const actor = await requireAdmin();
   try {
-    const source = await getCampaign(id);
+    const source = await getCampaign(id, WORKSPACE_ID);
     if (!source) return { success: false, message: "Campaign not found." };
     const copy: Campaign = {
       ...source,
@@ -183,8 +189,8 @@ export async function duplicateCampaignAction(id: string): Promise<ActionResult>
 export async function deleteCampaignAction(id: string): Promise<ActionResult> {
   const actor = await requireAdmin();
   try {
-    const campaign = await getCampaign(id);
-    await deleteCampaignById(id);
+    const campaign = await getCampaign(id, WORKSPACE_ID);
+    await deleteCampaignById(id, WORKSPACE_ID);
     invalidateCache();
     revalidatePath("/campaigns");
     revalidatePath("/dashboard");

@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import type { DemoRecord } from "@/types";
+import { DEFAULT_WORKSPACE_ID } from "@/types";
 import { getDemoLibrary } from "@/lib/data/demo-library-store";
 import { computeDemoValidationStatus } from "@/lib/utils/cloudinary";
 import { readCollection, writeCollection } from "@/lib/store/json-store";
@@ -47,7 +48,7 @@ export interface DemoLibraryRefreshResult {
  * DemoRecord, and computeDemoValidationStatus classifies rather than throws.
  */
 export async function refreshDemoLibraryAction(): Promise<DemoLibraryRefreshResult> {
-  const demos = await getDemoLibrary();
+  const demos = await getDemoLibrary(DEFAULT_WORKSPACE_ID);
   const previous = readCollection<Record<string, string>>(SNAPSHOT_COLLECTION, {});
 
   let newCount = 0;

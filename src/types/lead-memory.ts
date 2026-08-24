@@ -1,4 +1,7 @@
 export interface LeadMemory {
+  /** Which workspace this memory row belongs to -- combined with `email`, the real key (same
+   *  address may exist independently per workspace, see types/lead.ts). */
+  workspaceId: string;
   email: string;
   servicesDiscussed?: string;
   painPoints?: string;

@@ -88,19 +88,43 @@ async function ensureLeadsTestColumn(): Promise<void> {
   leadsTestColumnEnsured = true;
 }
 
-/** Always reads fresh (bypasses the 60s cache) -- used immediately before a targeted write so the
- *  row number and optimistic-concurrency check reflect the true current state of the sheet. */
-async function findLeadRowUncached(email: string): Promise<Lead | undefined> {
+/** Phase A: the "Workspace ID" column, same additive pattern as every column above. */
+const WORKSPACE_LEAD_HEADERS = ["Workspace ID"];
+let leadsWorkspaceColumnEnsured = false;
+async function ensureLeadsWorkspaceColumn(): Promise<void> {
+  if (leadsWorkspaceColumnEnsured) return;
+  if (await tabExists(SHEET_TAB_NAMES.leads)) {
+    await ensureTabWithHeaders(SHEET_TAB_NAMES.leads, WORKSPACE_LEAD_HEADERS);
+  }
+  leadsWorkspaceColumnEnsured = true;
+}
+
+/**
+ * Real primary key for a lead row: workspaceId + normalized email, never email alone. The same
+ * address may legitimately exist once per workspace (two brands independently marketing to the
+ * same company) -- every lookup/mutation below matches on both, so a Workspace B operation can
+ * never find, and therefore never touch, Workspace A's row for that address (or vice versa).
+ *
+ * Always reads fresh (bypasses the 60s cache) -- used immediately before a targeted write so the
+ * row number and optimistic-concurrency check reflect the true current state of the sheet.
+ */
+async function findLeadRowUncached(workspaceId: string, email: string): Promise<Lead | undefined> {
   const rows = await fetchSheetRows(SHEET_TAB_NAMES.leads);
   const objects = rowsToObjects(rows);
-  const target = email.trim().toLowerCase();
-  const index = objects.findIndex((row) => (row.Email ?? "").trim().toLowerCase() === target);
+  const targetEmail = email.trim().toLowerCase();
+  const targetWorkspace = workspaceId.trim();
+  const index = objects.findIndex((row) => {
+    const rowEmail = (row.Email ?? "").trim().toLowerCase();
+    const rowWorkspace = (row["Workspace ID"] ?? "").trim() || "biggbee"; // see normalize.ts pickWorkspaceId
+    return rowEmail === targetEmail && rowWorkspace === targetWorkspace;
+  });
   if (index === -1) return undefined;
   return normalizeLead(objects[index], index);
 }
 
 function leadToRow(lead: Partial<Lead>): Record<string, string> {
   const row: Record<string, string> = {};
+  if (lead.workspaceId !== undefined) row["Workspace ID"] = lead.workspaceId;
   if (lead.name !== undefined) row.Name = lead.name;
   if (lead.company !== undefined) row.Company = lead.company;
   if (lead.email !== undefined) row.Email = lead.email;
@@ -209,11 +233,14 @@ export interface LeadEditableFields {
   isTest?: boolean;
 }
 
+/** `lead.workspaceId` is required (see types/lead.ts) -- there is no way to create a lead without
+ *  deciding which workspace it belongs to. */
 export async function createLead(lead: Lead): Promise<void> {
   if (getDataMode() === "mock") {
     addMockLead(lead);
     return;
   }
+  await ensureLeadsWorkspaceColumn();
   if (lead.campaignId !== undefined) await ensureLeadsCampaignIdColumn();
   if (touchesExtendedColumns(lead)) await ensureExtendedLeadColumns();
   if (touchesDemoColumns(lead)) await ensureLeadsDemoColumns();
@@ -223,9 +250,12 @@ export async function createLead(lead: Lead): Promise<void> {
   invalidateCache();
 }
 
-export async function updateLeadFields(email: string, fields: LeadEditableFields): Promise<void> {
+/** workspaceId is mandatory and is part of the match key alongside email -- see
+ *  findLeadRowUncached's doc comment. There is deliberately no overload that accepts email alone:
+ *  every caller must already know which workspace's lead it means to change. */
+export async function updateLeadFields(workspaceId: string, email: string, fields: LeadEditableFields): Promise<void> {
   if (getDataMode() === "mock") {
-    updateMockLead(email, fields);
+    updateMockLead(workspaceId, email, fields);
     return;
   }
   if (fields.campaignId !== undefined) await ensureLeadsCampaignIdColumn();
@@ -233,25 +263,29 @@ export async function updateLeadFields(email: string, fields: LeadEditableFields
   if (touchesDemoColumns(fields)) await ensureLeadsDemoColumns();
   if (touchesTrackingColumns(fields)) await ensureLeadsTrackingColumns();
   if (fields.isTest !== undefined) await ensureLeadsTestColumn();
-  const current = await findLeadRowUncached(email);
-  if (!current?.rowNumber) throw new Error(`Lead "${email}" was not found in the Leads sheet.`);
+  const current = await findLeadRowUncached(workspaceId, email);
+  if (!current?.rowNumber) throw new Error(`Lead "${email}" was not found in workspace "${workspaceId}".`);
   await updateRowFields(SHEET_TAB_NAMES.leads, current.rowNumber, leadToRow(fields), { header: "Email", value: current.email });
   invalidateCache();
 }
 
-export async function updateLeadStatus(email: string, status: LeadStatus): Promise<void> {
-  return updateLeadFields(email, { status });
+export async function updateLeadStatus(workspaceId: string, email: string, status: LeadStatus): Promise<void> {
+  return updateLeadFields(workspaceId, email, { status });
 }
 
-/** Bulk approve/reject from the Scraped Leads review queue. Best-effort per row -- one failure
- *  (e.g. a row edited/removed elsewhere since the page loaded) doesn't abort the rest; failures
- *  are returned so the caller can report exactly which emails didn't update. */
-export async function bulkUpdateLeadStatus(emails: string[], status: LeadStatus): Promise<{ updated: string[]; failed: { email: string; error: string }[] }> {
+/** Bulk approve/reject. Best-effort per row -- one failure (e.g. a row edited/removed elsewhere
+ *  since the page loaded) doesn't abort the rest; failures are returned so the caller can report
+ *  exactly which emails didn't update. All emails are resolved within the same workspace. */
+export async function bulkUpdateLeadStatus(
+  workspaceId: string,
+  emails: string[],
+  status: LeadStatus
+): Promise<{ updated: string[]; failed: { email: string; error: string }[] }> {
   const updated: string[] = [];
   const failed: { email: string; error: string }[] = [];
   for (const email of emails) {
     try {
-      await updateLeadStatus(email, status);
+      await updateLeadStatus(workspaceId, email, status);
       updated.push(email);
     } catch (err) {
       failed.push({ email, error: err instanceof Error ? err.message : "Failed to update status." });
@@ -266,6 +300,7 @@ export async function bulkUpdateLeadStatus(emails: string[], status: LeadStatus)
  *  implementation per action. Same best-effort-per-row contract: one row's failure never aborts
  *  the rest, and every outcome (not just successes) is returned so nothing fails silently. */
 export async function bulkUpdateLeadFields(
+  workspaceId: string,
   emails: string[],
   fields: LeadEditableFields
 ): Promise<{ updated: string[]; failed: { email: string; error: string }[] }> {
@@ -273,7 +308,7 @@ export async function bulkUpdateLeadFields(
   const failed: { email: string; error: string }[] = [];
   for (const email of emails) {
     try {
-      await updateLeadFields(email, fields);
+      await updateLeadFields(workspaceId, email, fields);
       updated.push(email);
     } catch (err) {
       failed.push({ email, error: err instanceof Error ? err.message : "Failed to update lead." });
@@ -282,14 +317,13 @@ export async function bulkUpdateLeadFields(
   return { updated, failed };
 }
 
-/** Bulk delete from the Scraped Leads review queue. Same best-effort-per-row contract as
- *  bulkUpdateLeadStatus. */
-export async function bulkDeleteLeads(emails: string[]): Promise<{ deleted: string[]; failed: { email: string; error: string }[] }> {
+/** Bulk delete. Same best-effort-per-row contract as bulkUpdateLeadStatus. */
+export async function bulkDeleteLeads(workspaceId: string, emails: string[]): Promise<{ deleted: string[]; failed: { email: string; error: string }[] }> {
   const deleted: string[] = [];
   const failed: { email: string; error: string }[] = [];
   for (const email of emails) {
     try {
-      await deleteLead(email);
+      await deleteLead(workspaceId, email);
       deleted.push(email);
     } catch (err) {
       failed.push({ email, error: err instanceof Error ? err.message : "Failed to delete lead." });
@@ -299,14 +333,16 @@ export async function bulkDeleteLeads(emails: string[]): Promise<{ deleted: stri
 }
 
 /**
- * Resets every "Failed" lead back to "New" so the next scheduled/triggered run picks them up
- * again. Pure Sheets write -- no n8n workflow change needed. Returns how many rows were reset.
+ * Resets every "Failed" lead in this workspace back to "New" so the next scheduled/triggered run
+ * picks them up again. Scoped to workspaceId so retrying Workspace A never touches Workspace B's
+ * failed leads. Pure Sheets write -- no n8n workflow change needed. Returns how many rows were
+ * reset.
  */
-export async function retryFailedLeads(): Promise<number> {
+export async function retryFailedLeads(workspaceId: string): Promise<number> {
   if (getDataMode() === "mock") {
     const { getMockLeads, updateMockLead } = await import("./mock-store");
-    const failed = getMockLeads().filter((l) => l.status === "Failed");
-    failed.forEach((l) => updateMockLead(l.email, { status: "New" }));
+    const failed = getMockLeads(workspaceId).filter((l) => l.status === "Failed");
+    failed.forEach((l) => updateMockLead(workspaceId, l.email, { status: "New" }));
     return failed.length;
   }
 
@@ -314,7 +350,7 @@ export async function retryFailedLeads(): Promise<number> {
   const objects = rowsToObjects(rows);
   const failedRows = objects
     .map((row, i) => normalizeLead(row, i))
-    .filter((lead) => lead.status === "Failed" && lead.rowNumber);
+    .filter((lead) => lead.workspaceId === workspaceId && lead.status === "Failed" && lead.rowNumber);
 
   for (const lead of failedRows) {
     await updateRowFields(SHEET_TAB_NAMES.leads, lead.rowNumber!, { Status: "New" }, { header: "Email", value: lead.email });
@@ -323,13 +359,13 @@ export async function retryFailedLeads(): Promise<number> {
   return failedRows.length;
 }
 
-export async function deleteLead(email: string): Promise<void> {
+export async function deleteLead(workspaceId: string, email: string): Promise<void> {
   if (getDataMode() === "mock") {
-    deleteMockLead(email);
+    deleteMockLead(workspaceId, email);
     return;
   }
-  const current = await findLeadRowUncached(email);
-  if (!current?.rowNumber) throw new Error(`Lead "${email}" was not found in the Leads sheet.`);
+  const current = await findLeadRowUncached(workspaceId, email);
+  if (!current?.rowNumber) throw new Error(`Lead "${email}" was not found in workspace "${workspaceId}".`);
   await deleteSheetRow(SHEET_TAB_NAMES.leads, current.rowNumber);
   invalidateCache();
 }

@@ -30,6 +30,9 @@ export const CAMPAIGN_ID_PATTERN = /^CMP-\d{6,}$/;
 export interface Campaign {
   /** Stable, unique, never changes on rename/edit. Format CMP-000001 (see CAMPAIGN_ID_PATTERN). */
   id: string;
+  /** Which workspace owns this campaign (see types/workspace.ts). A campaign belongs to exactly
+   *  one workspace; every read/write must be scoped or ownership-checked by this field. */
+  workspaceId: string;
   name: string;
   status: CampaignStatus;
   country?: string;
