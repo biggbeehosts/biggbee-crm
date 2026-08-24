@@ -11,8 +11,8 @@ export const DEMO_SELECTION_MODES: DemoSelectionMode[] = ["Exact", "Automatic", 
 export const CAMPAIGN_ID_PATTERN = /^CMP-\d{6,}$/;
 
 /**
- * A campaign is the stable unit every lead, scraper job, demo choice, outreach run, and result is
- * linked through via `id` (the Campaign ID). It does NOT run outreach itself -- it defines what
+ * A campaign is the stable unit every lead, demo choice, outreach run, and result is linked
+ * through via `id` (the Campaign ID). It does NOT run outreach itself -- it defines what
  * the current n8n outreach run should focus on, and lets the operator preview exactly which leads
  * are eligible before anything is sent. A lead becomes eligible for a run by matching this
  * campaign's TARGETING fields only -- Country, Industry, Business Type, and Lead Generation Type
@@ -72,9 +72,9 @@ export interface Campaign {
    *  uses that site's knowledge base instead of the default (Biggbee's own); when unset, behavior
    *  is unchanged from before this field existed (falls back to the default KB). */
   websiteId?: string;
-  /** Additive "Is Test" column -- when true, leads imported by a scraper run under this campaign
-   *  inherit isTest=true at creation (see leads-mutations.ts), and dashboard/analytics metrics
-   *  exclude this campaign's leads by default. Missing/blank on any row written before this column
+  /** Additive "Is Test" column -- when true, leads created under this campaign inherit
+   *  isTest=true at creation (see leads-mutations.ts), and dashboard/analytics metrics exclude
+   *  this campaign's leads by default. Missing/blank on any row written before this column
    *  existed reads as `false` -- see normalizeCampaign. Never inferred from the campaign's name. */
   isTest: boolean;
   /** Read-only, derived at load time -- true only when the raw "Is Test" cell is genuinely blank

@@ -8,7 +8,6 @@ const CATEGORY_LABEL: Record<string, string> = {
   storage: "Storage",
   "workflow-engine": "Workflow Engine",
   spreadsheet: "Spreadsheet",
-  scraping: "Scraping",
   ai: "AI",
   email: "Email",
 };
@@ -46,7 +45,7 @@ export default async function IntegrationsPage() {
       <Card level={2} className="mt-4 flex items-start gap-2.5 p-4">
         <Plug className="mt-0.5 h-4 w-4 shrink-0 text-text-tertiary" />
         <p className="text-xs text-text-tertiary">
-          Apify, OpenAI, and SMTP run entirely inside n8n&apos;s own workflows today -- the CRM holds no credential for them, so there is nothing to
+          OpenAI and SMTP run entirely inside n8n&apos;s own workflows today -- the CRM holds no credential for them, so there is nothing to
           check here yet. Adding a direct integration later is a new adapter implementing the same <code>ProviderAdapter</code> interface, not a
           change to this page.
         </p>

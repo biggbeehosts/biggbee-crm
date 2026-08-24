@@ -80,9 +80,6 @@ export const SHEET_TAB_NAMES = {
   // New tab, created on first write via ensureTabWithHeaders() -- not part of the six tabs the
   // n8n workflow maintains, owned entirely by the CRM.
   campaigns: process.env.SHEET_TAB_CAMPAIGNS || "Campaigns",
-  // Scraping job records (Change 2) -- created/updated by the CRM after each scraper run
-  // completes, never written by n8n directly.
-  scrapingJobs: process.env.SHEET_TAB_SCRAPING_JOBS || "Scraping_Jobs",
   // Website Registry (Stage 6, Part 8/9) -- CRM-owned, source of truth for what the generic
   // n8n crawler subflow iterates over. n8n reads this tab; only the CRM writes to it.
   websites: process.env.SHEET_TAB_WEBSITES || "Websites",

@@ -54,7 +54,6 @@ export function normalizeLead(row: Row, index: number): Lead {
     location: pick(row, "Location") || undefined,
     targetService: pick(row, "Target Service", "TargetService") || undefined,
     source: pick(row, "Source") || undefined,
-    scraperJobId: pick(row, "Scraper Job ID", "ScraperJobID") || undefined,
     createdAt: pick(row, "Created At", "CreatedAt") || undefined,
     messageId: pick(row, "Message ID") || undefined,
     trackingToken: pick(row, "Tracking Token") || undefined,

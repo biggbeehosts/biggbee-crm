@@ -33,7 +33,6 @@ export interface AnalyticsFilterValues {
   subjectVariant?: string;
   emailStyle?: string;
   recipientDomain?: string;
-  scraperJobId?: string;
   senderDomain?: string;
 }
 
@@ -58,7 +57,6 @@ export function AnalyticsFilters({
     industries: CountPoint[];
     businessTypes: CountPoint[];
     targetServices: CountPoint[];
-    scraperJobs: CountPoint[];
     senderDomains: CountPoint[];
   };
   recipientDomains: string[];
@@ -158,9 +156,6 @@ export function AnalyticsFilters({
               </option>
             ))}
           </Select>
-        </Field>
-        <Field label="Scraper">
-          <OptionSelect value={values.scraperJobId} options={dimensions.scraperJobs} onChange={(v) => setParam("scraperJobId", v)} allLabel="All scrapers" />
         </Field>
         <Field label="Subject variant">
           <Select value={values.subjectVariant ?? "all"} onChange={(e) => setParam("subjectVariant", e.target.value)}>

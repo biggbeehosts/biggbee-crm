@@ -2,8 +2,8 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { Bot, Send, Activity, BookOpen, MessageCircle, ExternalLink, Power, PowerOff, RefreshCw, Wifi, Download, Copy, FileJson, Hash, Timer } from "lucide-react";
-import type { Campaign, Lead, ScraperAgent, WorkflowCardModel } from "@/types";
+import { Send, Activity, BookOpen, MessageCircle, ExternalLink, Power, PowerOff, RefreshCw, Wifi, Download, Copy, FileJson, Hash, Timer } from "lucide-react";
+import type { Campaign, Lead, WorkflowCardModel } from "@/types";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -27,11 +27,9 @@ import { ExecutionsDrawer } from "./executions-drawer";
 import { ContractValidationDialog } from "./contract-validation-dialog";
 import { ReplaceAssignmentDialog } from "./replace-assignment-dialog";
 import { AdvancedPanelDialog } from "./advanced-panel-dialog";
-import { DryRunTestDialog } from "./dry-run-test-dialog";
-import { RunScraperDialog } from "@/components/scrapers/run-scraper-dialog";
-import { StartOutreachDialog } from "@/components/scrapers/start-outreach-dialog";
+import { StartOutreachDialog } from "./start-outreach-dialog";
 
-const PURPOSE_ICON = { Scraper: Bot, Outreach: Send, Status: Activity, "Knowledge Base": BookOpen, "Reply Processing": MessageCircle } as const;
+const PURPOSE_ICON = { Outreach: Send, Status: Activity, "Knowledge Base": BookOpen, "Reply Processing": MessageCircle } as const;
 
 const CONNECTION_VARIANT = { connected: "lime", error: "danger", unknown: "outline", unconfigured: "warning" } as const;
 
@@ -46,7 +44,6 @@ export function WorkflowIntegrationCard({
   card,
   n8nEditorUrl,
   advancedEnabled,
-  scraperExtras,
   outreachExtras,
   kbSyncConfigured,
 }: {
@@ -54,12 +51,10 @@ export function WorkflowIntegrationCard({
   card: WorkflowCardModel;
   n8nEditorUrl: string | null;
   advancedEnabled: boolean;
-  scraperExtras?: { agent: ScraperAgent; campaigns: Campaign[]; countries: string[] };
-  /** Stage 6, Part 5 "Run" for the Outreach card -- reuses the same campaign-gated
-   *  StartOutreachDialog the Scraped Leads review queue already uses; never a bare trigger. */
+  /** "Run" for the Outreach card -- the campaign-gated StartOutreachDialog; never a bare trigger. */
   outreachExtras?: { campaigns: Campaign[]; leads: Lead[]; runCampaignConfigured: boolean };
-  /** Stage 6, Part 5 "Sync" for the Knowledge Base card -- reuses the existing refreshKb webhook
-   *  action, undefined when this card isn't the Knowledge Base purpose. */
+  /** "Sync" for the Knowledge Base card -- reuses the existing refreshKb webhook action, undefined
+   *  when this card isn't the Knowledge Base purpose. */
   kbSyncConfigured?: boolean;
 }) {
   const router = useRouter();
@@ -199,16 +194,10 @@ export function WorkflowIntegrationCard({
         )}
         <ContractValidationDialog kind={kind} id={card.id} />
         <SchemaDialog inputSchema={card.expectedInputSchema} outputSchema={card.expectedOutputSchema} />
-        {kind === "scraper" && scraperExtras && (
-          <>
-            <RunScraperDialog agent={scraperExtras.agent} campaigns={scraperExtras.campaigns} countries={scraperExtras.countries} />
-            <DryRunTestDialog agent={scraperExtras.agent} campaigns={scraperExtras.campaigns} countries={scraperExtras.countries} />
-          </>
-        )}
-        {kind === "integration" && card.purpose === "Outreach" && outreachExtras && (
+        {card.purpose === "Outreach" && outreachExtras && (
           <StartOutreachDialog campaigns={outreachExtras.campaigns} leads={outreachExtras.leads} runCampaignConfigured={outreachExtras.runCampaignConfigured} />
         )}
-        {kind === "integration" && card.purpose === "Knowledge Base" && kbSyncConfigured !== undefined && (
+        {card.purpose === "Knowledge Base" && kbSyncConfigured !== undefined && (
           <Button variant="ghost" size="sm" onClick={() => runN8nAction("refreshKb")} disabled={kbPendingAction !== null || !kbSyncConfigured}>
             <RefreshCw className={kbPendingAction === "refreshKb" ? "h-3.5 w-3.5 animate-spin" : "h-3.5 w-3.5"} /> {kbPendingAction === "refreshKb" ? "Syncing…" : "Sync"}
           </Button>

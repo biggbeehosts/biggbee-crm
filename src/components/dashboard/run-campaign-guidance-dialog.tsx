@@ -33,7 +33,7 @@ export function RunCampaignGuidanceDialog({
             {noCampaignSelected
               ? "Run Campaign needs a campaign selected above before it can check what's ready to send."
               : noEligibleLeads
-                ? "No eligible leads are available for this campaign yet. Add some leads or run a scraper, then try again."
+                ? "No eligible leads are available for this campaign yet. Add some leads, then try again."
                 : (readiness.blockReasons[0] ?? "This campaign isn't ready to run yet.")}
           </DialogDescription>
         </DialogHeader>

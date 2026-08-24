@@ -1,7 +1,6 @@
 import type { ComponentType } from "react";
 import Link from "next/link";
-import { Bot, Cable, Clapperboard, BookOpen, Plug, SlidersHorizontal, ArrowRight, LayoutGrid } from "lucide-react";
-import { getScraperAgents } from "@/lib/data/scraper-registry-store";
+import { Cable, Clapperboard, BookOpen, Plug, SlidersHorizontal, ArrowRight, LayoutGrid } from "lucide-react";
 import { getWorkflowIntegrations } from "@/lib/data/workflow-registry-store";
 import { getDemoLibrary } from "@/lib/data/demo-library-store";
 import { getWebsiteRegistry } from "@/lib/data/website-registry-store";
@@ -58,16 +57,12 @@ function syncedWithin(lastSyncAt: string | null, withinMs: number): boolean {
 }
 
 export default async function AutomationHubOverviewPage() {
-  const [agents, integrations, demos, websites, providers] = await Promise.all([
-    getScraperAgents(),
+  const [integrations, demos, websites, providers] = await Promise.all([
     getWorkflowIntegrations(),
     getDemoLibrary(),
     getWebsiteRegistry(),
     getAllProviderHealth(),
   ]);
-
-  const leadSources = agents.filter((a) => a.category === "Lead Source");
-  const leadSourcesConnected = leadSources.filter((a) => a.connectionStatus === "connected").length;
 
   const activeIntegrations = integrations.filter((i) => i.active).length;
 
@@ -84,19 +79,11 @@ export default async function AutomationHubOverviewPage() {
     <div>
       <PageHeader
         title="Automation Hub"
-        subtitle="The single control center for every lead-generation automation -- everything below is registry-driven, no hardcoded per-automation pages."
+        subtitle="The single control center for every outreach automation -- everything below is registry-driven, no hardcoded per-automation pages."
         icon={LayoutGrid}
         tone="lime"
       />
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
-        <HealthCard
-          href="/automation-hub/lead-sources"
-          icon={Bot}
-          title="Lead Sources"
-          primary={`${leadSources.length} registered`}
-          secondary={`${leadSourcesConnected}/${leadSources.length} connected`}
-          tone={leadSources.length > 0 && leadSourcesConnected === leadSources.length ? "lime" : "warning"}
-        />
         <HealthCard
           href="/automation-hub/workflows"
           icon={Cable}

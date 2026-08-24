@@ -23,11 +23,10 @@ export interface WebsiteRegistryEntry {
    *  cacheKey "latest") -- protected from deletion so the existing default behavior always has
    *  somewhere to resolve to. */
   isDefault: boolean;
-  /** Bare path joined onto N8N_BASE_URL, or a full same-host URL -- same shape as
-   *  ScraperAgent.startWebhookPath. Empty when this site has no dedicated sync webhook yet. */
+  /** Bare path joined onto N8N_BASE_URL, or a full same-host URL. Empty when this site has no
+   *  dedicated sync webhook yet. */
   webhookPath?: string;
-  /** Optional alternative to webhookPath: an env var *name* resolved server-side, same pattern as
-   *  ScraperAgent.startWebhookEnvVar. */
+  /** Optional alternative to webhookPath: an env var *name* resolved server-side. */
   webhookEnvVar?: string;
   syncStatus: WebsiteSyncStatus;
   lastSyncAt: string | null;

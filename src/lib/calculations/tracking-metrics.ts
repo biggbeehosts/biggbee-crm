@@ -19,7 +19,6 @@ export interface TrackingFilter {
   to: string;
   campaignId?: string;
   source?: string;
-  scraperJobId?: string;
   country?: string;
   industry?: string;
   businessType?: string;
@@ -43,7 +42,6 @@ function inRange(iso: string | null | undefined, fromMs: number, toMs: number): 
 function leadMatchesDimensionFilters(lead: Lead, filter: TrackingFilter): boolean {
   if (filter.campaignId && lead.campaignId !== filter.campaignId) return false;
   if (filter.source && lead.source !== filter.source) return false;
-  if (filter.scraperJobId && lead.scraperJobId !== filter.scraperJobId) return false;
   if (filter.country && lead.country !== filter.country) return false;
   if (filter.industry && lead.industry !== filter.industry) return false;
   if (filter.businessType && lead.businessType !== filter.businessType) return false;
@@ -62,11 +60,10 @@ function eventMatchesDimensionFilters(event: AnalyticsEvent, filter: TrackingFil
   if (filter.demoId && event.demoId !== filter.demoId) return false;
   if (filter.recipientDomain && event.recipientDomain !== filter.recipientDomain) return false;
   if (filter.senderDomain && (event.metadata?.senderDomain as string | undefined) !== filter.senderDomain) return false;
-  if (filter.source || filter.scraperJobId || filter.country || filter.industry || filter.businessType || filter.targetService) {
+  if (filter.source || filter.country || filter.industry || filter.businessType || filter.targetService) {
     const lead = event.leadId ? leadsByEmail.get(event.leadId) : undefined;
     if (!lead) return false;
     if (filter.source && lead.source !== filter.source) return false;
-    if (filter.scraperJobId && lead.scraperJobId !== filter.scraperJobId) return false;
     if (filter.country && lead.country !== filter.country) return false;
     if (filter.industry && lead.industry !== filter.industry) return false;
     if (filter.businessType && lead.businessType !== filter.businessType) return false;
@@ -133,15 +130,6 @@ export interface DomainBounceRow {
   bounceRate: number;
 }
 
-export interface ScraperPerformanceRow {
-  scraperId: string;
-  scraperName: string;
-  runs: number;
-  succeeded: number;
-  failed: number;
-  imported: number;
-}
-
 export interface TrackingSnapshot {
   kpis: TrackingKpis;
   funnel: FunnelStage[];
@@ -150,7 +138,6 @@ export interface TrackingSnapshot {
   subjectVariantPerformance: VariantPerformanceRow[];
   emailStylePerformance: VariantPerformanceRow[];
   domainBounceRates: DomainBounceRow[];
-  scraperPerformance: ScraperPerformanceRow[];
   demoEngagement: { demosSent: number; demoClicks: number };
   lastActivityAt: string | null;
 }
@@ -207,7 +194,7 @@ export function computeTrackingSnapshot(
   };
 
   const funnel: FunnelStage[] = [
-    { stage: "Scraped", count: kpis.leadsScraped },
+    { stage: "Leads", count: kpis.leadsScraped },
     { stage: "Approved", count: kpis.approvedLeads },
     { stage: "Sent", count: kpis.emailsSent },
     { stage: "Opened", count: kpis.estimatedUniqueOpens },
@@ -221,7 +208,6 @@ export function computeTrackingSnapshot(
   const subjectVariantPerformance = buildVariantPerformance(filteredEvents, (e) => e.subjectVariant);
   const emailStylePerformance = buildVariantPerformance(filteredEvents, (e) => e.emailStyleVariant);
   const domainBounceRates = buildDomainBounceRates(filteredEvents);
-  const scraperPerformance = buildScraperPerformance(filteredEvents);
   const demoEngagement = {
     demosSent: kpis.demosSent,
     demoClicks: filteredEvents.filter((e) => e.type === "click" && e.demoId).length,
@@ -240,7 +226,6 @@ export function computeTrackingSnapshot(
     subjectVariantPerformance,
     emailStylePerformance,
     domainBounceRates,
-    scraperPerformance,
     demoEngagement,
     lastActivityAt,
   };
@@ -342,26 +327,6 @@ function buildDomainBounceRates(events: AnalyticsEvent[]): DomainBounceRow[] {
     .sort((a, b) => b.bounceRate - a.bounceRate);
 }
 
-function buildScraperPerformance(events: AnalyticsEvent[]): ScraperPerformanceRow[] {
-  const byScraper = new Map<string, { name: string; runs: number; succeeded: number; failed: number; imported: number }>();
-  for (const e of events) {
-    if (e.type !== "scraper_started" && e.type !== "scraper_completed" && e.type !== "scraper_failed") continue;
-    const scraperId = (e.metadata?.scraperId as string | undefined) ?? "unknown";
-    const scraperName = (e.metadata?.scraperName as string | undefined) ?? scraperId;
-    const entry = byScraper.get(scraperId) ?? { name: scraperName, runs: 0, succeeded: 0, failed: 0, imported: 0 };
-    if (e.type === "scraper_started") entry.runs += 1;
-    if (e.type === "scraper_completed") {
-      entry.succeeded += 1;
-      entry.imported += Number(e.metadata?.importedCount ?? 0) || 0;
-    }
-    if (e.type === "scraper_failed") entry.failed += 1;
-    byScraper.set(scraperId, entry);
-  }
-  return [...byScraper.entries()]
-    .map(([scraperId, v]) => ({ scraperId, scraperName: v.name, runs: v.runs, succeeded: v.succeeded, failed: v.failed, imported: v.imported }))
-    .sort((a, b) => b.runs - a.runs);
-}
-
 export function dimensionOptions(
   leads: Lead[],
   events: AnalyticsEvent[] = []
@@ -371,7 +336,6 @@ export function dimensionOptions(
   industries: CountPoint[];
   businessTypes: CountPoint[];
   targetServices: CountPoint[];
-  scraperJobs: CountPoint[];
   senderDomains: CountPoint[];
 } {
   const uniq = (pick: (l: Lead) => string | undefined): CountPoint[] => {
@@ -395,7 +359,6 @@ export function dimensionOptions(
     industries: uniq((l) => l.industry),
     businessTypes: uniq((l) => l.businessType),
     targetServices: uniq((l) => l.targetService),
-    scraperJobs: uniq((l) => l.scraperJobId),
     senderDomains: Array.from(senderDomainMap, ([label, value]) => ({ label, value })).sort((a, b) => a.label.localeCompare(b.label)),
   };
 }

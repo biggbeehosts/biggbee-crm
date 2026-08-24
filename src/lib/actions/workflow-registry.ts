@@ -1,8 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import type { ScraperAgent, WorkflowIntegration, ContractValidationReport, PaginatedExecutions } from "@/types";
-import { getScraperAgent, recordScraperVerification, replaceScraperAssignment, rollbackScraperAssignment, updateScraperAgent } from "@/lib/data/scraper-registry-store";
+import type { WorkflowIntegration, ContractValidationReport, PaginatedExecutions } from "@/types";
 import {
   getWorkflowIntegration,
   recordIntegrationVerification,
@@ -21,10 +20,9 @@ import {
   readableAdminError,
 } from "@/lib/n8n/admin-client";
 import { backupWorkflow, readBackupRedacted } from "@/lib/n8n/backups";
-import { validateScraperContract, validateOutreachContract } from "@/lib/n8n/contract-validation";
+import { validateOutreachContract } from "@/lib/n8n/contract-validation";
 import { compareWorkflows, validateWorkflowStructure, scanForInlinedSecrets, redactWorkflowJson, type WorkflowCompareResult } from "@/lib/n8n/workflow-diff";
 import { isAllowedN8nHost, isAdvancedUpdatesEnabled } from "@/lib/n8n/config";
-import { dryRunScraperTestAction } from "@/lib/actions/scrapers";
 import { requireAdmin } from "@/lib/auth/require-admin";
 import { logAudit } from "@/lib/audit/log";
 
@@ -33,7 +31,7 @@ export interface ActionResult {
   message: string;
 }
 
-export type RegistryKind = "scraper" | "integration";
+export type RegistryKind = "integration";
 
 function revalidateWorkflowControl() {
   revalidatePath("/system/workflow-control");
@@ -41,8 +39,8 @@ function revalidateWorkflowControl() {
   revalidatePath("/automation-hub");
 }
 
-async function getEntry(kind: RegistryKind, id: string): Promise<ScraperAgent | WorkflowIntegration | undefined> {
-  return kind === "scraper" ? getScraperAgent(id) : getWorkflowIntegration(id);
+async function getEntry(id: string): Promise<WorkflowIntegration | undefined> {
+  return getWorkflowIntegration(id);
 }
 
 /** Part J.7: "invalid workflow assignment cannot be enabled." "unconfigured" means brand new or
@@ -63,8 +61,8 @@ function assertEnableAllowed(entry: { connectionStatus: string; n8nWorkflowId: s
 
 // ── Test Connection / Refresh Metadata (Part B) ─────────────────────────────────────────────
 
-async function verifyConnection(kind: RegistryKind, id: string): Promise<{ status: "connected" | "error"; versionHash: string | null; error?: string }> {
-  const entry = await getEntry(kind, id);
+async function verifyConnection(id: string): Promise<{ status: "connected" | "error"; versionHash: string | null; error?: string }> {
+  const entry = await getEntry(id);
   if (!entry) return { status: "error", versionHash: null, error: "Not found." };
   if (!entry.n8nWorkflowId.trim()) return { status: "error", versionHash: null, error: "No n8n workflow ID assigned." };
   if (!isAdminApiConfigured()) return { status: "error", versionHash: null, error: "N8N_ADMIN_API_KEY / N8N_BASE_URL is not configured." };
@@ -78,9 +76,8 @@ async function verifyConnection(kind: RegistryKind, id: string): Promise<{ statu
 
 export async function testConnectionAction(kind: RegistryKind, id: string): Promise<ActionResult> {
   const actor = await requireAdmin();
-  const result = await verifyConnection(kind, id);
-  if (kind === "scraper") await recordScraperVerification(id, { connectionStatus: result.status, currentVersionHash: result.versionHash, error: result.error });
-  else await recordIntegrationVerification(id, { connectionStatus: result.status, currentVersionHash: result.versionHash, error: result.error });
+  const result = await verifyConnection(id);
+  await recordIntegrationVerification(id, { connectionStatus: result.status, currentVersionHash: result.versionHash, error: result.error });
   await logAudit({ actor, action: "workflow_registry.test_connection", target: id, success: result.status === "connected", details: { kind, error: result.error } });
   revalidateWorkflowControl();
   return result.status === "connected" ? { success: true, message: "Connection verified." } : { success: false, message: result.error ?? "Connection failed." };
@@ -88,26 +85,24 @@ export async function testConnectionAction(kind: RegistryKind, id: string): Prom
 
 export async function refreshMetadataAction(kind: RegistryKind, id: string): Promise<ActionResult> {
   const actor = await requireAdmin();
-  const result = await verifyConnection(kind, id);
-  if (kind === "scraper") await recordScraperVerification(id, { connectionStatus: result.status, currentVersionHash: result.versionHash, error: result.error });
-  else await recordIntegrationVerification(id, { connectionStatus: result.status, currentVersionHash: result.versionHash, error: result.error });
+  const result = await verifyConnection(id);
+  await recordIntegrationVerification(id, { connectionStatus: result.status, currentVersionHash: result.versionHash, error: result.error });
   await logAudit({ actor, action: "workflow_registry.refresh_metadata", target: id, success: result.status === "connected", details: { kind } });
   revalidateWorkflowControl();
   return result.status === "connected" ? { success: true, message: "Metadata refreshed." } : { success: false, message: result.error ?? "Refresh failed." };
 }
 
-// ── Activate / Deactivate (Part B/J.5 -- POST .../activate and .../deactivate) ──────────────
+// ── Activate / Deactivate (POST .../activate and .../deactivate) ────────────────────────────
 
 export async function activateWorkflowAction(kind: RegistryKind, id: string): Promise<ActionResult> {
   const actor = await requireAdmin();
-  const entry = await getEntry(kind, id);
+  const entry = await getEntry(id);
   if (!entry) return { success: false, message: "Not found." };
   try {
     assertEnableAllowed(entry);
     if (!isAdminApiConfigured()) throw new Error("N8N_ADMIN_API_KEY / N8N_BASE_URL is not configured.");
     await activateWorkflowById(entry.n8nWorkflowId);
-    if (kind === "scraper") await updateScraperAgent(id, { status: "Active" });
-    else await updateWorkflowIntegration(id, { active: true });
+    await updateWorkflowIntegration(id, { active: true });
     await logAudit({ actor, action: "workflow_registry.activate", target: id, success: true, details: { kind, workflowId: entry.n8nWorkflowId } });
     revalidateWorkflowControl();
     return { success: true, message: "Workflow activated." };
@@ -120,13 +115,12 @@ export async function activateWorkflowAction(kind: RegistryKind, id: string): Pr
 
 export async function deactivateWorkflowAction(kind: RegistryKind, id: string): Promise<ActionResult> {
   const actor = await requireAdmin();
-  const entry = await getEntry(kind, id);
+  const entry = await getEntry(id);
   if (!entry) return { success: false, message: "Not found." };
   try {
     if (!isAdminApiConfigured()) throw new Error("N8N_ADMIN_API_KEY / N8N_BASE_URL is not configured.");
     await deactivateWorkflowById(entry.n8nWorkflowId);
-    if (kind === "scraper") await updateScraperAgent(id, { status: "Disabled" });
-    else await updateWorkflowIntegration(id, { active: false });
+    await updateWorkflowIntegration(id, { active: false });
     await logAudit({ actor, action: "workflow_registry.deactivate", target: id, success: true, details: { kind, workflowId: entry.n8nWorkflowId } });
     revalidateWorkflowControl();
     return { success: true, message: "Workflow deactivated." };
@@ -140,7 +134,7 @@ export async function deactivateWorkflowAction(kind: RegistryKind, id: string): 
 // ── Executions (Part G/I -- paginated, sanitized) ───────────────────────────────────────────
 
 export async function listExecutionsAction(kind: RegistryKind, id: string, cursor: string | null = null, limit = 20): Promise<PaginatedExecutions> {
-  const entry = await getEntry(kind, id);
+  const entry = await getEntry(id);
   if (!entry) return { items: [], nextCursor: null, configured: false, error: "Not found." };
   if (!entry.n8nWorkflowId.trim()) return { items: [], nextCursor: null, configured: false };
   if (!isAdminApiConfigured()) return { items: [], nextCursor: null, configured: false };
@@ -152,7 +146,7 @@ export async function listExecutionsAction(kind: RegistryKind, id: string, curso
       items: data.map((e) => ({
         id: String(e.id),
         workflowId: entry.n8nWorkflowId,
-        workflowName: kind === "scraper" ? (entry as ScraperAgent).name : (entry as WorkflowIntegration).workflowName,
+        workflowName: entry.workflowName,
         status: e.status === "success" || e.status === "error" || e.status === "running" || e.status === "waiting" ? e.status : e.stoppedAt ? "unknown" : "running",
         mode: e.mode,
         startedAt: e.startedAt ?? null,
@@ -165,17 +159,16 @@ export async function listExecutionsAction(kind: RegistryKind, id: string, curso
   }
 }
 
-// ── Contract validation (Part E) ────────────────────────────────────────────────────────────
+// ── Contract validation ──────────────────────────────────────────────────────────────────────
 
 export async function validateContractAction(kind: RegistryKind, id: string): Promise<ContractValidationReport | null> {
   const actor = await requireAdmin();
-  const entry = await getEntry(kind, id);
+  const entry = await getEntry(id);
   if (!entry) return null;
-  const report = kind === "scraper" ? await validateScraperContract(entry as ScraperAgent) : await validateOutreachContract(entry as WorkflowIntegration);
+  const report = await validateOutreachContract(entry);
   const status = report.overallPass ? "connected" : "error";
   const failSummary = report.checks.filter((c) => c.status === "fail").map((c) => c.label).join("; ");
-  if (kind === "scraper") await recordScraperVerification(id, { connectionStatus: status, error: failSummary || undefined });
-  else await recordIntegrationVerification(id, { connectionStatus: status, error: failSummary || undefined });
+  await recordIntegrationVerification(id, { connectionStatus: status, error: failSummary || undefined });
   await logAudit({ actor, action: "workflow_registry.validate_contract", target: id, success: report.overallPass, details: { kind, checks: report.checks } });
   revalidateWorkflowControl();
   return report;
@@ -206,29 +199,13 @@ export async function replaceAssignmentAction(kind: RegistryKind, id: string, in
   }
 
   try {
-    if (kind === "scraper") {
-      const agent = await getScraperAgent(id);
-      if (!agent) return { success: false, message: "Scraper agent not found." };
-      await replaceScraperAssignment(
-        id,
-        {
-          n8nWorkflowId: input.n8nWorkflowId.trim(),
-          startWebhookPath: input.useEnvVar ? agent.startWebhookPath : raw,
-          startWebhookEnvVar: input.useEnvVar ? raw : undefined,
-        },
-        actor,
-        input.note || "Replaced via Workflow Control"
-      );
-      await updateScraperAgent(id, { status: "Maintenance" });
-    } else {
-      await replaceIntegrationAssignment(
-        id,
-        { n8nWorkflowId: input.n8nWorkflowId.trim(), workflowName: input.workflowName || raw, webhookPath: raw },
-        actor,
-        input.note || "Replaced via Workflow Control"
-      );
-      await updateWorkflowIntegration(id, { active: false });
-    }
+    await replaceIntegrationAssignment(
+      id,
+      { n8nWorkflowId: input.n8nWorkflowId.trim(), workflowName: input.workflowName || raw, webhookPath: raw },
+      actor,
+      input.note || "Replaced via Workflow Control"
+    );
+    await updateWorkflowIntegration(id, { active: false });
     await logAudit({ actor, action: "workflow_registry.replace_assignment", target: id, success: true, details: { kind, n8nWorkflowId: input.n8nWorkflowId } });
     revalidateWorkflowControl();
     return { success: true, message: "Assignment replaced. The previous workflow was left untouched. Run Validate Contract before enabling." };
@@ -242,8 +219,7 @@ export async function replaceAssignmentAction(kind: RegistryKind, id: string, in
 export async function rollbackAssignmentAction(kind: RegistryKind, id: string, versionIndex: number): Promise<ActionResult> {
   const actor = await requireAdmin();
   try {
-    if (kind === "scraper") await rollbackScraperAssignment(id, versionIndex, actor);
-    else await rollbackIntegrationAssignment(id, versionIndex, actor);
+    await rollbackIntegrationAssignment(id, versionIndex, actor);
     await logAudit({ actor, action: "workflow_registry.rollback", target: id, success: true, details: { kind, versionIndex } });
     revalidateWorkflowControl();
     return { success: true, message: "Rolled back to the selected version. Run Validate Contract before enabling." };
@@ -262,7 +238,7 @@ export interface BackupActionResult extends ActionResult {
 
 export async function downloadBackupAction(kind: RegistryKind, id: string): Promise<BackupActionResult> {
   const actor = await requireAdmin();
-  const entry = await getEntry(kind, id);
+  const entry = await getEntry(id);
   if (!entry) return { success: false, message: "Not found." };
   if (!entry.n8nWorkflowId.trim()) return { success: false, message: "No n8n workflow ID assigned." };
   if (!isAdminApiConfigured()) return { success: false, message: "N8N_ADMIN_API_KEY / N8N_BASE_URL is not configured." };
@@ -313,7 +289,7 @@ export async function advancedPreviewAction(kind: RegistryKind, id: string, prop
   const structure = validateWorkflowStructure(proposed);
   const secretFindings = structure.valid ? scanForInlinedSecrets(proposed as { nodes?: unknown[] }) : [];
 
-  const entry = await getEntry(kind, id);
+  const entry = await getEntry(id);
   if (!entry || !entry.n8nWorkflowId.trim()) {
     return { structureValid: structure.valid, structureErrors: structure.errors, secretFindings, diff: null, currentRedacted: null, proposedRedacted: structure.valid ? redactWorkflowJson(proposed as never) : null };
   }
@@ -355,9 +331,9 @@ export async function advancedDeployAction(
   const actor = await requireAdmin();
   if (!isAdvancedUpdatesEnabled()) return { success: false, message: "Advanced Workflow Update is disabled." };
 
-  const entry = await getEntry(kind, id);
+  const entry = await getEntry(id);
   if (!entry) return { success: false, message: "Not found." };
-  const currentWorkflowName = kind === "scraper" ? (entry as ScraperAgent).name : (entry as WorkflowIntegration).workflowName;
+  const currentWorkflowName = entry.workflowName;
   if (confirmWorkflowName.trim() !== currentWorkflowName.trim()) {
     return { success: false, message: "Typed workflow name does not match -- deploy cancelled." };
   }
@@ -385,13 +361,8 @@ export async function advancedDeployAction(
     }
     const created = await createWorkflow({ name: proposed.name, nodes: proposed.nodes, connections: proposed.connections, settings: proposed.settings });
 
-    if (kind === "scraper") {
-      await replaceScraperAssignment(id, { n8nWorkflowId: created.id, startWebhookPath: (entry as ScraperAgent).startWebhookPath, startWebhookEnvVar: (entry as ScraperAgent).startWebhookEnvVar }, actor, `Deployed new version "${created.name}" via Advanced Workflow Update`);
-      await updateScraperAgent(id, { status: "Maintenance" });
-    } else {
-      await replaceIntegrationAssignment(id, { n8nWorkflowId: created.id, workflowName: created.name, webhookPath: (entry as WorkflowIntegration).webhookPath }, actor, `Deployed new version "${created.name}" via Advanced Workflow Update`);
-      await updateWorkflowIntegration(id, { active: false });
-    }
+    await replaceIntegrationAssignment(id, { n8nWorkflowId: created.id, workflowName: created.name, webhookPath: entry.webhookPath }, actor, `Deployed new version "${created.name}" via Advanced Workflow Update`);
+    await updateWorkflowIntegration(id, { active: false });
 
     await logAudit({ actor, action: "workflow_registry.advanced_deploy", target: id, success: true, details: { kind, newWorkflowId: created.id, backupFileName } });
     revalidateWorkflowControl();
@@ -403,18 +374,7 @@ export async function advancedDeployAction(
   }
 }
 
-/** Optional post-deploy smoke test for a scraper integration -- never applicable to Outreach
- *  (no safe automatic way to "dry run" a real send). */
-export async function advancedDryTestAction(kind: RegistryKind, id: string, campaignId: string): Promise<ActionResult> {
-  await requireAdmin();
-  if (kind !== "scraper") {
-    return { success: false, message: "Automatic dry testing is only available for scraper integrations -- outreach must never be auto-triggered." };
-  }
-  const result = await dryRunScraperTestAction(id, campaignId, {});
-  return { success: result.success, message: result.message };
-}
-
-// ── Duplicate / real Export download (Stage 6, Part 5) ─────────────────────────────────────
+// ── Duplicate / real Export download ────────────────────────────────────────────────────────
 
 export interface DuplicateWorkflowResult extends ActionResult {
   newWorkflowId?: string;
@@ -428,7 +388,7 @@ export interface DuplicateWorkflowResult extends ActionResult {
  *  advancedDeployAction, minus the confirm-typed-name gate since nothing here is being replaced. */
 export async function duplicateWorkflowAction(kind: RegistryKind, id: string): Promise<DuplicateWorkflowResult> {
   const actor = await requireAdmin();
-  const entry = await getEntry(kind, id);
+  const entry = await getEntry(id);
   if (!entry) return { success: false, message: "Not found." };
   if (!entry.n8nWorkflowId.trim()) return { success: false, message: "No n8n workflow ID assigned." };
   if (!isAdminApiConfigured()) return { success: false, message: "N8N_ADMIN_API_KEY / N8N_BASE_URL is not configured." };
@@ -456,7 +416,7 @@ export interface ExportDownloadResult extends ActionResult {
  *  them, same as the Advanced panel's diff preview). */
 export async function exportWorkflowDownloadAction(kind: RegistryKind, id: string): Promise<ExportDownloadResult> {
   const actor = await requireAdmin();
-  const entry = await getEntry(kind, id);
+  const entry = await getEntry(id);
   if (!entry) return { success: false, message: "Not found." };
   if (!entry.n8nWorkflowId.trim()) return { success: false, message: "No n8n workflow ID assigned." };
   if (!isAdminApiConfigured()) return { success: false, message: "N8N_ADMIN_API_KEY / N8N_BASE_URL is not configured." };
@@ -464,7 +424,7 @@ export async function exportWorkflowDownloadAction(kind: RegistryKind, id: strin
   try {
     const current = await exportWorkflowJson(entry.n8nWorkflowId);
     const redacted = redactWorkflowJson(current);
-    const workflowName = kind === "scraper" ? (entry as ScraperAgent).name : (entry as WorkflowIntegration).workflowName;
+    const workflowName = entry.workflowName;
     const fileName = `${workflowName.replace(/[^a-z0-9]+/gi, "-").toLowerCase()}-${entry.n8nWorkflowId}.json`;
     await logAudit({ actor, action: "workflow_registry.export_download", target: id, success: true, details: { kind, fileName } });
     return { success: true, message: `${workflowName} exported.`, fileName, json: JSON.stringify(redacted, null, 2) };

@@ -7,13 +7,13 @@
  * change.
  *
  * This only covers providers the CRM itself holds credentials for and calls directly today:
- * Google Sheets, n8n, and Cloudinary. Apify/OpenAI/SMTP run entirely inside n8n's own workflows --
+ * Google Sheets, n8n, and Cloudinary. OpenAI/SMTP run entirely inside n8n's own workflows --
  * the CRM has no credential for them to check, so this plan does not fabricate adapters that would
  * always report "not configured" for something the CRM was never wired to call in the first place.
  * A future adapter for any of them is a new file implementing this same interface.
  */
 
-export type ProviderCategory = "storage" | "workflow-engine" | "spreadsheet" | "scraping" | "ai" | "email";
+export type ProviderCategory = "storage" | "workflow-engine" | "spreadsheet" | "ai" | "email";
 
 export interface ProviderHealth {
   /** True once the required env vars are present -- never assumes connectivity, just presence

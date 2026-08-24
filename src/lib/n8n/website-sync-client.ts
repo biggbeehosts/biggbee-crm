@@ -1,6 +1,6 @@
 import "server-only";
 import type { WebsiteRegistryEntry } from "@/types";
-import { getN8nApiKey, resolveScraperWebhookUrl } from "./config";
+import { getN8nApiKey, resolveWebhookUrl } from "./config";
 
 const REQUEST_TIMEOUT_MS = 30_000;
 
@@ -23,15 +23,14 @@ export interface WebsiteSyncTriggerResult {
 }
 
 /**
- * Triggers a website's KB refresh webhook -- same resolved-URL + Header-Auth call pattern as
- * runScraper (scraper-client.ts), reusing resolveScraperWebhookUrl for path/env-var resolution
- * since WebsiteRegistryEntry's webhookPath/webhookEnvVar fields are shaped identically to
- * ScraperAgent's. The workflow is expected to write its result back into the KB_Cache tab under
- * this site's cacheKey -- this call itself only confirms n8n accepted the trigger; the CRM re-reads
- * the sheet afterward (see syncWebsiteAction) to learn what actually landed.
+ * Triggers a website's KB refresh webhook -- resolved-URL + Header-Auth call pattern, reusing the
+ * generic resolveWebhookUrl for path/env-var resolution. The workflow is expected to write its
+ * result back into the KB_Cache tab under this site's cacheKey -- this call itself only confirms
+ * n8n accepted the trigger; the CRM re-reads the sheet afterward (see syncWebsiteAction) to learn
+ * what actually landed.
  */
 export async function triggerWebsiteSync(entry: WebsiteRegistryEntry): Promise<WebsiteSyncTriggerResult> {
-  const url = resolveScraperWebhookUrl({ startWebhookPath: entry.webhookPath ?? "", startWebhookEnvVar: entry.webhookEnvVar });
+  const url = resolveWebhookUrl({ webhookPath: entry.webhookPath ?? "", webhookEnvVar: entry.webhookEnvVar });
   if (!url) {
     return { success: false, message: `${entry.label}'s sync webhook is not configured.` };
   }

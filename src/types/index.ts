@@ -8,7 +8,6 @@ export * from "./dashboard";
 export * from "./settings";
 export * from "./campaign";
 export * from "./options";
-export * from "./scraper";
 export * from "./workflow-registry";
 export * from "./analytics-event";
 export * from "./deliverability";

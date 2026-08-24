@@ -1,14 +1,11 @@
-import { getScraperAgents } from "@/lib/data/scraper-registry-store";
 import { getWorkflowIntegrations } from "@/lib/data/workflow-registry-store";
-import { getScrapingJobs } from "@/lib/data/scraping-jobs-store";
 import { getCampaigns } from "@/lib/data/campaigns-store";
 import { getLeads } from "@/lib/data/repository";
-import { getEnabledOptions } from "@/lib/data/options-store";
 import { getAuditLog } from "@/lib/audit/log";
 import { isAdminApiConfigured, getWorkflowExecutionStats, getWorkflowById, readableAdminError } from "@/lib/n8n/admin-client";
 import { getN8nEditorUrl, isAdvancedUpdatesEnabled } from "@/lib/n8n/config";
 import { getConfiguredActionsAction } from "@/lib/n8n/actions";
-import { scraperToCardModel, integrationToCardModel, combineCardModels } from "@/lib/n8n/card-adapters";
+import { integrationToCardModel, combineCardModels } from "@/lib/n8n/card-adapters";
 import { PageHeader } from "@/components/layout/page-header";
 import { WorkflowIntegrationCard } from "@/components/workflow-control/workflow-integration-card";
 import { AlertTriangle, Cable } from "lucide-react";
@@ -17,16 +14,13 @@ export default async function WorkflowManagerPage() {
   // Part I: fetch everything this render needs in parallel -- one page load never makes n8n
   // calls sequentially per card. Card-level actions (Test Connection, Refresh Metadata, ...) are
   // separate on-demand server actions, not part of this initial render.
-  const [agents, integrations, jobs, campaigns, leads, auditLog, configuredActions] = await Promise.all([
-    getScraperAgents(),
+  const [integrations, campaigns, leads, auditLog, configuredActions] = await Promise.all([
     getWorkflowIntegrations(),
-    getScrapingJobs(),
     getCampaigns(),
     getLeads(),
     Promise.resolve(getAuditLog(500)),
     getConfiguredActionsAction(),
   ]);
-  const countries = getEnabledOptions("countries");
   const advancedEnabled = isAdvancedUpdatesEnabled();
   const adminApiConfigured = isAdminApiConfigured();
 
@@ -54,13 +48,6 @@ export default async function WorkflowManagerPage() {
     return { stats, n8nUpdatedAt: meta?.updatedAt ?? null, active: meta?.active ?? null, lookupError };
   }
 
-  const scraperCards = await Promise.all(
-    agents.map(async (agent) => {
-      const runs = jobs.filter((j) => j.scraperId === agent.id && !j.isDryRun).length;
-      const { stats, n8nUpdatedAt } = await cardMeta(agent.n8nWorkflowId);
-      return scraperToCardModel(agent, runs, stats, n8nUpdatedAt);
-    })
-  );
   const integrationCards = await Promise.all(
     integrations.map(async (integration) => {
       const runs = integration.purpose === "Outreach" ? runCampaignRuns : 0;
@@ -68,13 +55,13 @@ export default async function WorkflowManagerPage() {
       return integrationToCardModel(integration, runs, stats, n8nUpdatedAt, { adminApiConfigured, active, lookupError });
     })
   );
-  const cards = combineCardModels(scraperCards, integrationCards);
+  const cards = combineCardModels(integrationCards);
 
   return (
     <div>
       <PageHeader
         title="Workflow Manager"
-        subtitle="Connect scraper and outreach workflows to n8n, change assignments safely, and monitor executions -- without editing workflow JSON by hand."
+        subtitle="Connect outreach workflows to n8n, change assignments safely, and monitor executions -- without editing workflow JSON by hand."
         icon={Cable}
         tone="orange"
       />
@@ -97,13 +84,8 @@ export default async function WorkflowManagerPage() {
             card={card}
             n8nEditorUrl={getN8nEditorUrl(card.n8nWorkflowId)}
             advancedEnabled={advancedEnabled}
-            scraperExtras={
-              card.kind === "scraper"
-                ? { agent: agents.find((a) => a.id === card.id)!, campaigns, countries }
-                : undefined
-            }
-            outreachExtras={card.kind === "integration" && card.purpose === "Outreach" ? { campaigns, leads, runCampaignConfigured: configuredActions.runCampaign } : undefined}
-            kbSyncConfigured={card.kind === "integration" && card.purpose === "Knowledge Base" ? configuredActions.refreshKb : undefined}
+            outreachExtras={card.purpose === "Outreach" ? { campaigns, leads, runCampaignConfigured: configuredActions.runCampaign } : undefined}
+            kbSyncConfigured={card.purpose === "Knowledge Base" ? configuredActions.refreshKb : undefined}
           />
         ))}
       </div>

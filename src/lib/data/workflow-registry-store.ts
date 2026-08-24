@@ -3,9 +3,7 @@ import type { WorkflowIntegration, WorkflowVersionEntry, WorkflowConnectionStatu
 import { readCollection, writeCollection } from "@/lib/store/json-store";
 
 /**
- * Registry for the non-scraper integrations (Outreach / Status / Knowledge Base / Reply
- * Processing) -- the Scraper-purpose side of the Change 4 registry lives directly on ScraperAgent
- * (see scraper-registry-store.ts) to avoid duplicating that config across two stores.
+ * Registry for the CRM's integrations (Outreach / Status / Knowledge Base / Reply Processing).
  *
  * These entries wrap the CRM's existing fixed n8n action webhooks (src/lib/n8n/config.ts) and
  * the single admin-tracked workflow (N8N_WORKFLOW_ID) rather than introducing a second way to
@@ -154,8 +152,8 @@ export async function recordIntegrationExecutionOutcome(id: string, success: boo
   await updateWorkflowIntegration(id, success ? { lastSuccessfulExecution: now() } : { lastFailedExecution: now() });
 }
 
-/** Same non-destructive contract as replaceScraperAssignment: only the CRM's own pointer moves;
- *  the previous n8n workflow this integration pointed at is never edited or deleted. */
+/** Non-destructive: only the CRM's own pointer moves; the previous n8n workflow this integration
+ *  pointed at is never edited or deleted. */
 export async function replaceIntegrationAssignment(
   id: string,
   next: { n8nWorkflowId: string; workflowName: string; webhookPath: string },

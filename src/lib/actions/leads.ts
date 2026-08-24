@@ -78,8 +78,8 @@ export async function addLeadAction(formData: FormData): Promise<ActionResult> {
 
   const campaignError = await validateCampaignId(parsed.data.campaignId);
   if (campaignError) return { success: false, message: campaignError };
-  // Inherits the assigned campaign's Is Test flag at creation, same rule the scraper import path
-  // uses (see startScrapingJobAction) -- a lead added under a test campaign is test data too.
+  // Inherits the assigned campaign's Is Test flag at creation -- a lead added under a test
+  // campaign is test data too.
   const assignedCampaign = await getCampaign(parsed.data.campaignId);
 
   const lead: Lead = {

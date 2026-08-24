@@ -6,15 +6,14 @@ import { Replace } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
-import { Checkbox } from "@/components/ui/checkbox";
 import { replaceAssignmentAction, type RegistryKind } from "@/lib/actions/workflow-registry";
 import { useToast } from "@/components/ui/toast";
 import type { WorkflowCardModel } from "@/types";
 
 /**
- * Part C: replacing a workflow assignment never edits or deletes the previous n8n workflow --
- * this only moves the CRM's own pointer, and the server action resets connectionStatus so the
- * new assignment can't be enabled until Validate Contract passes.
+ * Replacing a workflow assignment never edits or deletes the previous n8n workflow -- this only
+ * moves the CRM's own pointer, and the server action resets connectionStatus so the new
+ * assignment can't be enabled until Validate Contract passes.
  */
 export function ReplaceAssignmentDialog({ kind, card }: { kind: RegistryKind; card: WorkflowCardModel }) {
   const router = useRouter();
@@ -23,7 +22,6 @@ export function ReplaceAssignmentDialog({ kind, card }: { kind: RegistryKind; ca
   const [pending, setPending] = React.useState(false);
   const [workflowId, setWorkflowId] = React.useState(card.n8nWorkflowId);
   const [webhook, setWebhook] = React.useState("");
-  const [useEnvVar, setUseEnvVar] = React.useState(false);
   const [workflowName, setWorkflowName] = React.useState(card.workflowName);
   const [error, setError] = React.useState<string | null>(null);
 
@@ -32,7 +30,6 @@ export function ReplaceAssignmentDialog({ kind, card }: { kind: RegistryKind; ca
     if (next) {
       setWorkflowId(card.n8nWorkflowId);
       setWebhook("");
-      setUseEnvVar(false);
       setWorkflowName(card.workflowName);
       setError(null);
     }
@@ -46,14 +43,14 @@ export function ReplaceAssignmentDialog({ kind, card }: { kind: RegistryKind; ca
       return;
     }
     if (!webhook.trim()) {
-      setError(useEnvVar ? "Env var name is required." : "Webhook path or URL is required.");
+      setError("Webhook path or URL is required.");
       return;
     }
     setPending(true);
     const result = await replaceAssignmentAction(kind, card.id, {
       n8nWorkflowId: workflowId.trim(),
       webhookPathOrEnvVar: webhook.trim(),
-      useEnvVar,
+      useEnvVar: false,
       workflowName: workflowName.trim() || undefined,
     });
     setPending(false);
@@ -86,22 +83,14 @@ export function ReplaceAssignmentDialog({ kind, card }: { kind: RegistryKind; ca
             <Label>New n8n workflow ID</Label>
             <Input value={workflowId} onChange={(e) => setWorkflowId(e.target.value)} placeholder="e.g. AbCdEfGhIjKlMnOp" />
           </div>
-          {kind === "integration" && (
-            <div className="space-y-1.5">
-              <Label>Workflow display name</Label>
-              <Input value={workflowName} onChange={(e) => setWorkflowName(e.target.value)} placeholder="e.g. Outbound Cold Email System v2" />
-            </div>
-          )}
           <div className="space-y-1.5">
-            <Label>{useEnvVar ? "Env var name holding the webhook path" : "Webhook path or full URL"}</Label>
-            <Input value={webhook} onChange={(e) => setWebhook(e.target.value)} placeholder={useEnvVar ? "N8N_WEBHOOK_SCRAPE_YELP" : "webhook/biggbee/scrape-yelp"} />
+            <Label>Workflow display name</Label>
+            <Input value={workflowName} onChange={(e) => setWorkflowName(e.target.value)} placeholder="e.g. Outbound Cold Email System v2" />
           </div>
-          {kind === "scraper" && (
-            <label className="flex items-center gap-2 text-xs text-text-secondary">
-              <Checkbox checked={useEnvVar} onCheckedChange={(v) => setUseEnvVar(v === true)} />
-              This is an env var name, not a literal path
-            </label>
-          )}
+          <div className="space-y-1.5">
+            <Label>Webhook path or full URL</Label>
+            <Input value={webhook} onChange={(e) => setWebhook(e.target.value)} placeholder="webhook/biggbee/run-campaign" />
+          </div>
           {error && <p className="text-xs text-danger">{error}</p>}
           <DialogFooter>
             <Button type="button" variant="secondary" size="sm" onClick={() => setOpen(false)}>

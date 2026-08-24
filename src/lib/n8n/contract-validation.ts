@@ -1,7 +1,7 @@
 import "server-only";
-import type { ScraperAgent, WorkflowIntegration, ContractCheckResult, ContractValidationReport } from "@/types";
+import type { WorkflowIntegration, ContractCheckResult, ContractValidationReport } from "@/types";
 import { getWorkflowById, isAdminApiConfigured } from "./admin-client";
-import { getN8nApiKey, resolveScraperWebhookUrl, isActionConfigured, type N8nActionKey } from "./config";
+import { getN8nApiKey, isActionConfigured, type N8nActionKey } from "./config";
 
 /**
  * Part E: individual, side-effect-free contract checks shown one row at a time in the UI, never
@@ -31,74 +31,6 @@ function finalize(integrationId: string, checks: ContractCheckResult[]): Contrac
     checks,
     overallPass: checks.every((c) => c.status !== "fail"),
   };
-}
-
-export async function validateScraperContract(agent: ScraperAgent): Promise<ContractValidationReport> {
-  const checks: ContractCheckResult[] = [];
-
-  checks.push(
-    agent.n8nWorkflowId.trim()
-      ? pass("workflow-id", "n8n workflow ID configured", agent.n8nWorkflowId)
-      : fail("workflow-id", "n8n workflow ID configured", "No workflow ID set on this agent.")
-  );
-
-  if (!isAdminApiConfigured()) {
-    checks.push(skip("workflow-accessible", "Workflow accessible via n8n API", "N8N_ADMIN_API_KEY is not set -- cannot verify existence/accessibility from here."));
-  } else if (agent.n8nWorkflowId.trim()) {
-    try {
-      const meta = await getWorkflowById(agent.n8nWorkflowId, { bypassCache: true });
-      checks.push(pass("workflow-accessible", "Workflow accessible via n8n API", `Found "${meta.name}" (${meta.active ? "active" : "inactive"}, ${meta.nodeCount} nodes).`));
-    } catch (err) {
-      checks.push(fail("workflow-accessible", "Workflow accessible via n8n API", err instanceof Error ? err.message : "Could not reach n8n."));
-    }
-  } else {
-    checks.push(skip("workflow-accessible", "Workflow accessible via n8n API", "No workflow ID to check."));
-  }
-
-  const webhookUrl = resolveScraperWebhookUrl(agent);
-  checks.push(
-    webhookUrl
-      ? pass("webhook-exists", "Start webhook resolves to a URL", "Configured (path or env var resolves to a callable URL).")
-      : fail("webhook-exists", "Start webhook resolves to a URL", "startWebhookPath/startWebhookEnvVar does not resolve -- set N8N_BASE_URL and the webhook path.")
-  );
-
-  if (agent.authType === "header-auth") {
-    checks.push(
-      getN8nApiKey()
-        ? pass("auth-configured", "Authentication configured", "N8N_API_KEY is set; sent as Authorization + X-API-KEY headers.")
-        : warn("auth-configured", "Authentication configured", "N8N_API_KEY is not set -- the webhook will be called with no auth header.")
-    );
-  } else {
-    checks.push(pass("auth-configured", "Authentication configured", "This agent is configured for no authentication."));
-  }
-
-  checks.push(
-    pass(
-      "input-contract",
-      "Input accepts campaignId, jobId, requestedCount, inputs",
-      "Guaranteed by the CRM's generic scraper payload builder (ScraperRunPayload) -- every scraper receives the same shape."
-    )
-  );
-
-  if (agent.lastSuccessfulExecution || agent.lastFailedExecution) {
-    checks.push(
-      pass(
-        "output-contract",
-        "Returns jobId, campaignId, status, scrapedCount, importedCount, error",
-        `Verified against a real run (last success: ${agent.lastSuccessfulExecution ?? "never"}, last failure: ${agent.lastFailedExecution ?? "never"}).`
-      )
-    );
-  } else {
-    checks.push(warn("output-contract", "Returns jobId, campaignId, status, scrapedCount, importedCount, error", "Not yet verified -- run a one-result dry test to confirm the response shape."));
-  }
-
-  checks.push(
-    agent.maxAllowedLeads > 0
-      ? pass("max-limit", "Maximum test limits enforced", `Capped at ${agent.maxAllowedLeads} per run; dry-run tests are always clamped to 1.`)
-      : fail("max-limit", "Maximum test limits enforced", "maxAllowedLeads is not set to a positive number.")
-  );
-
-  return finalize(agent.id, checks);
 }
 
 export async function validateOutreachContract(integration: WorkflowIntegration): Promise<ContractValidationReport> {

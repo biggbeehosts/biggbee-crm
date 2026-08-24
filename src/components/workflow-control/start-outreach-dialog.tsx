@@ -12,11 +12,9 @@ import { summarizeCampaignMatch } from "@/lib/calculations/campaign-match";
 import { useN8nAction } from "@/lib/n8n/hooks";
 import { useToast } from "@/components/ui/toast";
 
-/**
- * Safe outreach handoff (Part H): a deliberately separate action from scraping itself. Approving
- * leads on the Scraped Leads page never sends anything on its own -- this is the only door into
- * the existing Run Campaign webhook, and it always requires an explicit campaign + confirmation.
- */
+/** Generic, campaign-gated outreach trigger for the Outreach card on the Workflow Control page --
+ *  the only door into the existing Run Campaign webhook, always requiring an explicit campaign +
+ *  confirmation. */
 export function StartOutreachDialog({ campaigns, leads, runCampaignConfigured = true }: { campaigns: Campaign[]; leads: Lead[]; runCampaignConfigured?: boolean }) {
   const { run, pendingAction } = useN8nAction({ runCampaign: runCampaignConfigured });
   const { toast } = useToast();
@@ -55,7 +53,7 @@ export function StartOutreachDialog({ campaigns, leads, runCampaignConfigured = 
           <DialogTitle>Start Campaign Outreach</DialogTitle>
           <DialogDescription>
             Sends the existing Run Campaign webhook — n8n selects only <strong>approved (Status = New)</strong> leads matching the campaign you pick
-            below. Scraping never triggers this on its own.
+            below.
           </DialogDescription>
         </DialogHeader>
 

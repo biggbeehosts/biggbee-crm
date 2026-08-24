@@ -60,7 +60,7 @@ function CleanTestDataDialog() {
   }
 
   const totalDeletable = preview
-    ? preview.leads.count + preview.campaigns.count + preview.unknownSenders.count + preview.scrapingJobs.count + preview.trackingEvents.count
+    ? preview.leads.count + preview.campaigns.count + preview.unknownSenders.count + preview.trackingEvents.count
     : 0;
 
   return (
@@ -101,7 +101,6 @@ function CleanTestDataDialog() {
               <Row label="Test Leads" count={preview.leads.count} canDelete />
               <Row label="Test Campaigns" count={preview.campaigns.count} canDelete />
               <Row label="Test Unknown Senders" count={preview.unknownSenders.count} canDelete />
-              <Row label="Test Scraping Jobs" count={preview.scrapingJobs.count} canDelete />
               <Row label="Test Tracking Events" count={preview.trackingEvents.count} canDelete />
               <Row label="Test Lead Memory" count={preview.leadMemory.count} canDelete={false} reason={preview.leadMemory.reason} />
               <Row label="Test Errors" count={preview.errors.count} canDelete={false} reason={preview.errors.reason} />
@@ -201,10 +200,10 @@ function ResetCrmDataDialog() {
             <div className="flex items-start gap-2.5 rounded-lg border border-danger/25 bg-danger/10 p-3">
               <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-danger" />
               <div className="text-xs text-danger">
-                <p className="font-semibold">This clears Leads, Lead Memory, Campaigns, Scraping Jobs, Unknown Senders, and Errors.</p>
+                <p className="font-semibold">This clears Leads, Lead Memory, Campaigns, Unknown Senders, and Errors.</p>
                 <p className="mt-1">
                   It never touches: admin account, environment secrets, Google/n8n/Cloudinary credentials, Website Registry, Demo Library,
-                  Knowledge Base cache, scraper-agent definitions, or n8n workflows.
+                  Knowledge Base cache, or n8n workflows.
                 </p>
               </div>
             </div>

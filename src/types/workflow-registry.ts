@@ -1,28 +1,19 @@
 /**
- * The Workflow Registry is the CRM-owned model behind the Workflow Control page (Change 4).
- * It never stores n8n credentials or secret values -- only references to env-var *names*
- * (see WorkflowIntegration.authRef) that are resolved server-side, the same pattern already
- * used by ScraperAgent.startWebhookEnvVar (src/lib/n8n/config.ts).
+ * The Workflow Registry is the CRM-owned model behind the Workflow Control page. It never stores
+ * n8n credentials or secret values -- only references to env-var *names* (see
+ * WorkflowIntegration.authRef) that are resolved server-side.
  *
- * Two kinds of registry entry exist, deliberately not merged into one store:
- *   - Scraper-purpose entries ARE ScraperAgent records (src/types/scraper.ts) -- this file only
- *     adds the extra registry fields (connection status, version hash, schemas, ...) onto that
- *     existing type so scraper config isn't duplicated across two stores that could drift.
- *   - Outreach / Status / Knowledge Base / Reply Processing entries are WorkflowIntegration
- *     records below, stored in workflow-registry-store.ts, since they wrap the CRM's existing
- *     fixed n8n action webhooks (src/lib/n8n/config.ts) rather than a per-agent form.
- * The Workflow Control page (Part B) renders both kinds through one shared card shape,
- * WorkflowCardModel, produced by adapters -- see src/lib/n8n/card-adapters.ts.
+ * Outreach / Status / Knowledge Base / Reply Processing entries are WorkflowIntegration records
+ * below, stored in workflow-registry-store.ts, since they wrap the CRM's existing fixed n8n
+ * action webhooks (src/lib/n8n/config.ts). The Workflow Control page renders them through one
+ * shared card shape, WorkflowCardModel, produced by adapters -- see src/lib/n8n/card-adapters.ts.
  */
 
-export type WorkflowPurpose = "Scraper" | "Outreach" | "Status" | "Knowledge Base" | "Reply Processing";
+export type WorkflowPurpose = "Outreach" | "Status" | "Knowledge Base" | "Reply Processing";
 
-export const WORKFLOW_PURPOSES: WorkflowPurpose[] = ["Scraper", "Outreach", "Status", "Knowledge Base", "Reply Processing"];
+export const WORKFLOW_PURPOSES: WorkflowPurpose[] = ["Outreach", "Status", "Knowledge Base", "Reply Processing"];
 
-/** Shared with ScraperAgent (src/types/scraper.ts), which defines this type -- a scraper agent
- *  IS the Scraper-purpose registry entry, so the vocabulary is defined once, there. */
-import type { WorkflowConnectionStatus } from "./scraper";
-export type { WorkflowConnectionStatus } from "./scraper";
+export type WorkflowConnectionStatus = "connected" | "error" | "unknown" | "unconfigured";
 
 /** One historical version of a workflow assignment -- what Replace Assignment and the Advanced
  *  "deploy as new version" action append to, and what Rollback reads from. Never deletes the
@@ -107,10 +98,10 @@ export interface PaginatedExecutions {
   error?: string;
 }
 
-/** Unified shape the Workflow Control page renders every card from, regardless of whether it
- *  came from a ScraperAgent or a WorkflowIntegration record. */
+/** Shape the Workflow Control page renders every card from, built from a WorkflowIntegration
+ *  record. */
 export interface WorkflowCardModel {
-  kind: "scraper" | "integration";
+  kind: "integration";
   id: string;
   displayName: string;
   purpose: WorkflowPurpose;

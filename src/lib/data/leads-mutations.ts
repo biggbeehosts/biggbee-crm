@@ -21,18 +21,18 @@ async function ensureLeadsCampaignIdColumn(): Promise<void> {
   leadsCampaignColumnEnsured = true;
 }
 
-/** Same additive-column pattern as ensureLeadsCampaignIdColumn, for the Change-2 scraper columns
- *  (Lead ID, Campaign Name, Location, Target Service, Source, Scraper Job ID, Created At). The
- *  n8n scraper workflows add these themselves on first write too -- this covers the CRM's own
- *  read/edit paths so a fresh Leads tab that hasn't been scraped into yet still has them. */
-const SCRAPER_LEAD_HEADERS = ["Lead ID", "Campaign Name", "Location", "Target Service", "Source", "Scraper Job ID", "Created At"];
-let leadsScraperColumnsEnsured = false;
-async function ensureLeadsScraperColumns(): Promise<void> {
-  if (leadsScraperColumnsEnsured) return;
+/** Same additive-column pattern as ensureLeadsCampaignIdColumn, for the extended lead columns
+ *  (Lead ID, Campaign Name, Location, Target Service, Source, Created At). n8n's outbound
+ *  workflow may add these itself on first write too -- this covers the CRM's own read/edit paths
+ *  so a fresh Leads tab that hasn't had one of these columns written yet still has them. */
+const EXTENDED_LEAD_HEADERS = ["Lead ID", "Campaign Name", "Location", "Target Service", "Source", "Created At"];
+let extendedLeadColumnsEnsured = false;
+async function ensureExtendedLeadColumns(): Promise<void> {
+  if (extendedLeadColumnsEnsured) return;
   if (await tabExists(SHEET_TAB_NAMES.leads)) {
-    await ensureTabWithHeaders(SHEET_TAB_NAMES.leads, SCRAPER_LEAD_HEADERS);
+    await ensureTabWithHeaders(SHEET_TAB_NAMES.leads, EXTENDED_LEAD_HEADERS);
   }
-  leadsScraperColumnsEnsured = true;
+  extendedLeadColumnsEnsured = true;
 }
 
 /** Same additive-column pattern, for the Change-3 demo tracking columns (Demo ID, Demo Sent,
@@ -75,9 +75,9 @@ export async function ensureLeadsTrackingColumns(): Promise<void> {
   leadsTrackingColumnsEnsured = true;
 }
 
-/** Same additive-column pattern, for the "Is Test" marker. Set at creation (scraper import
- *  inherits the assigned campaign's isTest flag) or explicitly by an admin action -- never
- *  touched by n8n, so no coordination with the outbound workflow is required. */
+/** Same additive-column pattern, for the "Is Test" marker. Set at creation (inherits the assigned
+ *  campaign's isTest flag) or explicitly by an admin action -- never touched by n8n, so no
+ *  coordination with the outbound workflow is required. */
 const TEST_LEAD_HEADERS = ["Is Test"];
 let leadsTestColumnEnsured = false;
 async function ensureLeadsTestColumn(): Promise<void> {
@@ -118,7 +118,6 @@ function leadToRow(lead: Partial<Lead>): Record<string, string> {
   if (lead.location !== undefined) row.Location = lead.location;
   if (lead.targetService !== undefined) row["Target Service"] = lead.targetService;
   if (lead.source !== undefined) row.Source = lead.source;
-  if (lead.scraperJobId !== undefined) row["Scraper Job ID"] = lead.scraperJobId;
   if (lead.createdAt !== undefined) row["Created At"] = lead.createdAt;
   if (lead.demoId !== undefined) row["Demo ID"] = lead.demoId;
   if (lead.demoSent !== undefined) row["Demo Sent"] = lead.demoSent ? "Yes" : "No";
@@ -141,7 +140,7 @@ function leadToRow(lead: Partial<Lead>): Record<string, string> {
   return row;
 }
 
-const SCRAPER_FIELD_KEYS = ["campaignName", "leadId", "location", "targetService", "source", "scraperJobId", "createdAt"] as const;
+const EXTENDED_FIELD_KEYS = ["campaignName", "leadId", "location", "targetService", "source", "createdAt"] as const;
 const DEMO_FIELD_KEYS = ["demoId", "demoSent", "demoSentAt", "demoMatchReason"] as const;
 const TRACKING_FIELD_KEYS = [
   "messageId",
@@ -159,8 +158,8 @@ const TRACKING_FIELD_KEYS = [
   "suppressedReason",
 ] as const;
 
-function touchesScraperColumns(fields: Partial<Lead>): boolean {
-  return SCRAPER_FIELD_KEYS.some((k) => fields[k] !== undefined);
+function touchesExtendedColumns(fields: Partial<Lead>): boolean {
+  return EXTENDED_FIELD_KEYS.some((k) => fields[k] !== undefined);
 }
 
 function touchesDemoColumns(fields: Partial<Lead>): boolean {
@@ -189,7 +188,6 @@ export interface LeadEditableFields {
   location?: string;
   targetService?: string;
   source?: string;
-  scraperJobId?: string;
   createdAt?: string;
   demoId?: string;
   demoSent?: boolean;
@@ -217,7 +215,7 @@ export async function createLead(lead: Lead): Promise<void> {
     return;
   }
   if (lead.campaignId !== undefined) await ensureLeadsCampaignIdColumn();
-  if (touchesScraperColumns(lead)) await ensureLeadsScraperColumns();
+  if (touchesExtendedColumns(lead)) await ensureExtendedLeadColumns();
   if (touchesDemoColumns(lead)) await ensureLeadsDemoColumns();
   if (touchesTrackingColumns(lead)) await ensureLeadsTrackingColumns();
   if (lead.isTest !== undefined) await ensureLeadsTestColumn();
@@ -231,7 +229,7 @@ export async function updateLeadFields(email: string, fields: LeadEditableFields
     return;
   }
   if (fields.campaignId !== undefined) await ensureLeadsCampaignIdColumn();
-  if (touchesScraperColumns(fields)) await ensureLeadsScraperColumns();
+  if (touchesExtendedColumns(fields)) await ensureExtendedLeadColumns();
   if (touchesDemoColumns(fields)) await ensureLeadsDemoColumns();
   if (touchesTrackingColumns(fields)) await ensureLeadsTrackingColumns();
   if (fields.isTest !== undefined) await ensureLeadsTestColumn();

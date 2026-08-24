@@ -10,7 +10,6 @@ import { clearTabDataRows } from "@/lib/data/sheets-client";
 import { getLeads } from "@/lib/data/repository";
 import { bulkDeleteLeads } from "@/lib/data/leads-mutations";
 import { getCampaigns, deleteCampaignById } from "@/lib/data/campaigns-store";
-import { getScrapingJobs, deleteScrapingJob } from "@/lib/data/scraping-jobs-store";
 import { getUnknownSenders } from "@/lib/data/repository";
 import { deleteSenderRecord } from "@/lib/data/unknown-senders-mutations";
 import { getEvents, deleteTestEvents } from "@/lib/data/analytics-events-store";
@@ -26,7 +25,6 @@ export interface TestDataPreview {
   leads: { count: number; canDelete: true };
   campaigns: { count: number; canDelete: true };
   unknownSenders: { count: number; canDelete: true };
-  scrapingJobs: { count: number; canDelete: true };
   trackingEvents: { count: number; canDelete: true };
   /** Derived from Leads (email match) -- Lead_Memory has no delete primitive in this codebase yet
    *  (it's read-only, n8n-owned). Shown for visibility; not deletable this pass. */
@@ -42,11 +40,10 @@ async function computePreview(): Promise<{
   testLeadEmails: Set<string>;
   testCampaignIds: Set<string>;
 }> {
-  const [leads, campaigns, senders, jobs, memory, errors] = await Promise.all([
+  const [leads, campaigns, senders, memory, errors] = await Promise.all([
     getLeads(),
     getCampaigns(),
     getUnknownSenders(),
-    getScrapingJobs(),
     getLeadMemory(),
     getErrors(),
   ]);
@@ -57,7 +54,6 @@ async function computePreview(): Promise<{
   const testCampaignIds = new Set(campaigns.filter((c) => c.isTest).map((c) => c.id));
 
   const testSenders = senders.filter((s) => testLeadEmails.has(s.fromEmail));
-  const testJobs = jobs.filter((j) => testCampaignIds.has(j.campaignId));
   const testEvents = events.filter((e) => e.isTestEvent || (e.leadId ? testLeadEmails.has(e.leadId) : false));
   const testMemory = memory.filter((m) => testLeadEmails.has(m.email));
   const testErrors = errors.filter((e) => e.leadEmail && testLeadEmails.has(e.leadEmail));
@@ -67,7 +63,6 @@ async function computePreview(): Promise<{
       leads: { count: testLeadEmails.size, canDelete: true },
       campaigns: { count: testCampaignIds.size, canDelete: true },
       unknownSenders: { count: testSenders.length, canDelete: true },
-      scrapingJobs: { count: testJobs.length, canDelete: true },
       trackingEvents: { count: testEvents.length, canDelete: true },
       leadMemory: { count: testMemory.length, canDelete: false, reason: "No delete function exists for Lead_Memory yet (n8n-owned, CRM read-only today)." },
       errors: { count: testErrors.length, canDelete: false, reason: "No delete function or stable row-identity tracking exists for Errors yet (n8n-owned, CRM read-only today)." },
@@ -134,20 +129,6 @@ export async function cleanTestDataAction(confirmPhrase: string): Promise<CleanT
   }
   results.unknownSenders = { deleted: senderDeleted, failed: senderFailed };
 
-  // Scraping Jobs
-  const jobs = await getScrapingJobs();
-  let jobDeleted = 0;
-  let jobFailed = 0;
-  for (const j of jobs.filter((j) => testCampaignIds.has(j.campaignId))) {
-    try {
-      await deleteScrapingJob(j.id);
-      jobDeleted++;
-    } catch {
-      jobFailed++;
-    }
-  }
-  results.scrapingJobs = { deleted: jobDeleted, failed: jobFailed };
-
   // Tracking events -- test-flagged events live in monthly shards; delete-by-month across every
   // shard that actually has test events, same primitive Tracking's existing admin UI already uses.
   const wideRange = { from: new Date(0).toISOString(), to: new Date().toISOString() };
@@ -191,7 +172,6 @@ const RESET_TABS = [
   { key: "leads" as const, label: "Leads" },
   { key: "leadMemory" as const, label: "Lead Memory" },
   { key: "campaigns" as const, label: "Campaigns" },
-  { key: "scrapingJobs" as const, label: "Scraping Jobs" },
   { key: "unknownSenders" as const, label: "Unknown Senders" },
   { key: "errors" as const, label: "Errors" },
 ];
@@ -211,8 +191,8 @@ export interface ResetCrmDataResult extends ActionResult {
  *
  * Explicitly preserved (never touched by this function): admin account, session/auth config, all
  * environment secrets (Google/n8n/Cloudinary/SMTP/webhook), Website Registry, Demo Library,
- * Knowledge Base cache, scraper-agent definitions (local JSON, not a sheet tab this function ever
- * calls), n8n workflows, and the audit log itself (so the reset's own record survives it).
+ * Knowledge Base cache, n8n workflows, and the audit log itself (so the reset's own record
+ * survives it).
  */
 export async function resetCrmDataAction(password: string, confirmPhrase: string, finalConfirm: boolean): Promise<ResetCrmDataResult> {
   const actor = await requireAdmin();

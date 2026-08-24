@@ -11,7 +11,7 @@ const REQUEST_TIMEOUT_MS = 15_000;
  * per-webhook Header Auth): N8N_ADMIN_API_KEY is created in n8n under Settings -> n8n API.
  *
  * Change 4 generalizes this module from "one hardcoded N8N_WORKFLOW_ID" to a client parametrized
- * by whatever workflowId a registry entry (scraper agent or WorkflowIntegration) points at, so
+ * by whatever workflowId a registry entry (WorkflowIntegration) points at, so
  * the Workflow Control page can drive Activate/Deactivate/metadata/executions for every
  * registered integration, not just the one the original Dashboard Automation card tracked.
  * The original single-workflow functions (pauseWorkflow/resumeWorkflow/isWorkflowActive/

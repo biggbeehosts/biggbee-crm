@@ -33,10 +33,6 @@ export interface TriggerResult {
  * Campaign ID = campaignId AND Status = New AND not previously contacted, never by industry/
  * business type/status alone. The remaining fields are targeting notes only (informational for
  * n8n/the operator), not a selection filter.
- *
- * Scraper jobs are not built yet, but will be triggered the same way (a webhook body keyed by
- * campaignId) -- this shape is the contract they'll reuse, so campaignId lands here now rather
- * than being bolted on later.
  */
 export interface RunCampaignPayload {
   campaignId: string;

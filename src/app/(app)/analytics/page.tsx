@@ -62,7 +62,6 @@ interface SearchParams {
   subjectVariant?: string;
   emailStyle?: string;
   recipientDomain?: string;
-  scraperJobId?: string;
   senderDomain?: string;
 }
 
@@ -126,7 +125,6 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
     subjectVariant: sp.subjectVariant,
     emailStyle: sp.emailStyle,
     recipientDomain: sp.recipientDomain,
-    scraperJobId: sp.scraperJobId,
     senderDomain: sp.senderDomain,
   };
 
@@ -165,8 +163,8 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
       )}
 
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4 xl:grid-cols-5">
-        <StatCard label="Leads Scraped" value={snapshot.kpis.leadsScraped} icon={Send} />
-        <StatCard label="Valid Leads" value={snapshot.kpis.validLeads} icon={Send} hint="Passed scraper validation before reaching the CRM" />
+        <StatCard label="Total Leads" value={snapshot.kpis.leadsScraped} icon={Send} />
+        <StatCard label="Valid Leads" value={snapshot.kpis.validLeads} icon={Send} hint="Leads that passed validation before reaching the CRM" />
         <StatCard label="Approved Leads" value={snapshot.kpis.approvedLeads} icon={Send} />
         <StatCard label="Emails Attempted" value={snapshot.kpis.emailsAttempted} icon={Send} />
         <StatCard label="Emails Sent" value={snapshot.kpis.emailsSent} icon={Send} tone="accent" />
@@ -215,7 +213,7 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
       </div>
 
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-        <ChartCard title="Outreach Funnel" description="Scraped → Approved → Sent → Opened → Clicked → Replied → Meeting">
+        <ChartCard title="Outreach Funnel" description="Leads → Approved → Sent → Opened → Clicked → Replied → Meeting">
           <FunnelChart data={snapshot.funnel} />
         </ChartCard>
         <ChartCard title="Email Performance Over Time" description="Unique opens (estimated), unique clicks, and replies per day">
@@ -293,18 +291,9 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
         </ChartCard>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-        <ChartCard title="Scraper Performance" description="Runs, success/fail, and leads imported per scraper">
-          {snapshot.scraperPerformance.length ? (
-            <CountBarChart data={snapshot.scraperPerformance.map((s) => ({ label: s.scraperName, value: s.imported }))} />
-          ) : (
-            <PlaceholderChart reason="No scraper runs recorded in this range yet." />
-          )}
-        </ChartCard>
-        <ChartCard title="Emails Sent Over Time" description="Sent vs. failed, last 30 days (all-time lead data)">
-          <OutreachVolumeChart data={outreachVolumeOverTime(leads, 30)} />
-        </ChartCard>
-      </div>
+      <ChartCard title="Emails Sent Over Time" description="Sent vs. failed, last 30 days (all-time lead data)">
+        <OutreachVolumeChart data={outreachVolumeOverTime(leads, 30)} />
+      </ChartCard>
 
       <div className="space-y-3">
         <h2 className="text-sm font-semibold text-text-primary">Deliverability</h2>

@@ -3,13 +3,11 @@ export const dynamic = "force-dynamic";
 import { getConnectionStatus, getErrors, getKnowledgeBase, getLeads, isUsingMockData } from "@/lib/data/repository";
 import { getCampaigns } from "@/lib/data/campaigns-store";
 import { getDemoLibrary } from "@/lib/data/demo-library-store";
-import { getScraperAgents } from "@/lib/data/scraper-registry-store";
-import { getScrapingJobs } from "@/lib/data/scraping-jobs-store";
 import { getEvents } from "@/lib/data/analytics-events-store";
 import { getAllProviderHealth } from "@/lib/providers/registry";
 import { getLastSyncAt } from "@/lib/data/cache";
 import { getAdmin } from "@/lib/auth/admin-store";
-import { computeDashboardMetrics, leadsBySource, outreachVolumeOverTime } from "@/lib/calculations/dashboard-metrics";
+import { computeDashboardMetrics, outreachVolumeOverTime } from "@/lib/calculations/dashboard-metrics";
 import { summarizeDashboardErrors } from "@/lib/calculations/dashboard-alerts";
 import { computeCampaignReadiness } from "@/lib/calculations/campaign-readiness";
 import { daysSince } from "@/lib/utils/date";
@@ -17,7 +15,6 @@ import { CommandHeader, type OverallState } from "@/components/dashboard/command
 import { GettingStartedGuide, type GuideStep } from "@/components/dashboard/getting-started-guide";
 import { DashboardHighlights } from "@/components/dashboard/dashboard-highlights";
 import { KpiGrid } from "@/components/dashboard/kpi-grid";
-import { LeadGenOverview } from "@/components/dashboard/lead-gen-overview";
 import { OutreachPerformanceCard } from "@/components/dashboard/outreach-performance-card";
 import { type ConfiguredActions } from "@/components/dashboard/automation-card";
 import { CampaignRunPanel } from "@/components/dashboard/campaign-run-panel";
@@ -30,7 +27,7 @@ import { isN8nApiKeyRequiredButMissing } from "@/lib/config/env-validation";
 const EPOCH = new Date(0).toISOString();
 
 export default async function DashboardPage() {
-  const [leads, errors, automationStatus, connection, knowledgeBase, campaigns, configuredActionsRaw, demos, scraperAgents, scrapingJobs, providers, replyEvents, admin] =
+  const [leads, errors, automationStatus, connection, knowledgeBase, campaigns, configuredActionsRaw, demos, providers, replyEvents, admin] =
     await Promise.all([
       getLeads(),
       getErrors(),
@@ -40,8 +37,6 @@ export default async function DashboardPage() {
       getCampaigns(),
       getConfiguredActionsAction(),
       getDemoLibrary(),
-      getScraperAgents(),
-      getScrapingJobs(),
       getAllProviderHealth(),
       getEvents({ from: EPOCH, to: new Date().toISOString(), type: "reply_received" }),
       getAdmin(),
@@ -53,11 +48,6 @@ export default async function DashboardPage() {
   // underlying data, only what this read aggregates.
   const productionLeads = leads.filter((l) => !l.isTest);
   const testExcludedCount = leads.length - productionLeads.length;
-  // Scraping Jobs have no Is Test column of their own -- test status is derived from the campaign
-  // they ran under (see startScrapingJobAction, which already inherits the campaign's isTest flag
-  // onto imported leads), so the same exclusion is applied here via campaignId lookup.
-  const testCampaignIds = new Set(campaigns.filter((c) => c.isTest).map((c) => c.id));
-  const productionScrapingJobs = scrapingJobs.filter((j) => !testCampaignIds.has(j.campaignId));
   // Same cross-reference Analytics uses for events: a reply from a test lead's address is test
   // data too, even though reply_received events aren't individually flagged isTestEvent.
   const testLeadEmails = new Set(leads.filter((l) => l.isTest).map((l) => l.email));
@@ -146,13 +136,6 @@ export default async function DashboardPage() {
       href: "/settings",
     },
     {
-      id: "lead-sources",
-      title: "Configure Lead Sources",
-      description: "Set up a scraper (Google Maps, Instagram) to bring in new leads automatically.",
-      state: scraperAgents.filter((a) => a.category === "Lead Source").length > 0 ? "complete" : "recommended",
-      href: "/automation-hub/lead-sources",
-    },
-    {
       id: "demo-library",
       title: "Add a demo to the Demo Library",
       description: "Campaigns can attach a demo video automatically when it fits.",
@@ -175,8 +158,8 @@ export default async function DashboardPage() {
     },
     {
       id: "leads",
-      title: "Add or scrape Leads",
-      description: "Run a scraper or add leads manually to build a real pipeline.",
+      title: "Add Leads",
+      description: "Add leads manually or import them to build a real pipeline.",
       state: productionLeads.length > 0 ? "complete" : "needs-setup",
       href: "/leads",
     },
@@ -219,10 +202,7 @@ export default async function DashboardPage() {
         <p className="text-right text-[11px] text-text-tertiary">{testExcludedCount} test record{testExcludedCount === 1 ? "" : "s"} excluded</p>
       )}
 
-      <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-        <LeadGenOverview agents={scraperAgents} jobs={productionScrapingJobs} sourceBreakdown={leadsBySource(productionLeads)} />
-        <OutreachPerformanceCard leads={productionLeads} volume={outreachVolumeOverTime(productionLeads)} replies={replies} />
-      </div>
+      <OutreachPerformanceCard leads={productionLeads} volume={outreachVolumeOverTime(productionLeads)} replies={replies} />
 
       <div id="automation-control" className="scroll-mt-20">
         <CampaignRunPanel

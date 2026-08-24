@@ -3,9 +3,8 @@ import type { WebsiteRegistryEntry } from "@/types";
 import { readCollection, writeCollection } from "@/lib/store/json-store";
 
 /**
- * Website Registry -- CRM-owned configuration, same JSON-store pattern as
- * scraper-registry-store.ts (never the Sheet: the Sheet only ever holds the *content* each site's
- * KB_Cache rows carry, keyed by cacheKey).
+ * Website Registry -- CRM-owned configuration, file-backed JSON store (never the Sheet: the Sheet
+ * only ever holds the *content* each site's KB_Cache rows carry, keyed by cacheKey).
  */
 
 const COLLECTION = "website-registry";

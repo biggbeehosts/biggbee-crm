@@ -59,8 +59,7 @@ export function isAdvancedUpdatesEnabled(): boolean {
   return (process.env.ADVANCED_WORKFLOW_UPDATES_ENABLED ?? "").trim().toLowerCase() === "true";
 }
 
-/** Joins a bare path onto N8N_BASE_URL, or passes a full URL through unchanged. Shared by the
- *  fixed action webhooks above and by scraper-agent webhook resolution below. */
+/** Joins a bare path onto N8N_BASE_URL, or passes a full URL through unchanged. */
 function joinOrPassThrough(raw: string): string | null {
   if (!raw) return null;
   if (/^https?:\/\//i.test(raw)) return raw;
@@ -95,15 +94,16 @@ export function isAllowedN8nHost(url: string): boolean {
 }
 
 /**
- * Resolves a scraper agent's start webhook to a callable URL. `startWebhookEnvVar`, when set,
- * takes priority -- it's a *reference* to an env var name (e.g. "N8N_WEBHOOK_SCRAPE_GOOGLE_MAPS"),
- * resolved here server-side; the registry record itself never holds the value. Falls back to
- * `startWebhookPath` (already host-validated at creation time in the scrapers server action).
+ * Resolves a registry entry's webhook to a callable URL. `webhookEnvVar`, when set, takes
+ * priority -- it's a *reference* to an env var name, resolved here server-side; the registry
+ * record itself never holds the value. Falls back to `webhookPath` (already host-validated at
+ * creation time in the owning server action). Shared by every registry entry shaped this way
+ * (e.g. Website Registry sync).
  */
-export function resolveScraperWebhookUrl(agent: { startWebhookPath: string; startWebhookEnvVar?: string }): string | null {
-  if (agent.startWebhookEnvVar) {
-    const envValue = (process.env[agent.startWebhookEnvVar] ?? "").trim();
+export function resolveWebhookUrl(entry: { webhookPath: string; webhookEnvVar?: string }): string | null {
+  if (entry.webhookEnvVar) {
+    const envValue = (process.env[entry.webhookEnvVar] ?? "").trim();
     if (envValue) return joinOrPassThrough(envValue);
   }
-  return joinOrPassThrough(agent.startWebhookPath.trim());
+  return joinOrPassThrough(entry.webhookPath.trim());
 }
