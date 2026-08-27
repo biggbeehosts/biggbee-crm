@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { CheckCircle2, Play, TriangleAlert, UserSearch, Wrench } from "lucide-react";
+import { CheckCircle2, Play, TriangleAlert, Wrench } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -67,11 +67,6 @@ export function CommandHeader({
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <DashboardControls lastSyncedAt={lastSyncedAt} />
-          <Button variant="secondary" size="sm" asChild>
-            <Link href="/automation-hub/lead-sources">
-              <UserSearch className="h-3.5 w-3.5" /> Scrape Leads
-            </Link>
-          </Button>
           <Button size="lg" asChild className="shadow-lg shadow-accent/20">
             <Link href="#automation-control">
               <Play className="h-4 w-4" /> Run Campaign

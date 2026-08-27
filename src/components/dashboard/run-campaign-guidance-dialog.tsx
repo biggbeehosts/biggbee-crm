@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { UserSearch, UserPlus, ListChecks } from "lucide-react";
+import { UserPlus, ListChecks } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import type { CampaignReadiness } from "@/lib/calculations/campaign-readiness";
@@ -40,18 +40,11 @@ export function RunCampaignGuidanceDialog({
 
         <DialogFooter className="flex-wrap gap-2 sm:justify-start">
           {noEligibleLeads && (
-            <>
-              <Button size="sm" variant="secondary" asChild>
-                <Link href="/leads">
-                  <UserPlus className="h-3.5 w-3.5" /> Add Leads
-                </Link>
-              </Button>
-              <Button size="sm" variant="secondary" asChild>
-                <Link href="/automation-hub/lead-sources">
-                  <UserSearch className="h-3.5 w-3.5" /> Scrape Leads
-                </Link>
-              </Button>
-            </>
+            <Button size="sm" variant="secondary" asChild>
+              <Link href="/leads">
+                <UserPlus className="h-3.5 w-3.5" /> Add Leads
+              </Link>
+            </Button>
           )}
           {noCampaignSelected && (
             <Button size="sm" variant="secondary" onClick={() => onOpenChange(false)}>

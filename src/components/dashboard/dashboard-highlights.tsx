@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { UsersRound, Rocket, Send, MailOpen, UserPlus, UserSearch } from "lucide-react";
+import { UsersRound, Rocket, Send, MailOpen, UserPlus } from "lucide-react";
 import type { Campaign } from "@/types";
 import type { CampaignReadiness } from "@/lib/calculations/campaign-readiness";
 import { Card } from "@/components/ui/card";
@@ -66,15 +66,10 @@ export function DashboardHighlights({
         <p className="mt-2 text-xs text-text-tertiary">eligible for outreach · {formatNumber(totalLeads)} total leads</p>
         {totalLeads === 0 && (
           <div className="mt-3 flex flex-wrap gap-2 border-t border-border-subtle pt-3">
-            <p className="w-full text-[11px] text-text-secondary">Add or scrape leads to begin.</p>
+            <p className="w-full text-[11px] text-text-secondary">Add leads to begin.</p>
             <Button size="sm" variant="secondary" asChild>
               <Link href="/leads">
                 <UserPlus className="h-3.5 w-3.5" /> Add Leads
-              </Link>
-            </Button>
-            <Button size="sm" variant="secondary" asChild>
-              <Link href="/automation-hub/lead-sources">
-                <UserSearch className="h-3.5 w-3.5" /> Scrape Leads
               </Link>
             </Button>
           </div>
