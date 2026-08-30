@@ -41,7 +41,37 @@ const lists: OptionLists = {
     "Medical Practice",
     "Other",
   ]),
-  leadGenerationTypes: seed(["Instagram", "Google Maps", "LinkedIn", "Facebook", "Email", "Cold Calling", "Other"]),
+  // Real values the scraper-hub lead-source pipeline actually assigns (confirmed directly from
+  // its adapter registry + originSourceLabel() -- see @biggbee/adapters manifests and
+  // apps/api/src/export.ts on the scraper-hub host -- not the higher-level planning doc, which
+  // uses shorter labels than what the running code emits). Every entry here is a source that
+  // scraper-hub's own CRM-eligibility rules (GOOGLE_SHEETS_MAPPING_SPEC.md Part 4/7/8) can
+  // actually route into the Leads tab; sources that never reach Leads (Facebook Groups/Events/Ads
+  // Library, LinkedIn Jobs, Instagram content-type adapters, Website Enrichment as a new row,
+  // etc.) are deliberately not listed, since a lead could never carry one of those values.
+  // "Instagram" and "Instagram Businesses" are two genuinely distinct adapters/labels -- never
+  // collapsed into one, per instruction not to alias materially different sources. "LinkedIn" and
+  // "Facebook" (the old short forms) are removed: no adapter ever emits those bare strings, so
+  // they could never match a real lead and would only mislead. "Email"/"Cold Calling" are
+  // legitimate non-scraper-hub lead-generation categories (manually added / cold-called leads),
+  // kept as-is; "Other" keeps its existing unrestricted/wildcard semantics.
+  leadGenerationTypes: seed([
+    "Google Maps",
+    "Instagram",
+    "Instagram Businesses",
+    "LinkedIn Companies",
+    "Facebook Page Enrichment",
+    "Airbnb",
+    "Apontador (Brazil)",
+    "Das Örtliche (Germany)",
+    "FreeIndex (UK Business Reviews)",
+    "Scoot (UK Business Finder)",
+    "search.ch (Switzerland)",
+    "Telefoonnummer.nl (Netherlands)",
+    "Email",
+    "Cold Calling",
+    "Other",
+  ]),
 };
 
 export function getOptionListsSync(): OptionLists {
