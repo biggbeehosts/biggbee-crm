@@ -39,7 +39,16 @@ export interface TriggerResult {
  * triggerN8nAction) and let n8n's outbound workflow know which brand it's processing, instead of
  * assuming Biggbee AI everywhere. Deliberately excludes smtpCredentialRef/imapCredentialRef and
  * every other secret -- those are never sent over the webhook, only referenced by n8n's own
- * credential store. Phase C does not yet make the SMTP credential itself dynamic (see Phase D).
+ * credential store.
+ *
+ * Phase D (SMTP credential routing): still deliberately excludes smtpCredentialRef, and always
+ * will -- n8n credentials cannot be dynamically selected via workflow/webhook data on a Send
+ * Email node (a real n8n platform limitation, not a choice made here), so transmitting the
+ * credential ID would carry real risk (unnecessary credential metadata on the wire) for zero
+ * routing benefit. Instead, n8n's "Route by Workspace SMTP" switch node routes purely on
+ * `workspaceId` (already present below) to a fixed, design-time-assigned Send Email node/
+ * credential per workspace; triggerN8nAction only reads workspace.smtpCredentialRef server-side
+ * to fail the run fast if a workspace has none configured -- it's never forwarded from there.
  */
 export interface RunCampaignPayload {
   campaignId: string;

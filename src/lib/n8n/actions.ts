@@ -144,9 +144,22 @@ export async function triggerN8nAction(action: N8nActionKey, params: TriggerActi
     // Resolves the sender/brand identity server-side from the authenticated session's
     // activeWorkspaceId -- never from anything the browser sent. requireActiveWorkspace also
     // rejects a deactivated workspace, so a run can never fire under a workspace an admin has
-    // since turned off. Only non-secret identity fields are read here; smtpCredentialRef/
-    // imapCredentialRef are deliberately never touched in this function.
+    // since turned off.
     const workspace = await requireActiveWorkspace(workspaceId);
+
+    // Phase D: fail fast, server-side, if this workspace has no SMTP route configured at all --
+    // never let a run fire for a workspace n8n has no way to actually send for (n8n's own
+    // "Route by Workspace SMTP" switch would otherwise silently log-and-skip every lead instead
+    // of failing the run up front with a clear message). smtpCredentialRef itself is READ here
+    // only to check it's non-empty -- it is never included in the webhook payload below (n8n
+    // credentials can't be dynamically selected via workflow data anyway; routing there is keyed
+    // on workspaceId, which n8n maps to a fixed, design-time-assigned credential -- see
+    // src/lib/n8n/types.ts's RunCampaignPayload doc comment).
+    if (!workspace.smtpCredentialRef) {
+      const message = `Workspace "${workspace.workspaceName}" has no SMTP credential configured yet -- cannot run campaigns until one is set up.`;
+      await logAudit({ actor, action: "n8n.runCampaign", success: false, target: campaign.id, details: { error: message, workspaceId } });
+      return { success: false, message };
+    }
 
     // Campaign targeting (Country/Industry/Business Type/Lead Generation Type/Minimum Confidence,
     // "Any"/blank = no restriction) now determines eligibility on its own -- a lead no longer has
