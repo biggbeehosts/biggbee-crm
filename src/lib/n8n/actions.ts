@@ -10,6 +10,7 @@ import { getCampaign } from "@/lib/data/campaigns-store";
 import { bulkUpdateLeadFields, retryFailedLeads } from "@/lib/data/leads-mutations";
 import { leadEligibleForCampaignRun } from "@/lib/calculations/campaign-match";
 import { requireWorkspaceContext } from "@/lib/auth/workspace-context";
+import { requireActiveWorkspace } from "@/lib/data/workspace-store";
 import { logAudit } from "@/lib/audit/log";
 import { recordEvent } from "@/lib/data/analytics-events-store";
 
@@ -125,11 +126,27 @@ export async function triggerN8nAction(action: N8nActionKey, params: TriggerActi
       await logAudit({ actor, action: "n8n.runCampaign", success: false, target: campaignId, details: { error: message } });
       return { success: false, message };
     }
+    // Belt-and-suspenders: getCampaign(id, workspaceId) already makes a campaign owned by
+    // another workspace indistinguishable from nonexistent (see campaigns-store.ts), so this can
+    // never actually be false today -- kept as an explicit, auditable check rather than relying
+    // solely on that implicit guarantee, per Phase C requirement 3.
+    if (campaign.workspaceId !== workspaceId) {
+      const message = `Campaign "${campaignId}" does not belong to the active workspace.`;
+      await logAudit({ actor, action: "n8n.runCampaign", success: false, target: campaignId, details: { error: message, campaignWorkspaceId: campaign.workspaceId, activeWorkspaceId: workspaceId } });
+      return { success: false, message };
+    }
     if (campaign.status !== "Active") {
       const message = `Campaign "${campaign.name}" is ${campaign.status}, not Active. Activate it before running.`;
       await logAudit({ actor, action: "n8n.runCampaign", success: false, target: campaign.id, details: { error: message } });
       return { success: false, message };
     }
+
+    // Resolves the sender/brand identity server-side from the authenticated session's
+    // activeWorkspaceId -- never from anything the browser sent. requireActiveWorkspace also
+    // rejects a deactivated workspace, so a run can never fire under a workspace an admin has
+    // since turned off. Only non-secret identity fields are read here; smtpCredentialRef/
+    // imapCredentialRef are deliberately never touched in this function.
+    const workspace = await requireActiveWorkspace(workspaceId);
 
     // Campaign targeting (Country/Industry/Business Type/Lead Generation Type/Minimum Confidence,
     // "Any"/blank = no restriction) now determines eligibility on its own -- a lead no longer has
@@ -203,6 +220,16 @@ export async function triggerN8nAction(action: N8nActionKey, params: TriggerActi
       minConfidence: campaign.minConfidence ?? undefined,
       maxLeadsPerRun: campaign.maxLeadsPerRun ?? undefined,
       dailySendLimit: campaign.dailySendLimit ?? undefined,
+      workspaceId: workspace.workspaceId,
+      workspaceName: workspace.workspaceName,
+      senderDisplayName: workspace.senderDisplayName,
+      senderEmail: workspace.senderEmail,
+      replyToEmail: workspace.replyToEmail,
+      reportEmail: workspace.reportEmail,
+      website: workspace.website,
+      signatureName: workspace.signatureName,
+      signatureWebsite: workspace.signatureWebsite,
+      websiteRegistryId: workspace.websiteRegistryId,
     };
     payload = { ...runPayload };
   }

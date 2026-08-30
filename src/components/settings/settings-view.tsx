@@ -103,12 +103,10 @@ export function SettingsView({
                 <span className="text-xs font-medium text-text-secondary">{currentWorkspace.workspaceName}</span>
               </div>
               <div className="flex items-center justify-between text-sm">
-                <span className="text-text-tertiary">Sender name</span>
-                <span className="text-xs font-medium text-text-secondary">{currentWorkspace.senderDisplayName}</span>
-              </div>
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-text-tertiary">Sender email</span>
-                <span className="font-mono text-xs text-text-secondary">{currentWorkspace.senderEmail}</span>
+                <span className="text-text-tertiary">Sender</span>
+                <span className="font-mono text-xs text-text-secondary">
+                  {currentWorkspace.senderDisplayName} &lt;{currentWorkspace.senderEmail}&gt;
+                </span>
               </div>
               <div className="flex items-center justify-between text-sm">
                 <span className="text-text-tertiary">Reply-to</span>
@@ -212,7 +210,10 @@ export function SettingsView({
             <IconBadge icon={BookOpen} tone="accent" />
             <div>
               <CardTitle>Knowledge Base</CardTitle>
-              <CardDescription>The n8n-crawled biggbees.com content the AI uses as its source of truth</CardDescription>
+              <CardDescription>
+                The n8n-crawled {currentWorkspace ? currentWorkspace.website.replace(/^https?:\/\//, "") : "workspace website"} content the AI uses as
+                its source of truth
+              </CardDescription>
             </div>
           </div>
           <Badge variant={kbFresh ? "lime" : "warning"}>{kbFresh ? "In sync" : knowledgeBase.updatedAt ? "May be stale" : "Never synced"}</Badge>

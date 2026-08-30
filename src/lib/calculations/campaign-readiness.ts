@@ -264,7 +264,7 @@ export function computeCampaignReadiness(input: ReadinessInput): CampaignReadine
   const kbAge = daysSince(knowledgeBaseUpdatedAt);
   checks.push(
     kbAge === null
-      ? { id: "kb", label: "Knowledge base", state: "attention", detail: "Never synced from biggbees.com", blocking: false }
+      ? { id: "kb", label: "Knowledge base", state: "attention", detail: "Never synced from the workspace's website", blocking: false }
       : kbAge > KB_STALE_DAYS
         ? { id: "kb", label: "Knowledge base", state: "attention", detail: `Last updated ${kbAge} days ago`, blocking: false }
         : { id: "kb", label: "Knowledge base", state: "ready", detail: kbAge <= 0 ? "Updated today" : `Updated ${kbAge} day${kbAge === 1 ? "" : "s"} ago`, blocking: false }
