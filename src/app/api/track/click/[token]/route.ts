@@ -75,6 +75,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ toke
     const { isFirstClick } = await recordClickHit(trimmed, { isBot, at });
 
     await recordEvent({
+      workspaceId: lead.workspaceId,
       type: "click",
       leadId: lead.email,
       campaignId: lead.campaignId,

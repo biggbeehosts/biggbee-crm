@@ -62,7 +62,7 @@ export default async function AutomationHubOverviewPage() {
   const [integrations, demos, websites, providers] = await Promise.all([
     getWorkflowIntegrations(),
     getDemoLibrary(workspaceId),
-    getWebsiteRegistry(),
+    getWebsiteRegistry(workspaceId),
     getAllProviderHealth(),
   ]);
 

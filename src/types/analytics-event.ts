@@ -72,6 +72,11 @@ export const ANALYTICS_EVENT_TYPES: AnalyticsEventType[] = [
 
 export interface AnalyticsEvent {
   id: string;
+  /** Phase F: which workspace this event belongs to -- required, the same compound-identity
+   *  principle as every other workspace-scoped record (Lead/Campaign/etc, Phase A). leadId below
+   *  is actually the lead's email (see usage), so without this field two same-email leads in
+   *  different workspaces would have their events indistinguishable by leadId alone. */
+  workspaceId: string;
   type: AnalyticsEventType;
   leadId?: string;
   campaignId?: string;

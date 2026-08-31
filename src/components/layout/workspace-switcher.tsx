@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { Building2, Check, ChevronsUpDown } from "lucide-react";
-import type { Workspace } from "@/types";
+import type { PublicWorkspace } from "@/types";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { switchWorkspaceAction } from "@/lib/actions/workspace";
 import { useToast } from "@/components/ui/toast";
@@ -15,7 +15,7 @@ import { cn } from "@/lib/utils/cn";
  * 3). An account with more than one authorized workspace gets a real switcher; the actual
  * authorization check happens server-side in switchWorkspaceAction, never here.
  */
-export function WorkspaceSwitcher({ workspaces, activeWorkspaceId, collapsed }: { workspaces: Workspace[]; activeWorkspaceId: string; collapsed: boolean }) {
+export function WorkspaceSwitcher({ workspaces, activeWorkspaceId, collapsed }: { workspaces: PublicWorkspace[]; activeWorkspaceId: string; collapsed: boolean }) {
   const router = useRouter();
   const { toast } = useToast();
   const [switching, setSwitching] = React.useState<string | null>(null);

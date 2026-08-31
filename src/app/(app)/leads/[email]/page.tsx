@@ -28,7 +28,7 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ ema
   const leadErrors = errors.filter((e) => (e.leadEmail || "").toLowerCase() === decodedEmail);
   // All-time, single-lead lookup -- bounded to this one lead's activity, not a dashboard-scale
   // query, so the wide default range is safe here (Part J: full activity timeline per lead).
-  const leadEvents = await getEvents({ leadId: decodedEmail, from: "2020-01-01T00:00:00.000Z", includeTest: true });
+  const leadEvents = await getEvents(workspaceId, { leadId: decodedEmail, from: "2020-01-01T00:00:00.000Z", includeTest: true });
 
   return (
     <div>

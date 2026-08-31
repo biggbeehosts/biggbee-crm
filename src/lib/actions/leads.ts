@@ -254,11 +254,12 @@ function summarizeBulk(action: string, succeeded: string[], failed: { email: str
   return { success, message, succeeded, failed };
 }
 
-function recordLeadDecisionEvents(type: "lead_approved" | "lead_rejected", emails: string[]) {
+function recordLeadDecisionEvents(workspaceId: string, type: "lead_approved" | "lead_rejected", emails: string[]) {
   const at = new Date().toISOString();
   for (const email of emails) {
     const normalized = email.trim().toLowerCase();
     recordEvent({
+      workspaceId,
       type,
       leadId: normalized,
       emailHash: sha256Hex(normalized),
@@ -276,7 +277,7 @@ export async function approveLeadsAction(emails: string[]): Promise<BulkActionRe
   const { email: actor, workspaceId } = await requireWorkspaceContext();
   const { updated, failed } = await bulkUpdateLeadStatus(workspaceId, emails, "New");
   revalidateScrapedLeadsPaths();
-  recordLeadDecisionEvents("lead_approved", updated);
+  recordLeadDecisionEvents(workspaceId, "lead_approved", updated);
   await logAudit({ actor, action: "lead.bulk_approve", success: failed.length === 0, details: { count: updated.length, failed: failed.length } });
   return summarizeBulk("approved", updated, failed);
 }
@@ -285,7 +286,7 @@ export async function rejectLeadsAction(emails: string[]): Promise<BulkActionRes
   const { email: actor, workspaceId } = await requireWorkspaceContext();
   const { updated, failed } = await bulkUpdateLeadStatus(workspaceId, emails, "Not Interested");
   revalidateScrapedLeadsPaths();
-  recordLeadDecisionEvents("lead_rejected", updated);
+  recordLeadDecisionEvents(workspaceId, "lead_rejected", updated);
   await logAudit({ actor, action: "lead.bulk_reject", success: failed.length === 0, details: { count: updated.length, failed: failed.length } });
   return summarizeBulk("rejected", updated, failed);
 }

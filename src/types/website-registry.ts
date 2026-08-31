@@ -13,6 +13,11 @@ export const WEBSITE_SYNC_STATUSES: WebsiteSyncStatus[] = ["never-synced", "sync
 
 export interface WebsiteRegistryEntry {
   id: string;
+  /** Phase F: which workspace owns this website/KB entry -- required, same compound-identity
+   *  principle as every other workspace-scoped record. Ownership boundary is workspaceId + id
+   *  (this field + the entry's own id), never id alone -- a website id must never be guessable/
+   *  reusable across workspaces. */
+  workspaceId: string;
   label: string;
   url: string;
   /** Which "Cache Key" value in the KB_Cache sheet tab holds this site's content. Stable once

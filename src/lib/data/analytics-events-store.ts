@@ -59,8 +59,23 @@ export interface EventFilter {
 
 /** Reads only the month-shards the [from, to] range touches, then filters/sorts in memory --
  *  matches the rest of this CRM's "load what's relevant, reduce in JS" scale (see
- *  dashboard-metrics.ts); no pagination infra needed at this data volume. */
-export async function getEvents(filter: EventFilter = {}): Promise<AnalyticsEvent[]> {
+ *  dashboard-metrics.ts); no pagination infra needed at this data volume.
+ *
+ * Phase F: workspaceId is required -- there is no unscoped overload for reading events destined
+ * for any workspace-facing display (dashboard, analytics page, campaign cards). The one
+ * legitimate exception is getAllEventsUnfiltered below, used only by admin-wide infra maintenance
+ * (retention purge, test-event cleanup across every workspace) -- never for a workspace's own
+ * numbers. */
+export async function getEvents(workspaceId: string, filter: EventFilter = {}): Promise<AnalyticsEvent[]> {
+  return queryEvents(filter).then((events) => events.filter((e) => e.workspaceId === workspaceId));
+}
+
+/** The one legitimate unscoped read: admin-wide maintenance (data-management's test-data preview/
+ *  cleanup already only ever touches isTestEvent-flagged rows, which are synthetic/disposable by
+ *  definition regardless of which workspace created them; retention purge is calendar-age-based
+ *  infra housekeeping, not a workspace display). Never used to compute or display a workspace's
+ *  own numbers -- see getEvents for that. */
+async function queryEvents(filter: EventFilter = {}): Promise<AnalyticsEvent[]> {
   const to = filter.to ? new Date(filter.to) : new Date();
   const from = filter.from ? new Date(filter.from) : new Date(to.getFullYear(), to.getMonth() - 2, 1);
   const shards = shardKeysInRange(from, to);
@@ -83,6 +98,12 @@ export async function getEvents(filter: EventFilter = {}): Promise<AnalyticsEven
     }
   }
   return results.sort((a, b) => b.timestamp.localeCompare(a.timestamp));
+}
+
+/** Admin-wide, unscoped -- see queryEvents' doc comment on why this is the one legitimate
+ *  exception. Never exported to anything that renders a workspace's own numbers. */
+export async function getEventsForAdminMaintenance(filter: EventFilter = {}): Promise<AnalyticsEvent[]> {
+  return queryEvents(filter);
 }
 
 /** Part N: "mark events as test" / "delete test events" -- both need the shard key to mutate the

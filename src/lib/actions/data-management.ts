@@ -50,7 +50,7 @@ async function computePreview(workspaceId: string): Promise<{
     getErrors(workspaceId),
   ]);
   const wideRange = { from: new Date(0).toISOString(), to: new Date().toISOString() };
-  const events = await getEvents(wideRange);
+  const events = await getEvents(workspaceId, wideRange);
 
   const testLeadEmails = new Set(leads.filter((l) => l.isTest).map((l) => l.email));
   const testCampaignIds = new Set(campaigns.filter((c) => c.isTest).map((c) => c.id));
@@ -134,7 +134,7 @@ export async function cleanTestDataAction(confirmPhrase: string): Promise<CleanT
   // Tracking events -- test-flagged events live in monthly shards; delete-by-month across every
   // shard that actually has test events, same primitive Tracking's existing admin UI already uses.
   const wideRange = { from: new Date(0).toISOString(), to: new Date().toISOString() };
-  const events = await getEvents(wideRange);
+  const events = await getEvents(workspaceId, wideRange);
   const testMonths = new Set(
     events.filter((e) => e.isTestEvent || (e.leadId ? testLeadEmails.has(e.leadId) : false)).map((e) => e.timestamp.slice(0, 7))
   );

@@ -114,6 +114,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   const at = new Date().toISOString();
 
   await recordEvent({
+    workspaceId,
     type,
     leadId: email,
     campaignId,

@@ -86,6 +86,7 @@ export async function recordManualPlacementResultAction(formData: FormData): Pro
 
   const seedHash = sha256Hex(test.seedRecipient.trim().toLowerCase());
   const commonEventFields = {
+    workspaceId,
     campaignId: test.campaignId,
     emailHash: seedHash,
     recipientDomain: test.seedRecipient.split("@")[1],

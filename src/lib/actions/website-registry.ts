@@ -9,6 +9,7 @@ import { triggerWebsiteSync } from "@/lib/n8n/website-sync-client";
 import { recordSyncAttempt, getSyncLog } from "@/lib/data/website-sync-log-store";
 import { isAllowedN8nHost } from "@/lib/n8n/config";
 import { requireAdmin } from "@/lib/auth/require-admin";
+import { requireWorkspaceContext } from "@/lib/auth/workspace-context";
 import { logAudit } from "@/lib/audit/log";
 
 export interface ActionResult {
@@ -41,11 +42,13 @@ const WebsiteSchema = z.object({
 });
 
 export async function listWebsitesAction(): Promise<WebsiteRegistryEntry[]> {
-  return getWebsiteRegistry();
+  const { workspaceId } = await requireWorkspaceContext();
+  return getWebsiteRegistry(workspaceId);
 }
 
 export async function createWebsiteAction(formData: FormData): Promise<ActionResult> {
   const actor = await requireAdmin();
+  const { workspaceId } = await requireWorkspaceContext();
   const parsed = WebsiteSchema.safeParse({
     label: formData.get("label"),
     url: formData.get("url"),
@@ -62,7 +65,7 @@ export async function createWebsiteAction(formData: FormData): Promise<ActionRes
   if (webhookError) return { success: false, message: webhookError };
 
   try {
-    const site = await createWebsite(parsed.data);
+    const site = await createWebsite({ ...parsed.data, workspaceId });
     revalidateKbPaths();
     await logAudit({ actor, action: "website_registry.create", target: site.id, success: true, details: { label: site.label, cacheKey: site.cacheKey } });
     return { success: true, message: `${site.label} added to the Website Registry.` };
@@ -75,6 +78,7 @@ export async function createWebsiteAction(formData: FormData): Promise<ActionRes
 
 export async function updateWebsiteAction(id: string, formData: FormData): Promise<ActionResult> {
   const actor = await requireAdmin();
+  const { workspaceId } = await requireWorkspaceContext();
   const parsed = WebsiteSchema.partial().safeParse({
     label: formData.get("label") || undefined,
     url: formData.get("url") || undefined,
@@ -93,7 +97,7 @@ export async function updateWebsiteAction(id: string, formData: FormData): Promi
   }
 
   try {
-    const site = await updateWebsite(id, parsed.data);
+    const site = await updateWebsite(id, workspaceId, parsed.data);
     revalidateKbPaths();
     await logAudit({ actor, action: "website_registry.update", target: id, success: true, details: { fields: Object.keys(parsed.data) } });
     return { success: true, message: `${site.label} updated.` };
@@ -106,9 +110,10 @@ export async function updateWebsiteAction(id: string, formData: FormData): Promi
 
 export async function deleteWebsiteAction(id: string): Promise<ActionResult> {
   const actor = await requireAdmin();
+  const { workspaceId } = await requireWorkspaceContext();
   try {
-    const site = await getWebsite(id);
-    await deleteWebsite(id);
+    const site = await getWebsite(id, workspaceId);
+    await deleteWebsite(id, workspaceId);
     revalidateKbPaths();
     await logAudit({ actor, action: "website_registry.delete", target: id, success: true, details: { label: site?.label } });
     return { success: true, message: `${site?.label ?? "Website"} removed.` };
@@ -124,15 +129,16 @@ export async function deleteWebsiteAction(id: string): Promise<ActionResult> {
  *  because the trigger call was accepted. */
 export async function syncWebsiteAction(id: string): Promise<ActionResult> {
   const actor = await requireAdmin();
-  const site = await getWebsite(id);
+  const { workspaceId } = await requireWorkspaceContext();
+  const site = await getWebsite(id, workspaceId);
   if (!site) return { success: false, message: "Website not found." };
 
-  await updateWebsite(id, { syncStatus: "syncing" });
+  await updateWebsite(id, workspaceId, { syncStatus: "syncing" });
   revalidateKbPaths();
 
   const trigger = await triggerWebsiteSync(site);
   if (!trigger.success) {
-    await updateWebsite(id, { syncStatus: "failed", lastErrorSummary: trigger.message });
+    await updateWebsite(id, workspaceId, { syncStatus: "failed", lastErrorSummary: trigger.message });
     await recordSyncAttempt({ websiteId: id, websiteLabel: site.label, outcome: "failure", message: trigger.message, at: new Date().toISOString() });
     await logAudit({ actor, action: "website_registry.sync", target: id, success: false, details: { error: trigger.message } });
     revalidateKbPaths();
@@ -140,8 +146,11 @@ export async function syncWebsiteAction(id: string): Promise<ActionResult> {
   }
 
   try {
+    // The cacheKey resolved above is already workspace-exclusive by construction (slugifyCacheKey
+    // never reuses a key, the same precedent as globally-unique Campaign/Demo IDs and tracking
+    // tokens) -- safe to read without a second workspace check, same as findLeadByTrackingToken.
     const kb = await getKnowledgeBase(site.cacheKey);
-    await updateWebsite(id, {
+    await updateWebsite(id, workspaceId, {
       syncStatus: kb.sourceCount > 0 ? "idle" : "failed",
       lastSyncAt: new Date().toISOString(),
       pagesIndexed: kb.sourceCount,
@@ -153,7 +162,7 @@ export async function syncWebsiteAction(id: string): Promise<ActionResult> {
     return { success: true, message: `${site.label} synced -- ${kb.sourceCount} page${kb.sourceCount === 1 ? "" : "s"} indexed.` };
   } catch (err) {
     const message = err instanceof Error ? err.message : "Sync triggered, but re-reading the Knowledge Base failed.";
-    await updateWebsite(id, { syncStatus: "failed", lastErrorSummary: message });
+    await updateWebsite(id, workspaceId, { syncStatus: "failed", lastErrorSummary: message });
     await recordSyncAttempt({ websiteId: id, websiteLabel: site.label, outcome: "failure", message, at: new Date().toISOString() });
     revalidateKbPaths();
     return { success: false, message };

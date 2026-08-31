@@ -95,7 +95,7 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
     getLeads(workspaceId),
     getCampaigns(workspaceId),
     getDemoLibrary(workspaceId),
-    getEvents({ from, to }),
+    getEvents(workspaceId, { from, to }),
     getInboxPlacementTests(),
   ]);
 

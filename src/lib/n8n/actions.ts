@@ -281,6 +281,7 @@ export async function triggerN8nAction(action: N8nActionKey, params: TriggerActi
     // run actually finishes, since the CRM has no completion signal of its own to poll.
     if (action === "runCampaign" && params.campaignId) {
       recordEvent({
+        workspaceId,
         type: "campaign_started",
         campaignId: params.campaignId,
         source: "crm",

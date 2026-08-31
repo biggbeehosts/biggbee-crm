@@ -6,7 +6,7 @@ import Link from "next/link";
 import { BookOpen, Building2, Compass, RefreshCw, Sheet, ShieldCheck, Workflow, Palette, Trash2, ArrowRight, TriangleAlert, Users } from "lucide-react";
 import { DataManagementPanel } from "./data-management-panel";
 import { AccountsPanel } from "./accounts-panel";
-import type { ConnectionStatus, KnowledgeBaseRecord, Workspace } from "@/types";
+import type { ConnectionStatus, KnowledgeBaseRecord, PublicWorkspace } from "@/types";
 import type { EnvValidation } from "@/lib/config/env-validation";
 import type { N8nActionKey } from "@/lib/n8n/config";
 import type { AccountSummary } from "@/lib/actions/workspace";
@@ -43,9 +43,9 @@ export function SettingsView({
   knowledgeBase: KnowledgeBaseRecord;
   refreshKbConfigured: boolean;
   n8nActions: N8nActionStatus[];
-  currentWorkspace: Workspace | null;
+  currentWorkspace: PublicWorkspace | null;
   isFullAdmin: boolean;
-  allWorkspaces: Workspace[];
+  allWorkspaces: PublicWorkspace[];
   initialAccounts: AccountSummary[];
 }) {
   const router = useRouter();
@@ -122,14 +122,14 @@ export function SettingsView({
               </div>
               <div className="flex items-center justify-between text-sm">
                 <span className="text-text-tertiary">SMTP</span>
-                <Badge variant={currentWorkspace.smtpCredentialRef ? "lime" : "outline"}>
-                  {currentWorkspace.smtpCredentialRef ? "Connected" : "Not connected"}
+                <Badge variant={currentWorkspace.smtpConfigured ? "lime" : "outline"}>
+                  {currentWorkspace.smtpConfigured ? "Connected" : "Not connected"}
                 </Badge>
               </div>
               <div className="flex items-center justify-between text-sm">
                 <span className="text-text-tertiary">IMAP</span>
-                <Badge variant={currentWorkspace.imapCredentialRef ? "lime" : "outline"}>
-                  {currentWorkspace.imapCredentialRef ? "Connected" : "Not connected"}
+                <Badge variant={currentWorkspace.imapConfigured ? "lime" : "outline"}>
+                  {currentWorkspace.imapConfigured ? "Connected" : "Not connected"}
                 </Badge>
               </div>
               <p className="pt-1 text-[11px] text-text-tertiary">

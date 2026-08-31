@@ -58,6 +58,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ toke
     const { isFirstOpen } = await recordOpenHit(trimmed, { isBot, at });
 
     await recordEvent({
+      workspaceId: lead.workspaceId,
       type: "open",
       leadId: lead.email,
       campaignId: lead.campaignId,

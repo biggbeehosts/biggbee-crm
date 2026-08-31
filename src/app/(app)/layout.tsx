@@ -2,6 +2,7 @@ import { AppShell } from "@/components/layout/app-shell";
 import { getConnectionStatus, getLeads } from "@/lib/data/repository";
 import { buildNeedsAttention } from "@/lib/calculations/activity";
 import { pageWorkspaceContext, getAccessibleWorkspaces } from "@/lib/auth/workspace-context";
+import { toPublicWorkspace } from "@/types";
 
 export default async function AppLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   // Redirects to /login itself if the session, account, or active workspace no longer resolves
@@ -21,7 +22,7 @@ export default async function AppLayout({ children }: Readonly<{ children: React
       mode={status.mode}
       attentionCount={attentionCount}
       adminEmail={ctx.email}
-      workspaces={workspaces}
+      workspaces={workspaces.map(toPublicWorkspace)}
       activeWorkspaceId={ctx.workspaceId}
     >
       {children}

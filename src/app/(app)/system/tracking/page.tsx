@@ -16,7 +16,7 @@ export default async function TrackingAdminPage() {
   const [leads, campaigns, recentEvents, auditLog] = await Promise.all([
     getLeads(workspaceId),
     getCampaigns(workspaceId),
-    getEvents({ from: RECENT_FROM, includeTest: true }),
+    getEvents(workspaceId, { from: RECENT_FROM, includeTest: true }),
     Promise.resolve(getAuditLog(500)),
   ]);
 

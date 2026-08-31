@@ -96,7 +96,7 @@ export async function exportCampaignAnalyticsCsvAction(campaignId: string): Prom
 
   const from = "2020-01-01T00:00:00.000Z";
   const to = new Date().toISOString();
-  const events = await getEvents({ from, campaignId });
+  const events = await getEvents(workspaceId, { from, campaignId });
   const filter: TrackingFilter = { from, to, campaignId };
   const snapshot = computeTrackingSnapshot(filter, leads, campaigns, events, placementTests);
 

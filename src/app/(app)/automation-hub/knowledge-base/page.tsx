@@ -5,12 +5,14 @@ import { getKnowledgeBase } from "@/lib/data/repository";
 import { getConfiguredActionsAction } from "@/lib/n8n/actions";
 import { getWebsiteRegistry } from "@/lib/data/website-registry-store";
 import { getWebsiteSyncLogAction } from "@/lib/actions/website-registry";
+import { pageWorkspaceContext } from "@/lib/auth/workspace-context";
 import { PageHeader } from "@/components/layout/page-header";
 import { WebsiteRegistryView } from "@/components/knowledge-base/website-registry-view";
 import type { KnowledgeBaseRecord } from "@/types";
 
 export default async function KnowledgeBasePage() {
-  const [websites, configuredActions, syncLog] = await Promise.all([getWebsiteRegistry(), getConfiguredActionsAction(), getWebsiteSyncLogAction()]);
+  const { workspaceId } = await pageWorkspaceContext();
+  const [websites, configuredActions, syncLog] = await Promise.all([getWebsiteRegistry(workspaceId), getConfiguredActionsAction(), getWebsiteSyncLogAction()]);
 
   const kbEntries = await Promise.all(websites.map(async (w) => [w.id, await getKnowledgeBase(w.cacheKey)] as const));
   const kbByWebsiteId: Record<string, KnowledgeBaseRecord> = Object.fromEntries(kbEntries);

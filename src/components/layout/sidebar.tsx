@@ -10,7 +10,7 @@ import { WorkspaceSwitcher } from "./workspace-switcher";
 import { useUIState } from "./ui-state-provider";
 import { cn } from "@/lib/utils/cn";
 import { initials } from "@/lib/utils/format";
-import type { Workspace } from "@/types";
+import type { PublicWorkspace } from "@/types";
 
 export function Sidebar({
   connected,
@@ -22,7 +22,7 @@ export function Sidebar({
   connected: boolean;
   mode: "mock" | "google-sheets";
   adminEmail?: string;
-  workspaces?: Workspace[];
+  workspaces?: PublicWorkspace[];
   activeWorkspaceId?: string;
 }) {
   const pathname = usePathname();

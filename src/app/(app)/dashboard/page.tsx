@@ -40,7 +40,7 @@ export default async function DashboardPage() {
       getConfiguredActionsAction(),
       getDemoLibrary(workspaceId),
       getAllProviderHealth(),
-      getEvents({ from: EPOCH, to: new Date().toISOString(), type: "reply_received" }),
+      getEvents(workspaceId, { from: EPOCH, to: new Date().toISOString(), type: "reply_received" }),
       getAccountByEmail(email),
     ]);
 

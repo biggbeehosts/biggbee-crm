@@ -25,9 +25,9 @@ export default async function CampaignsPage() {
     getCampaigns(workspaceId),
     getDemoLibrary(workspaceId),
     getOptionListsSync(),
-    getEvents({ from: ALL_TIME_FROM }),
+    getEvents(workspaceId, { from: ALL_TIME_FROM }),
     getInboxPlacementTests(),
-    getWebsiteRegistry(),
+    getWebsiteRegistry(workspaceId),
   ]);
 
   // Rows written before the Is Test column existed read isTest=false the same as any other

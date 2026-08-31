@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { UserPlus, ShieldCheck, ShieldOff, Users } from "lucide-react";
-import type { Workspace } from "@/types";
+import type { PublicWorkspace } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -16,13 +16,13 @@ import {
   type AccountSummary,
 } from "@/lib/actions/workspace";
 
-function grantLabel(workspaceIds: string[] | "all", workspaces: Workspace[]): string {
+function grantLabel(workspaceIds: string[] | "all", workspaces: PublicWorkspace[]): string {
   if (workspaceIds === "all") return "Full access";
   if (workspaceIds.length === 0) return "No access";
   return workspaceIds.map((id) => workspaces.find((w) => w.workspaceId === id)?.workspaceName ?? id).join(", ");
 }
 
-function CreateAccountDialog({ workspaces, onCreated }: { workspaces: Workspace[]; onCreated: () => void }) {
+function CreateAccountDialog({ workspaces, onCreated }: { workspaces: PublicWorkspace[]; onCreated: () => void }) {
   const [open, setOpen] = React.useState(false);
   const [email, setEmail] = React.useState("");
   const [password, setPassword] = React.useState("");
@@ -123,7 +123,7 @@ function CreateAccountDialog({ workspaces, onCreated }: { workspaces: Workspace[
  *  depth, never trusting this component's own render gate). Starts from the accounts list the
  *  Settings page already fetched server-side -- no client-side fetch-on-mount, only explicit
  *  refreshes after a create/activate/deactivate action actually changes something. */
-export function AccountsPanel({ workspaces, initialAccounts }: { workspaces: Workspace[]; initialAccounts: AccountSummary[] }) {
+export function AccountsPanel({ workspaces, initialAccounts }: { workspaces: PublicWorkspace[]; initialAccounts: AccountSummary[] }) {
   const router = useRouter();
   const [accounts, setAccounts] = React.useState<AccountSummary[]>(initialAccounts);
   const [refreshing, setRefreshing] = React.useState(false);

@@ -7,7 +7,7 @@ import { useUIState } from "./ui-state-provider";
 import { cn } from "@/lib/utils/cn";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ToastProvider } from "@/components/ui/toast";
-import type { Workspace } from "@/types";
+import type { PublicWorkspace } from "@/types";
 
 export function AppShell({
   children,
@@ -23,7 +23,7 @@ export function AppShell({
   mode: "mock" | "google-sheets";
   attentionCount: number;
   adminEmail: string;
-  workspaces: Workspace[];
+  workspaces: PublicWorkspace[];
   activeWorkspaceId: string;
 }) {
   const { sidebarCollapsed } = useUIState();

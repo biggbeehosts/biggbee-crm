@@ -55,6 +55,23 @@ export interface Workspace {
   updatedAt: string;
 }
 
+/** Phase F secret-leak audit: the shape safe to pass into a client component. Any full
+ *  `Workspace` object handed to a "use client" component gets serialized whole into the RSC
+ *  payload the browser receives -- smtpCredentialRef/imapCredentialRef are n8n credential IDs,
+ *  not passwords, but the rule is still "credential references may exist server-side as IDs
+ *  only" (see Settings' Workspace Identity card doc comments), so every server->client boundary
+ *  that carries a Workspace must go through toPublicWorkspace() below rather than passing the
+ *  raw record. */
+export type PublicWorkspace = Omit<Workspace, "smtpCredentialRef" | "imapCredentialRef"> & {
+  smtpConfigured: boolean;
+  imapConfigured: boolean;
+};
+
+export function toPublicWorkspace(workspace: Workspace): PublicWorkspace {
+  const { smtpCredentialRef, imapCredentialRef, ...rest } = workspace;
+  return { ...rest, smtpConfigured: Boolean(smtpCredentialRef), imapConfigured: Boolean(imapCredentialRef) };
+}
+
 /** The workspaceId every pre-Phase-A record migrates onto. Not a magic constant scattered through
  *  business logic -- referenced from exactly one place (the migration script and, until Phase B
  *  introduces a real session-resolved active workspace, the small set of server entry points that

@@ -1,5 +1,6 @@
 import "server-only";
 import type { WebsiteRegistryEntry } from "@/types";
+import { DEFAULT_WORKSPACE_ID } from "@/types";
 import { readCollection, writeCollection } from "@/lib/store/json-store";
 
 /**
@@ -16,6 +17,7 @@ const now = () => new Date().toISOString();
 const SEED_WEBSITES: WebsiteRegistryEntry[] = [
   {
     id: "website-default",
+    workspaceId: DEFAULT_WORKSPACE_ID,
     label: "Biggbees.com (default)",
     url: "https://biggbees.com",
     cacheKey: "latest",
@@ -40,23 +42,26 @@ async function saveAll(entries: WebsiteRegistryEntry[]): Promise<void> {
   await writeCollection(COLLECTION, entries);
 }
 
-export async function getWebsiteRegistry(): Promise<WebsiteRegistryEntry[]> {
-  return getAll();
+/** Phase F: workspaceId is required -- a website/KB entry belongs to exactly one workspace, and
+ *  its own id is never sufficient on its own to prove ownership (ids are short random slugs, not
+ *  secrets, and must never be trusted as an implicit access boundary). */
+export async function getWebsiteRegistry(workspaceId: string): Promise<WebsiteRegistryEntry[]> {
+  return (await getAll()).filter((w) => w.workspaceId === workspaceId);
 }
 
-export async function getWebsite(id: string): Promise<WebsiteRegistryEntry | undefined> {
+export async function getWebsite(id: string, workspaceId: string): Promise<WebsiteRegistryEntry | undefined> {
   const all = await getAll();
-  return all.find((w) => w.id === id);
+  return all.find((w) => w.id === id && w.workspaceId === workspaceId);
 }
 
-export async function getWebsiteByCacheKey(cacheKey: string): Promise<WebsiteRegistryEntry | undefined> {
+export async function getWebsiteByCacheKey(cacheKey: string, workspaceId: string): Promise<WebsiteRegistryEntry | undefined> {
   const all = await getAll();
-  return all.find((w) => w.cacheKey === cacheKey);
+  return all.find((w) => w.cacheKey === cacheKey && w.workspaceId === workspaceId);
 }
 
-export async function getDefaultWebsite(): Promise<WebsiteRegistryEntry> {
+export async function getDefaultWebsite(workspaceId: string): Promise<WebsiteRegistryEntry | undefined> {
   const all = await getAll();
-  return all.find((w) => w.isDefault) ?? SEED_WEBSITES[0];
+  return all.find((w) => w.isDefault && w.workspaceId === workspaceId);
 }
 
 function generateEntryId(existing: Iterable<string>): string {
@@ -101,18 +106,23 @@ export async function createWebsite(
   return full;
 }
 
-export async function updateWebsite(id: string, fields: Partial<Omit<WebsiteRegistryEntry, "id" | "cacheKey" | "isDefault" | "createdAt">>): Promise<WebsiteRegistryEntry> {
+export async function updateWebsite(
+  id: string,
+  workspaceId: string,
+  fields: Partial<Omit<WebsiteRegistryEntry, "id" | "workspaceId" | "cacheKey" | "isDefault" | "createdAt">>
+): Promise<WebsiteRegistryEntry> {
   const all = await getAll();
-  const existing = all.find((w) => w.id === id);
+  const existing = all.find((w) => w.id === id && w.workspaceId === workspaceId);
   if (!existing) throw new Error(`Website "${id}" was not found.`);
   const updated: WebsiteRegistryEntry = { ...existing, ...fields, updatedAt: now() };
   await saveAll(all.map((w) => (w.id === id ? updated : w)));
   return updated;
 }
 
-export async function deleteWebsite(id: string): Promise<void> {
+export async function deleteWebsite(id: string, workspaceId: string): Promise<void> {
   const all = await getAll();
-  const existing = all.find((w) => w.id === id);
-  if (existing?.isDefault) throw new Error("The default website cannot be removed.");
+  const existing = all.find((w) => w.id === id && w.workspaceId === workspaceId);
+  if (!existing) throw new Error(`Website "${id}" was not found.`);
+  if (existing.isDefault) throw new Error("The default website cannot be removed.");
   await saveAll(all.filter((w) => w.id !== id));
 }
