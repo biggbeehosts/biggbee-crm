@@ -17,6 +17,7 @@ import {
   Gauge,
   Plug,
   SlidersHorizontal,
+  Palette,
   type LucideIcon,
 } from "lucide-react";
 
@@ -44,6 +45,8 @@ export const NAV_ITEMS: NavItem[] = [
 
   { label: "Campaigns", href: "/campaigns", icon: Target, group: "Outreach System" },
   { label: "Outreach", href: "/outreach", icon: Send, group: "Outreach System" },
+  // Optional side feature with its own sheet, Drive folder, webhook and workflow -- see src/lib/redesign.
+  { label: "Website Redesign", href: "/website-redesign", icon: Palette, group: "Outreach System" },
   { label: "Lead Memory", href: "/lead-memory", icon: BrainCircuit, group: "Outreach System" },
   { label: "Unknown Senders", href: "/unknown-senders", icon: MailQuestion, group: "Outreach System" },
   { label: "Analytics", href: "/analytics", icon: BarChart3, group: "Operations" },

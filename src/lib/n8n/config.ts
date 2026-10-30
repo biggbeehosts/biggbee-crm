@@ -68,6 +68,12 @@ function joinOrPassThrough(raw: string): string | null {
   return `${base}/${raw.replace(/^\/+/, "")}`;
 }
 
+/** Same resolution as getWebhookUrl, for a raw env value that is NOT one of the general actions
+ *  (used by features with their own dedicated webhook, e.g. Website Redesign Outreach). */
+export function getWebhookUrlFromRaw(raw: string): string | null {
+  return joinOrPassThrough(raw.trim());
+}
+
 /** Resolves an action to its full webhook URL, or null when not configured. */
 export function getWebhookUrl(action: N8nActionKey): string | null {
   return joinOrPassThrough((ENV_BY_ACTION[action] ?? "").trim());
