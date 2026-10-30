@@ -1,0 +1,482 @@
+{
+  "id": "OWwCk77riM1yUmgT",
+  "name": "Biggbee — Error Notifier",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "9f66e126-818b-88d0-46ea-b3ded37fd3c5",
+      "name": "Error Trigger",
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// ---- notifier settings (edit here; sent to the CRM with every request) ----\nconst CONFIG = {\n  incidentGapMin: 180,   // same error closer together than this = same incident\n  cooldownMin: 360,      // minutes between emails for one ongoing incident (continued-failure summary)\n  flapThreshold: 5,      // this many events within flapWindowMin escalates once\n  flapWindowMin: 60,\n  closeAfterMin: 180,    // quiet this long = incident closed (wrap-up sent if it repeated)\n  maxEmailsPerHour: 10,  // global flood cap; overflow is rolled into one digest\n  retentionDays: 14,\n  editorBaseUrl: \"https://n8n.srv1787796.hstgr.cloud\"\n};\n\n// Idempotency key: an HTTP retry of this same execution must get the SAME answer from the CRM.\nconst payload = $input.first().json;\nreturn [{ json: { payload: payload, request: { action: 'event', payload: payload, ownWorkflowId: $workflow.id, eventId: $workflow.id + ':' + $execution.id, config: CONFIG } } }];"
+      },
+      "id": "732bd1f6-f0c4-e7e9-7237-f31f2f3cd688",
+      "name": "Prepare Request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://crm.biggbees.com/api/internal/alerts",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.request) }}",
+        "options": {
+          "timeout": 8000,
+          "response": {
+            "response": {
+              "neverError": true,
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "d8b6c35f-8bef-7014-aea1-d461bb9f369b",
+      "name": "CRM Decide",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        480,
+        0
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "dHOCpdzzkQDDu0mz",
+          "name": "CRM Internal API Key"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 1000,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// ---- shared core (generated from src/lib/alerts/throttle-core.mjs -- do not edit here) ----\nconst Core = (function () {\n// Biggbee error notifier -- pure decision logic. No I/O, no imports.\n//\n// Inlined into the Code nodes of \"Biggbee — Error Notifier\" by\n// scripts/build-error-notifier-workflow.mjs (it strips the `export` keywords, so keep this file to\n// plain top-level `function` / `const` declarations).\n//\n// WHY THIS EXISTS (verified against the production n8n 2.27.4 source and 24 real alerts):\n//   * n8n calls the error workflow ONCE per trigger drop (\"activation error\"). The reactivation\n//     retries that follow (1 s, doubling per failed attempt, capped at 24 h) are log-only and never\n//     alert. So a *persistent* outage produces a single event and then silence -- silence is NOT\n//     evidence of recovery, and a new event for the same trigger IS evidence the previous drop\n//     recovered (a trigger can only fail \"initially\" if it had been re-established).\n//   * Activation errors arrive as { trigger: { error, mode }, workflow } with NO `execution`\n//     object; execution failures arrive as { execution: { id, url, error, lastNodeExecuted, mode },\n//     workflow }. The old email template only understood neither fully, which is why it printed\n//     \"Unknown node / Unavailable / Unknown\".\n//\n// Rules this module enforces:\n//   * identical events (same fingerprint) are folded into ONE incident;\n//   * the first event of an incident always emails (we cannot know it is harmless);\n//   * repeats inside the incident are counted, not emailed, except: a flapping escalation, and a\n//     periodic \"still failing\" summary;\n//   * distinct failures (different workflow/node/error) are distinct incidents and always email;\n//   * a global per-hour cap rolls overflow into a digest (nothing is silently lost);\n//   * the notifier never emails about itself (no notification loops);\n//   * nothing is invented: every field that the payload does not carry is labelled \"unavailable\".\n\nconst UNAVAILABLE = \"unavailable\";\n\nconst DEFAULT_CONFIG = {\n  /** Events for one fingerprint closer together than this belong to the same incident. Kept equal to\n   *  closeAfterMin so an incident that goes quiet is wrapped up (see sweep) before a new one starts. */\n  incidentGapMin: 180,\n  /** Minimum minutes between two emails for the same ongoing incident (continued-failure summary). */\n  cooldownMin: 360,\n  /** This many events inside flapWindowMin escalates the incident once. */\n  flapThreshold: 5,\n  flapWindowMin: 60,\n  /** An incident with no new event for this long is closed by the sweeper. */\n  closeAfterMin: 180,\n  /** Global flood cap; anything over it is rolled into the next digest. */\n  maxEmailsPerHour: 10,\n  retentionDays: 14,\n  maxTrackedIncidents: 200,\n  editorBaseUrl: \"https://n8n.srv1787796.hstgr.cloud\",\n};\n\nconst MIN = 60 * 1000;\nconst HOUR = 60 * MIN;\n\n// ───────────────────────── normalisation ─────────────────────────\n\n/** Strips volatile parts (ids, numbers, urls, emails) so the same error always fingerprints the same. */\nfunction normalizeMessage(message) {\n  return String(message == null ? \"\" : message)\n    .toLowerCase()\n    .replace(/[a-z0-9._%+-]+@[a-z0-9.-]+\\.[a-z]{2,}/g, \"<email>\")\n    .replace(/https?:\\/\\/[^\\s\"')]+/g, \"<url>\")\n    .replace(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/g, \"<id>\")\n    .replace(/\\b[0-9a-f]{16,}\\b/g, \"<id>\")\n    .replace(/\\d+/g, \"#\")\n    .replace(/\\s+/g, \" \")\n    .trim()\n    .slice(0, 160);\n}\n\nfunction str(v) {\n  return v == null || v === \"\" ? null : String(v).slice(0, 1000);\n}\n\n/** host + path only, never the query string (it can carry tokens). */\nfunction safeUrl(raw) {\n  const s = String(raw == null ? \"\" : raw);\n  if (!s || s.charAt(0) === \"=\") return null;\n  // Deliberately NOT `new URL(...)`: the URL global is not available inside n8n's Code-node sandbox\n  // (found by running this in the real runner), so parse with a regex that drops query and fragment.\n  const m = s.match(/^[a-z][a-z0-9+.-]*:\\/\\/([^\\/?#\\s]+)([^?#\\s]*)/i);\n  return m ? m[1] + m[2] : null;\n}\n\nconst NODE_SERVICES = [\n  [/emailreadimap/i, \"IMAP mailbox\"],\n  [/emailsend|smtp/i, \"SMTP (outgoing mail)\"],\n  [/googlesheets/i, \"Google Sheets API\"],\n  [/googledrive/i, \"Google Drive API\"],\n  [/gmail/i, \"Gmail API\"],\n  [/openai|langchain.*lmchat|lmchatopenai/i, \"OpenAI API\"],\n  [/airtable/i, \"Airtable API\"],\n  [/postgres|mysql|mongo|redis/i, \"database\"],\n];\n\n/**\n * Turns whichever payload shape n8n sent into one flat event. Never throws; unknown fields stay null.\n *   execution failure : { execution: { id, url, error, lastNodeExecuted, mode, retryOf }, workflow }\n *   activation failure: { trigger:   { error, mode }, workflow }\n */\nfunction normalizeEvent(payload, ctx) {\n  const nowMs = (ctx && ctx.nowMs) || Date.now();\n  const ownWorkflowId = (ctx && ctx.ownWorkflowId) || null;\n  const p = payload && typeof payload === \"object\" ? payload : {};\n  const wf = p.workflow && typeof p.workflow === \"object\" ? p.workflow : {};\n  const ex = p.execution && typeof p.execution === \"object\" ? p.execution : null;\n  const tr = p.trigger && typeof p.trigger === \"object\" ? p.trigger : null;\n  const err = (ex && ex.error) || (tr && tr.error) || (p.error && typeof p.error === \"object\" ? p.error : {}) || {};\n  const nodeObj = err.node && typeof err.node === \"object\" ? err.node : null;\n  const message = str(err.message) || str(p.message);\n  const kind = ex ? \"execution\" : tr ? \"activation\" : \"unknown\";\n\n  let nodeName = (nodeObj && str(nodeObj.name)) || (ex && str(ex.lastNodeExecuted)) || null;\n  if (!nodeName && message) {\n    const m = message.match(/trigger node \"([^\"]+)\"/i);\n    if (m) nodeName = m[1];\n  }\n\n  const params = (nodeObj && nodeObj.parameters) || {};\n  const operationParts = [];\n  if (str(params.resource)) operationParts.push(String(params.resource));\n  if (str(params.operation)) operationParts.push(String(params.operation));\n  const url = safeUrl(params.url);\n  if (str(params.method) && url) operationParts.push(String(params.method).toUpperCase() + \" \" + url);\n  else if (url) operationParts.push(url);\n\n  const nodeType = (nodeObj && str(nodeObj.type)) || null;\n  let service = null;\n  if (nodeType) {\n    for (const pair of NODE_SERVICES) if (pair[0].test(nodeType)) { service = pair[1]; break; }\n    if (!service && /httprequest/i.test(nodeType) && url) service = url.split(\"/\")[0];\n  }\n\n  const ts = Number(err.timestamp);\n  return {\n    kind: kind,\n    workflowId: str(wf.id) || (ex && ex.workflowData && str(ex.workflowData.id)) || null,\n    workflowName: str(wf.name) || null,\n    nodeName: nodeName,\n    nodeId: (nodeObj && str(nodeObj.id)) || null,\n    nodeType: nodeType,\n    operation: operationParts.length ? operationParts.join(\" \") : null,\n    service: service,\n    errorName: str(err.name),\n    message: message,\n    description: str(err.description),\n    httpCode: str(err.httpCode) || (err.cause && str(err.cause.httpCode)) || null,\n    mode: (ex && str(ex.mode)) || (tr && str(tr.mode)) || null,\n    executionId: ex ? str(ex.id) : null,\n    executionUrl: ex ? str(ex.url) : null,\n    retryOf: ex ? str(ex.retryOf) : null,\n    occurredAtMs: Number.isFinite(ts) && ts > 1e12 ? ts : nowMs,\n    timestampIsFromPayload: Number.isFinite(ts) && ts > 1e12,\n    // an error raised while an error workflow itself was running, or by this notifier: never email it\n    selfOrigin: (!!ownWorkflowId && str(wf.id) === ownWorkflowId) || (!!ex && ex.mode === \"error\"),\n  };\n}\n\nfunction fingerprint(event) {\n  return [event.workflowId || \"?\", event.nodeName || (event.kind === \"activation\" ? \"trigger\" : \"?\"), event.errorName || \"?\", normalizeMessage(event.message)].join(\"|\");\n}\n\n// ───────────────────────── classification ─────────────────────────\n\nfunction severityOf(event, incident) {\n  if (event.kind === \"activation\") return incident && incident.escalated ? \"critical\" : \"warning\";\n  return \"critical\";\n}\n\n/** What can honestly be said about transient vs persistent, from evidence only. */\nfunction durabilityOf(event, incident) {\n  const count = incident ? incident.count : 1;\n  if (event.kind === \"activation\") {\n    if (incident && incident.escalated) return \"repeating -- \" + count + \" drops in the last \" + DEFAULT_CONFIG.flapWindowMin + \" minutes\";\n    if (count <= 1) return \"unknown (first occurrence); n8n is retrying activation automatically, retry outcomes are not reported to alerts\";\n    return \"transient so far -- \" + (count - 1) + \" earlier drop(s) were each followed by a working activation (a trigger can only drop again after it was re-established)\";\n  }\n  if (count <= 1) return \"unknown (first occurrence)\";\n  return \"recurring -- the same node and error \" + count + \" times\";\n}\n\nfunction impactOf(event) {\n  if (event.kind === \"activation\") return \"blocking while deactivated: the trigger is removed until n8n reactivates it (first retry after ~1 s, doubling on each failed retry up to 24 h)\";\n  if (event.kind === \"execution\") return \"blocking for that execution: it stopped at the failing node\";\n  return UNAVAILABLE;\n}\n\nfunction retriesOf(event) {\n  if (event.kind === \"activation\") return \"automatic reactivation scheduled by n8n; its outcome is not part of the alert\";\n  if (event.retryOf) return \"this execution is itself a retry of execution \" + event.retryOf;\n  return UNAVAILABLE + \" (node retry settings and outcomes are not included in the error payload)\";\n}\n\nfunction nextActionOf(event) {\n  const code = Number(event.httpCode);\n  if (code === 401 || code === 403) return \"Authorization failed: check or reconnect the credential used by this node.\";\n  if (code === 429) return \"Rate limited by the service: reduce the frequency or wait, then re-run.\";\n  if (code >= 500 && code < 600) return \"The remote service returned a server error: check its status; this may clear by itself.\";\n  if (event.kind === \"activation\") return \"If no further alerts follow, no action is needed. If replies/events stop being processed, check the trigger's credential or mailbox and the workflow's activation state in n8n.\";\n  if (event.kind === \"execution\") return \"Open the execution link, inspect the failing node's input and output, fix the cause, then re-run.\";\n  return UNAVAILABLE;\n}\n\nfunction causeNote(event) {\n  if (event.kind === \"activation\") return \"unavailable in the error payload (n8n logs it on the server: look for \\\"failed with the error\\\" in the n8n log)\";\n  return event.description || UNAVAILABLE;\n}\n\n// ───────────────────────── incident state machine ─────────────────────────\n\nconst MAX_REMEMBERED_EVENTS = 50;\n\nfunction emptyState() {\n  return { version: 1, incidents: {}, recentEmailTimes: [], overflow: { count: 0, fingerprints: [] }, lastSweepAt: 0, processed: {} };\n}\n\n/**\n * Idempotency. n8n retries an HTTP call whose response it never saw; without this a retry would be\n * counted as a duplicate occurrence and the email decided on the first (lost) response would never\n * be sent. The decision for an event id is remembered, so a retry gets the SAME answer and does not\n * change any count.\n */\nfunction recallDecision(state, eventId) {\n  if (!eventId || !state || !state.processed) return null;\n  return Object.prototype.hasOwnProperty.call(state.processed, eventId) ? state.processed[eventId] : null;\n}\n\nfunction rememberDecision(state, eventId, result) {\n  if (!eventId) return;\n  state.processed = state.processed || {};\n  state.processed[eventId] = result;\n  const ids = Object.keys(state.processed);\n  if (ids.length > MAX_REMEMBERED_EVENTS) for (const id of ids.slice(0, ids.length - MAX_REMEMBERED_EVENTS)) delete state.processed[id];\n}\n\n/** The Errors-sheet row for one event. Every event is logged whether or not it is emailed. */\nfunction buildLogRow(event, decision, emailed) {\n  const U = UNAVAILABLE;\n  return {\n    Timestamp: new Date(event.occurredAtMs).toISOString(),\n    Source: \"Global Workflow Error\",\n    \"Lead Email\": event.executionId ? \"Execution ID: \" + event.executionId : \"\",\n    \"Error Message\": event.message || U,\n    \"Node Name\": event.nodeName || U,\n    Company: \"\",\n    \"Validation Errors\": JSON.stringify([event.message || U]),\n    \"Validation Warnings\": JSON.stringify({\n      workflowName: event.workflowName || U, workflowId: event.workflowId || U, kind: event.kind,\n      executionId: event.executionId || \"\", executionUrl: event.executionUrl || \"\", mode: event.mode || \"\",\n      incidentCount: decision && decision.incident ? decision.incident.count : 1, emailed: !!emailed,\n      decision: decision ? decision.reason : \"\", selfOrigin: event.selfOrigin,\n    }),\n    \"Workspace ID\": \"biggbee\",\n  };\n}\n\nfunction cfgOf(cfg) {\n  return Object.assign({}, DEFAULT_CONFIG, cfg || {});\n}\n\nfunction emailsInLastHour(state, nowMs) {\n  return (state.recentEmailTimes || []).filter((t) => nowMs - t < HOUR).length;\n}\n\nfunction recordEmail(state, nowMs) {\n  state.recentEmailTimes = (state.recentEmailTimes || []).filter((t) => nowMs - t < HOUR).concat([nowMs]);\n}\n\nfunction prune(state, c, nowMs) {\n  const keepAfter = nowMs - c.retentionDays * 24 * HOUR;\n  for (const fp of Object.keys(state.incidents)) {\n    const i = state.incidents[fp];\n    if (i.status === \"closed\" && i.lastAt < keepAfter) delete state.incidents[fp];\n  }\n  const fps = Object.keys(state.incidents);\n  if (fps.length > c.maxTrackedIncidents) {\n    fps\n      .filter((fp) => state.incidents[fp].status === \"closed\")\n      .sort((a, b) => state.incidents[a].lastAt - state.incidents[b].lastAt)\n      .slice(0, fps.length - c.maxTrackedIncidents)\n      .forEach((fp) => delete state.incidents[fp]);\n  }\n}\n\n/**\n * Folds one event into the persistent state and decides whether it deserves an email.\n * Returns { state, decision: { email: null | { kind }, reason, incident, isNewIncident, suppressed } }.\n * `state` is mutated and returned (it is the workflow's static data).\n */\nfunction applyEvent(state, event, cfg, nowMs) {\n  const c = cfgOf(cfg);\n  if (!state || state.version !== 1) state = emptyState();\n  if (!state.processed) state.processed = {};\n\n  if (event.selfOrigin) {\n    return { state: state, decision: { email: null, reason: \"self-origin: logged only, never emailed (prevents notification loops)\", incident: null, isNewIncident: false, suppressed: false } };\n  }\n\n  const fp = fingerprint(event);\n  let inc = state.incidents[fp];\n  const t = event.occurredAtMs;\n  let isNew = false;\n\n  if (!inc || inc.status === \"closed\" || t - inc.lastAt > c.incidentGapMin * MIN) {\n    isNew = true;\n    // remember what the previous incident for this same fingerprint looked like, so it is reported\n    // in the new alert instead of being silently forgotten\n    const previous = inc ? { count: inc.count, firstAt: inc.firstAt, lastAt: inc.lastAt } : null;\n    inc = {\n      previous: previous,\n      fp: fp, workflowId: event.workflowId, workflowName: event.workflowName, node: event.nodeName, kind: event.kind, errorName: event.errorName, message: event.message ? String(event.message).slice(0, 300) : null,\n      firstAt: t, lastAt: t, count: 1, countSinceEmail: 0, lastEmailAt: 0, emails: 0, escalated: false, status: \"open\", recentTimes: [t],\n      lastExecutionId: event.executionId, lastExecutionUrl: event.executionUrl,\n    };\n  } else {\n    inc.count += 1;\n    inc.countSinceEmail += 1;\n    inc.lastAt = Math.max(inc.lastAt, t);\n    inc.recentTimes = (inc.recentTimes || []).concat([t]).slice(-100);\n    inc.lastExecutionId = event.executionId || inc.lastExecutionId;\n    inc.lastExecutionUrl = event.executionUrl || inc.lastExecutionUrl;\n  }\n  state.incidents[fp] = inc;\n\n  let kind = null;\n  let reason;\n  if (isNew) {\n    kind = \"incident_started\";\n    reason = \"new incident\";\n  } else {\n    const inWindow = inc.recentTimes.filter((x) => t - x <= c.flapWindowMin * MIN).length;\n    if (!inc.escalated && inWindow >= c.flapThreshold) {\n      inc.escalated = true;\n      kind = \"repeating\";\n      reason = inWindow + \" events within \" + c.flapWindowMin + \" min\";\n    } else if (t - inc.lastEmailAt >= c.cooldownMin * MIN) {\n      kind = \"continued\";\n      reason = \"cooldown elapsed; continued-failure summary\";\n    } else {\n      reason = \"duplicate within incident (cooldown)\";\n    }\n  }\n\n  if (kind) {\n    if (emailsInLastHour(state, nowMs) >= c.maxEmailsPerHour) {\n      state.overflow.count += 1;\n      if (state.overflow.fingerprints.indexOf(fp) === -1 && state.overflow.fingerprints.length < 50) state.overflow.fingerprints.push(fp);\n      prune(state, c, nowMs);\n      return { state: state, decision: { email: null, reason: \"flood cap reached (\" + c.maxEmailsPerHour + \"/h); rolled into the next digest\", incident: inc, isNewIncident: isNew, suppressed: true, overflow: true } };\n    }\n    recordEmail(state, nowMs);\n    inc.lastEmailAt = nowMs;\n    inc.emails += 1;\n    inc.countSinceEmail = 0;\n    prune(state, c, nowMs);\n    return { state: state, decision: { email: { kind: kind }, reason: reason, incident: inc, isNewIncident: isNew, suppressed: false } };\n  }\n  prune(state, c, nowMs);\n  return { state: state, decision: { email: null, reason: reason, incident: inc, isNewIncident: false, suppressed: true } };\n}\n\n/**\n * Periodic housekeeping (run by the notifier's schedule): closes quiet incidents, reports ones that\n * had repeated, and flushes the overflow digest. Returns { state, emails: [{ kind, incident? }] }.\n */\nfunction sweep(state, cfg, nowMs) {\n  const c = cfgOf(cfg);\n  if (!state || state.version !== 1) state = emptyState();\n  const emails = [];\n  for (const fp of Object.keys(state.incidents)) {\n    const inc = state.incidents[fp];\n    if (inc.status !== \"open\") continue;\n    if (nowMs - inc.lastAt < c.closeAfterMin * MIN) continue;\n    inc.status = \"closed\";\n    inc.closedAt = nowMs;\n    // single-occurrence incidents were already announced; only incidents that repeated get a wrap-up\n    if (inc.count > 1 || inc.escalated) emails.push({ kind: \"ended\", incident: inc });\n  }\n  if (state.overflow.count > 0) emails.push({ kind: \"digest\", overflow: { count: state.overflow.count, fingerprints: state.overflow.fingerprints.map((fp) => (state.incidents[fp] ? { fp: fp, workflowName: state.incidents[fp].workflowName, node: state.incidents[fp].node } : { fp: fp }) ) } });\n  // honour the global cap for what the sweep itself sends (keep at least the digest visible)\n  let budget = Math.max(c.maxEmailsPerHour - emailsInLastHour(state, nowMs), 1);\n  const out = [];\n  for (const e of emails) {\n    if (e.kind === \"digest\" || budget > 0) {\n      out.push(e);\n      if (e.kind !== \"digest\") budget -= 1;\n      recordEmail(state, nowMs);\n    }\n    // else: over the hourly cap. \"ended\" notes are informational (the original alert and every\n    // occurrence are already recorded), so they are dropped rather than queued.\n  }\n  if (out.some((e) => e.kind === \"digest\")) state.overflow = { count: 0, fingerprints: [] };\n  state.lastSweepAt = nowMs;\n  prune(state, c, nowMs);\n  return { state: state, emails: out };\n}\n\n// ───────────────────────── rendering ─────────────────────────\n\nfunction iso(ms) {\n  return new Date(ms).toISOString();\n}\n\nfunction mins(ms) {\n  return Math.max(1, Math.round(ms / MIN));\n}\n\nfunction link(event, cfg) {\n  if (event.executionUrl) return event.executionUrl;\n  if (event.workflowId) return String(cfg.editorBaseUrl || DEFAULT_CONFIG.editorBaseUrl).replace(/\\/+$/, \"\") + \"/workflow/\" + event.workflowId;\n  return UNAVAILABLE;\n}\n\nfunction esc(s) {\n  return String(s).replace(/&/g, \"&amp;\").replace(/</g, \"&lt;\").replace(/>/g, \"&gt;\");\n}\n\nfunction toHtml(lines) {\n  return \"<div style=\\\"font-family:Arial,sans-serif;font-size:14px;color:#172033;line-height:1.5\\\">\" + lines.map((l) => (l === \"\" ? \"<br>\" : \"<div>\" + esc(l) + \"</div>\")).join(\"\") + \"</div>\";\n}\n\nconst TITLES = {\n  incident_started: { critical: \"Critical error\", warning: \"Warning\" },\n  repeating: { critical: \"Critical: repeating failure\", warning: \"Repeating failure\" },\n  continued: { critical: \"Still failing\", warning: \"Still failing\" },\n};\n\n/**\n * Renders the alert for an incident. `event` is the latest normalised event (used for detail\n * fields); `incident` carries counts/times. Every unknown field is labelled \"unavailable\".\n */\nfunction renderEmail(kind, incident, event, cfg, nowMs) {\n  const c = cfgOf(cfg);\n  if (kind === \"ended\") {\n    const where = (incident.workflowName || UNAVAILABLE) + \" / \" + (incident.node || UNAVAILABLE);\n    const lines = [\n      \"No further occurrences reported.\",\n      \"\",\n      \"Workflow: \" + (incident.workflowName || UNAVAILABLE) + \" (\" + (incident.workflowId || UNAVAILABLE) + \")\",\n      \"Failing node: \" + (incident.node || UNAVAILABLE),\n      \"Error: \" + (incident.message || UNAVAILABLE),\n      \"Occurrences: \" + incident.count + \" between \" + iso(incident.firstAt) + \" and \" + iso(incident.lastAt),\n      \"Quiet for: \" + mins(nowMs - incident.lastAt) + \" minutes\",\n      \"\",\n      incident.kind === \"activation\"\n        ? \"Note: this is inferred from silence. n8n's reactivation retries do not raise alerts, so this cannot confirm that the trigger is currently active. If replies/events are not being processed, check the workflow in n8n.\"\n        : \"Note: this is inferred from the absence of new errors, not from a confirmed successful run.\",\n    ];\n    return { subject: \"[Biggbee alert] Quiet: \" + where, text: lines.join(\"\\n\"), html: toHtml(lines) };\n  }\n  if (kind === \"digest\") {\n    const items = (incident && incident.fingerprints) || [];\n    const lines = [\n      \"The alert flood cap (\" + c.maxEmailsPerHour + \" emails/hour) was reached and \" + incident.count + \" alert(s) were held back. Nothing was discarded: every error is also in the Errors sheet.\",\n      \"\",\n      \"Affected (up to 50 shown):\",\n    ].concat(items.map((i) => \"- \" + (i.workflowName || UNAVAILABLE) + \" / \" + (i.node || UNAVAILABLE)));\n    return { subject: \"[Biggbee alert] \" + incident.count + \" alert(s) held back by the flood cap\", text: lines.join(\"\\n\"), html: toHtml(lines) };\n  }\n\n  const severity = severityOf(event, incident);\n  const title = (TITLES[kind] || TITLES.incident_started)[severity] || \"Error\";\n  const where = (event.workflowName || incident.workflowName || UNAVAILABLE) + \" / \" + (event.nodeName || UNAVAILABLE);\n  const lines = [\n    title + \": \" + where,\n    \"\",\n    \"Workflow: \" + (event.workflowName || UNAVAILABLE) + \" (id \" + (event.workflowId || UNAVAILABLE) + \")\",\n    \"Failing node: \" + (event.nodeName || UNAVAILABLE) + \" (id \" + (event.nodeId || UNAVAILABLE) + \")\",\n    \"Execution: \" + (event.executionId\n      ? event.executionId + \" -- \" + (event.executionUrl ? event.executionUrl : \"execution link unavailable; workflow: \" + link(event, c))\n      : \"none -- \" + (event.kind === \"activation\" ? \"activation errors occur outside an execution; workflow: \" + link(event, c) : UNAVAILABLE)),\n    \"Time: \" + iso(event.occurredAtMs) + (event.timestampIsFromPayload ? \"\" : \" (alert time; the payload carried no timestamp)\"),\n    \"Error: \" + (event.message || UNAVAILABLE) + (event.httpCode ? \" (HTTP \" + event.httpCode + \")\" : \"\"),\n    \"Operation: \" + (event.operation || UNAVAILABLE),\n    \"Affected service: \" + (event.service || UNAVAILABLE),\n    \"Underlying cause: \" + causeNote(event),\n    \"Type: \" + severity + \" | \" + durabilityOf(event, incident),\n    \"Impact: \" + impactOf(event),\n    \"Retries: \" + retriesOf(event),\n    \"Next action: \" + nextActionOf(event),\n    \"\",\n    \"Incident: \" + incident.count + \" occurrence(s) since \" + iso(incident.firstAt) + (kind === \"continued\" ? \"; \" + incident.countSinceEmail + \" since the last email\" : \"\") +\n      \". Repeats of this exact error are counted, not emailed; you will get a summary every \" + mins(c.cooldownMin * MIN) + \" minutes while it continues, and a wrap-up once it has been quiet for \" + mins(c.closeAfterMin * MIN) + \" minutes.\",\n  ];\n  if (incident.previous && kind === \"incident_started\") {\n    lines.push(\"Previous incident of this same error: \" + incident.previous.count + \" occurrence(s), last at \" + iso(incident.previous.lastAt) + \".\");\n  }\n  const subjectBits = { incident_started: \"\", repeating: \" (repeating)\", continued: \" (continued)\" };\n  return { subject: \"[Biggbee alert][\" + severity.toUpperCase() + \"] \" + where + (subjectBits[kind] || \"\"), text: lines.join(\"\\n\"), html: toHtml(lines) };\n}\n\nreturn { UNAVAILABLE, DEFAULT_CONFIG, normalizeMessage, safeUrl, normalizeEvent, fingerprint, severityOf, durabilityOf, impactOf, retriesOf, nextActionOf, causeNote, MAX_REMEMBERED_EVENTS, emptyState, recallDecision, rememberDecision, buildLogRow, applyEvent, sweep, renderEmail };\n})();\n// ---- end shared core ----\n// ---- notifier settings (edit here; sent to the CRM with every request) ----\nconst CONFIG = {\n  incidentGapMin: 180,   // same error closer together than this = same incident\n  cooldownMin: 360,      // minutes between emails for one ongoing incident (continued-failure summary)\n  flapThreshold: 5,      // this many events within flapWindowMin escalates once\n  flapWindowMin: 60,\n  closeAfterMin: 180,    // quiet this long = incident closed (wrap-up sent if it repeated)\n  maxEmailsPerHour: 10,  // global flood cap; overflow is rolled into one digest\n  retentionDays: 14,\n  editorBaseUrl: \"https://n8n.srv1787796.hstgr.cloud\"\n};\n\nconst crm = $input.first().json;\nconst prep = $('Prepare Request').first().json;\nconst payload = prep.payload;\n\n// PRIMARY: the CRM decided atomically. Trust it only if the answer is complete and well-formed.\nif (crm && crm.ok === true && typeof crm.sendEmail === 'boolean' && crm.log && typeof crm.log === 'object' && (crm.sendEmail === false || (crm.mail && crm.mail.subject))) {\n  return [{ json: { sendEmail: crm.sendEmail, mail: crm.mail || null, log: crm.log, via: 'crm' } }];\n}\n\n// FALLBACK: CRM unreachable / refused / malformed. Local, NOT atomic; labelled in the email.\n// A bug here must never hide an error: on any exception, email the raw alert unthrottled.\nconst now = Date.now();\ntry {\n  const event = Core.normalizeEvent(payload, { nowMs: now, ownWorkflowId: $workflow.id });\n  const sd = $getWorkflowStaticData('global');\n  const result = Core.applyEvent(sd.notifier, event, CONFIG, now);\n  sd.notifier = result.state;\n  const d = result.decision;\n  let mail = d.email ? Core.renderEmail(d.email.kind, d.incident, event, CONFIG, now) : null;\n  if (mail) {\n    const note = \"Note: this alert was decided locally in n8n because the CRM alert service was unreachable. Duplicate suppression is approximate in this mode (simultaneous identical errors can each send an email).\";\n    mail = { subject: mail.subject, text: mail.text + '\\n\\n' + note, html: mail.html.replace(/<\\/div>$/, '<br><div>' + note + '</div></div>') };\n  }\n  const log = Core.buildLogRow(event, d, !!mail);\n  const w = JSON.parse(log['Validation Warnings']); w.via = 'local-fallback'; w.crmUnavailable = true;\n  log['Validation Warnings'] = JSON.stringify(w);\n  return [{ json: { sendEmail: !!mail, mail: mail, log: log, via: 'local-fallback' } }];\n} catch (e) {\n  const msg = String((e && e.message) || e);\n  const raw = JSON.stringify(payload).slice(0, 1500);\n  return [{ json: {\n    sendEmail: true, via: 'fail-open',\n    mail: { subject: '[Biggbee alert][CRITICAL] error notifier fault -- original error attached', text: 'The error notifier itself failed (' + msg + '), so this alert is unthrottled.\\n\\nOriginal error payload:\\n' + raw, html: '<pre>' + raw.replace(/&/g,'&amp;').replace(/</g,'&lt;') + '</pre>' },\n    log: { Timestamp: new Date(now).toISOString(), Source: 'Global Workflow Error', 'Lead Email': '', 'Error Message': 'notifier fault: ' + msg, 'Node Name': 'Resolve Decision', Company: '', 'Validation Errors': JSON.stringify([msg]), 'Validation Warnings': JSON.stringify({ raw: raw }), 'Workspace ID': 'biggbee' }\n  } }];\n}"
+      },
+      "id": "803c0a24-5075-e58a-eb07-00cc004f66ae",
+      "name": "Resolve Decision",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        720,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "1lpW8cRAQqfsZSN1XBMBO0_BMhwg_fZ13lPxyhF1LW5Q",
+          "mode": "list",
+          "cachedResultName": "Bigggbee Email Marketing"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 2140289479,
+          "mode": "list",
+          "cachedResultName": "Errors"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Timestamp": "={{ $json.log[\"Timestamp\"] }}",
+            "Source": "={{ $json.log[\"Source\"] }}",
+            "Lead Email": "={{ $json.log[\"Lead Email\"] }}",
+            "Error Message": "={{ $json.log[\"Error Message\"] }}",
+            "Node Name": "={{ $json.log[\"Node Name\"] }}",
+            "Company": "={{ $json.log[\"Company\"] }}",
+            "Validation Errors": "={{ $json.log[\"Validation Errors\"] }}",
+            "Validation Warnings": "={{ $json.log[\"Validation Warnings\"] }}",
+            "Workspace ID": "={{ $json.log[\"Workspace ID\"] }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "Timestamp",
+              "displayName": "Timestamp",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Source",
+              "displayName": "Source",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Lead Email",
+              "displayName": "Lead Email",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Error Message",
+              "displayName": "Error Message",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Node Name",
+              "displayName": "Node Name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Company",
+              "displayName": "Company",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Validation Errors",
+              "displayName": "Validation Errors",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Validation Warnings",
+              "displayName": "Validation Warnings",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Workspace ID",
+              "displayName": "Workspace ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "0c615eda-a54a-6559-ca4c-4ac12ca17290",
+      "name": "Log Error",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        980,
+        -120
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "7aR4JY2NB9B0uvi8",
+          "name": "Google Sheets account 2"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 2000,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "bd439f0d-84dc-b467-a4b5-8c7f86e3b26b",
+              "leftValue": "={{ $json.sendEmail === true }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "117a41cd-0320-4185-1da6-8d4c9e038af5",
+      "name": "Send Email?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        980,
+        120
+      ]
+    },
+    {
+      "parameters": {
+        "fromEmail": "Biggbee AI <office@biggbees.com>",
+        "toEmail": "office@biggbees.com",
+        "subject": "={{ $json.mail.subject }}",
+        "html": "={{ $json.mail.html }}",
+        "text": "={{ $json.mail.text }}",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "id": "0b74499c-01eb-ffe2-c4bf-919f8171e9b9",
+      "name": "Send Alert Email",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        1240,
+        120
+      ],
+      "credentials": {
+        "smtp": {
+          "id": "vEtw2lRmEd0lQJhT",
+          "name": "SMTP account"
+        }
+      },
+      "webhookId": "0393b63b-c725-8115-e25b-98050790a7af",
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 3000,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 30
+            }
+          ]
+        }
+      },
+      "id": "3ff3c215-c9e1-8e4f-a219-d002c9526f89",
+      "name": "Sweeper Schedule",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        360
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// ---- notifier settings (edit here; sent to the CRM with every request) ----\nconst CONFIG = {\n  incidentGapMin: 180,   // same error closer together than this = same incident\n  cooldownMin: 360,      // minutes between emails for one ongoing incident (continued-failure summary)\n  flapThreshold: 5,      // this many events within flapWindowMin escalates once\n  flapWindowMin: 60,\n  closeAfterMin: 180,    // quiet this long = incident closed (wrap-up sent if it repeated)\n  maxEmailsPerHour: 10,  // global flood cap; overflow is rolled into one digest\n  retentionDays: 14,\n  editorBaseUrl: \"https://n8n.srv1787796.hstgr.cloud\"\n};\n\nreturn [{ json: { request: { action: 'sweep', config: CONFIG } } }];"
+      },
+      "id": "9c5ee121-d7dc-ce02-4d48-829b2a5bbec0",
+      "name": "Prepare Sweep Request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        360
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://crm.biggbees.com/api/internal/alerts",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.request) }}",
+        "options": {
+          "timeout": 8000,
+          "response": {
+            "response": {
+              "neverError": true,
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "06a50ae6-2ef2-b0e0-5667-2ceacd6e94ce",
+      "name": "CRM Sweep",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        480,
+        360
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "dHOCpdzzkQDDu0mz",
+          "name": "CRM Internal API Key"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 1000,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// ---- shared core (generated from src/lib/alerts/throttle-core.mjs -- do not edit here) ----\nconst Core = (function () {\n// Biggbee error notifier -- pure decision logic. No I/O, no imports.\n//\n// Inlined into the Code nodes of \"Biggbee — Error Notifier\" by\n// scripts/build-error-notifier-workflow.mjs (it strips the `export` keywords, so keep this file to\n// plain top-level `function` / `const` declarations).\n//\n// WHY THIS EXISTS (verified against the production n8n 2.27.4 source and 24 real alerts):\n//   * n8n calls the error workflow ONCE per trigger drop (\"activation error\"). The reactivation\n//     retries that follow (1 s, doubling per failed attempt, capped at 24 h) are log-only and never\n//     alert. So a *persistent* outage produces a single event and then silence -- silence is NOT\n//     evidence of recovery, and a new event for the same trigger IS evidence the previous drop\n//     recovered (a trigger can only fail \"initially\" if it had been re-established).\n//   * Activation errors arrive as { trigger: { error, mode }, workflow } with NO `execution`\n//     object; execution failures arrive as { execution: { id, url, error, lastNodeExecuted, mode },\n//     workflow }. The old email template only understood neither fully, which is why it printed\n//     \"Unknown node / Unavailable / Unknown\".\n//\n// Rules this module enforces:\n//   * identical events (same fingerprint) are folded into ONE incident;\n//   * the first event of an incident always emails (we cannot know it is harmless);\n//   * repeats inside the incident are counted, not emailed, except: a flapping escalation, and a\n//     periodic \"still failing\" summary;\n//   * distinct failures (different workflow/node/error) are distinct incidents and always email;\n//   * a global per-hour cap rolls overflow into a digest (nothing is silently lost);\n//   * the notifier never emails about itself (no notification loops);\n//   * nothing is invented: every field that the payload does not carry is labelled \"unavailable\".\n\nconst UNAVAILABLE = \"unavailable\";\n\nconst DEFAULT_CONFIG = {\n  /** Events for one fingerprint closer together than this belong to the same incident. Kept equal to\n   *  closeAfterMin so an incident that goes quiet is wrapped up (see sweep) before a new one starts. */\n  incidentGapMin: 180,\n  /** Minimum minutes between two emails for the same ongoing incident (continued-failure summary). */\n  cooldownMin: 360,\n  /** This many events inside flapWindowMin escalates the incident once. */\n  flapThreshold: 5,\n  flapWindowMin: 60,\n  /** An incident with no new event for this long is closed by the sweeper. */\n  closeAfterMin: 180,\n  /** Global flood cap; anything over it is rolled into the next digest. */\n  maxEmailsPerHour: 10,\n  retentionDays: 14,\n  maxTrackedIncidents: 200,\n  editorBaseUrl: \"https://n8n.srv1787796.hstgr.cloud\",\n};\n\nconst MIN = 60 * 1000;\nconst HOUR = 60 * MIN;\n\n// ───────────────────────── normalisation ─────────────────────────\n\n/** Strips volatile parts (ids, numbers, urls, emails) so the same error always fingerprints the same. */\nfunction normalizeMessage(message) {\n  return String(message == null ? \"\" : message)\n    .toLowerCase()\n    .replace(/[a-z0-9._%+-]+@[a-z0-9.-]+\\.[a-z]{2,}/g, \"<email>\")\n    .replace(/https?:\\/\\/[^\\s\"')]+/g, \"<url>\")\n    .replace(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/g, \"<id>\")\n    .replace(/\\b[0-9a-f]{16,}\\b/g, \"<id>\")\n    .replace(/\\d+/g, \"#\")\n    .replace(/\\s+/g, \" \")\n    .trim()\n    .slice(0, 160);\n}\n\nfunction str(v) {\n  return v == null || v === \"\" ? null : String(v).slice(0, 1000);\n}\n\n/** host + path only, never the query string (it can carry tokens). */\nfunction safeUrl(raw) {\n  const s = String(raw == null ? \"\" : raw);\n  if (!s || s.charAt(0) === \"=\") return null;\n  // Deliberately NOT `new URL(...)`: the URL global is not available inside n8n's Code-node sandbox\n  // (found by running this in the real runner), so parse with a regex that drops query and fragment.\n  const m = s.match(/^[a-z][a-z0-9+.-]*:\\/\\/([^\\/?#\\s]+)([^?#\\s]*)/i);\n  return m ? m[1] + m[2] : null;\n}\n\nconst NODE_SERVICES = [\n  [/emailreadimap/i, \"IMAP mailbox\"],\n  [/emailsend|smtp/i, \"SMTP (outgoing mail)\"],\n  [/googlesheets/i, \"Google Sheets API\"],\n  [/googledrive/i, \"Google Drive API\"],\n  [/gmail/i, \"Gmail API\"],\n  [/openai|langchain.*lmchat|lmchatopenai/i, \"OpenAI API\"],\n  [/airtable/i, \"Airtable API\"],\n  [/postgres|mysql|mongo|redis/i, \"database\"],\n];\n\n/**\n * Turns whichever payload shape n8n sent into one flat event. Never throws; unknown fields stay null.\n *   execution failure : { execution: { id, url, error, lastNodeExecuted, mode, retryOf }, workflow }\n *   activation failure: { trigger:   { error, mode }, workflow }\n */\nfunction normalizeEvent(payload, ctx) {\n  const nowMs = (ctx && ctx.nowMs) || Date.now();\n  const ownWorkflowId = (ctx && ctx.ownWorkflowId) || null;\n  const p = payload && typeof payload === \"object\" ? payload : {};\n  const wf = p.workflow && typeof p.workflow === \"object\" ? p.workflow : {};\n  const ex = p.execution && typeof p.execution === \"object\" ? p.execution : null;\n  const tr = p.trigger && typeof p.trigger === \"object\" ? p.trigger : null;\n  const err = (ex && ex.error) || (tr && tr.error) || (p.error && typeof p.error === \"object\" ? p.error : {}) || {};\n  const nodeObj = err.node && typeof err.node === \"object\" ? err.node : null;\n  const message = str(err.message) || str(p.message);\n  const kind = ex ? \"execution\" : tr ? \"activation\" : \"unknown\";\n\n  let nodeName = (nodeObj && str(nodeObj.name)) || (ex && str(ex.lastNodeExecuted)) || null;\n  if (!nodeName && message) {\n    const m = message.match(/trigger node \"([^\"]+)\"/i);\n    if (m) nodeName = m[1];\n  }\n\n  const params = (nodeObj && nodeObj.parameters) || {};\n  const operationParts = [];\n  if (str(params.resource)) operationParts.push(String(params.resource));\n  if (str(params.operation)) operationParts.push(String(params.operation));\n  const url = safeUrl(params.url);\n  if (str(params.method) && url) operationParts.push(String(params.method).toUpperCase() + \" \" + url);\n  else if (url) operationParts.push(url);\n\n  const nodeType = (nodeObj && str(nodeObj.type)) || null;\n  let service = null;\n  if (nodeType) {\n    for (const pair of NODE_SERVICES) if (pair[0].test(nodeType)) { service = pair[1]; break; }\n    if (!service && /httprequest/i.test(nodeType) && url) service = url.split(\"/\")[0];\n  }\n\n  const ts = Number(err.timestamp);\n  return {\n    kind: kind,\n    workflowId: str(wf.id) || (ex && ex.workflowData && str(ex.workflowData.id)) || null,\n    workflowName: str(wf.name) || null,\n    nodeName: nodeName,\n    nodeId: (nodeObj && str(nodeObj.id)) || null,\n    nodeType: nodeType,\n    operation: operationParts.length ? operationParts.join(\" \") : null,\n    service: service,\n    errorName: str(err.name),\n    message: message,\n    description: str(err.description),\n    httpCode: str(err.httpCode) || (err.cause && str(err.cause.httpCode)) || null,\n    mode: (ex && str(ex.mode)) || (tr && str(tr.mode)) || null,\n    executionId: ex ? str(ex.id) : null,\n    executionUrl: ex ? str(ex.url) : null,\n    retryOf: ex ? str(ex.retryOf) : null,\n    occurredAtMs: Number.isFinite(ts) && ts > 1e12 ? ts : nowMs,\n    timestampIsFromPayload: Number.isFinite(ts) && ts > 1e12,\n    // an error raised while an error workflow itself was running, or by this notifier: never email it\n    selfOrigin: (!!ownWorkflowId && str(wf.id) === ownWorkflowId) || (!!ex && ex.mode === \"error\"),\n  };\n}\n\nfunction fingerprint(event) {\n  return [event.workflowId || \"?\", event.nodeName || (event.kind === \"activation\" ? \"trigger\" : \"?\"), event.errorName || \"?\", normalizeMessage(event.message)].join(\"|\");\n}\n\n// ───────────────────────── classification ─────────────────────────\n\nfunction severityOf(event, incident) {\n  if (event.kind === \"activation\") return incident && incident.escalated ? \"critical\" : \"warning\";\n  return \"critical\";\n}\n\n/** What can honestly be said about transient vs persistent, from evidence only. */\nfunction durabilityOf(event, incident) {\n  const count = incident ? incident.count : 1;\n  if (event.kind === \"activation\") {\n    if (incident && incident.escalated) return \"repeating -- \" + count + \" drops in the last \" + DEFAULT_CONFIG.flapWindowMin + \" minutes\";\n    if (count <= 1) return \"unknown (first occurrence); n8n is retrying activation automatically, retry outcomes are not reported to alerts\";\n    return \"transient so far -- \" + (count - 1) + \" earlier drop(s) were each followed by a working activation (a trigger can only drop again after it was re-established)\";\n  }\n  if (count <= 1) return \"unknown (first occurrence)\";\n  return \"recurring -- the same node and error \" + count + \" times\";\n}\n\nfunction impactOf(event) {\n  if (event.kind === \"activation\") return \"blocking while deactivated: the trigger is removed until n8n reactivates it (first retry after ~1 s, doubling on each failed retry up to 24 h)\";\n  if (event.kind === \"execution\") return \"blocking for that execution: it stopped at the failing node\";\n  return UNAVAILABLE;\n}\n\nfunction retriesOf(event) {\n  if (event.kind === \"activation\") return \"automatic reactivation scheduled by n8n; its outcome is not part of the alert\";\n  if (event.retryOf) return \"this execution is itself a retry of execution \" + event.retryOf;\n  return UNAVAILABLE + \" (node retry settings and outcomes are not included in the error payload)\";\n}\n\nfunction nextActionOf(event) {\n  const code = Number(event.httpCode);\n  if (code === 401 || code === 403) return \"Authorization failed: check or reconnect the credential used by this node.\";\n  if (code === 429) return \"Rate limited by the service: reduce the frequency or wait, then re-run.\";\n  if (code >= 500 && code < 600) return \"The remote service returned a server error: check its status; this may clear by itself.\";\n  if (event.kind === \"activation\") return \"If no further alerts follow, no action is needed. If replies/events stop being processed, check the trigger's credential or mailbox and the workflow's activation state in n8n.\";\n  if (event.kind === \"execution\") return \"Open the execution link, inspect the failing node's input and output, fix the cause, then re-run.\";\n  return UNAVAILABLE;\n}\n\nfunction causeNote(event) {\n  if (event.kind === \"activation\") return \"unavailable in the error payload (n8n logs it on the server: look for \\\"failed with the error\\\" in the n8n log)\";\n  return event.description || UNAVAILABLE;\n}\n\n// ───────────────────────── incident state machine ─────────────────────────\n\nconst MAX_REMEMBERED_EVENTS = 50;\n\nfunction emptyState() {\n  return { version: 1, incidents: {}, recentEmailTimes: [], overflow: { count: 0, fingerprints: [] }, lastSweepAt: 0, processed: {} };\n}\n\n/**\n * Idempotency. n8n retries an HTTP call whose response it never saw; without this a retry would be\n * counted as a duplicate occurrence and the email decided on the first (lost) response would never\n * be sent. The decision for an event id is remembered, so a retry gets the SAME answer and does not\n * change any count.\n */\nfunction recallDecision(state, eventId) {\n  if (!eventId || !state || !state.processed) return null;\n  return Object.prototype.hasOwnProperty.call(state.processed, eventId) ? state.processed[eventId] : null;\n}\n\nfunction rememberDecision(state, eventId, result) {\n  if (!eventId) return;\n  state.processed = state.processed || {};\n  state.processed[eventId] = result;\n  const ids = Object.keys(state.processed);\n  if (ids.length > MAX_REMEMBERED_EVENTS) for (const id of ids.slice(0, ids.length - MAX_REMEMBERED_EVENTS)) delete state.processed[id];\n}\n\n/** The Errors-sheet row for one event. Every event is logged whether or not it is emailed. */\nfunction buildLogRow(event, decision, emailed) {\n  const U = UNAVAILABLE;\n  return {\n    Timestamp: new Date(event.occurredAtMs).toISOString(),\n    Source: \"Global Workflow Error\",\n    \"Lead Email\": event.executionId ? \"Execution ID: \" + event.executionId : \"\",\n    \"Error Message\": event.message || U,\n    \"Node Name\": event.nodeName || U,\n    Company: \"\",\n    \"Validation Errors\": JSON.stringify([event.message || U]),\n    \"Validation Warnings\": JSON.stringify({\n      workflowName: event.workflowName || U, workflowId: event.workflowId || U, kind: event.kind,\n      executionId: event.executionId || \"\", executionUrl: event.executionUrl || \"\", mode: event.mode || \"\",\n      incidentCount: decision && decision.incident ? decision.incident.count : 1, emailed: !!emailed,\n      decision: decision ? decision.reason : \"\", selfOrigin: event.selfOrigin,\n    }),\n    \"Workspace ID\": \"biggbee\",\n  };\n}\n\nfunction cfgOf(cfg) {\n  return Object.assign({}, DEFAULT_CONFIG, cfg || {});\n}\n\nfunction emailsInLastHour(state, nowMs) {\n  return (state.recentEmailTimes || []).filter((t) => nowMs - t < HOUR).length;\n}\n\nfunction recordEmail(state, nowMs) {\n  state.recentEmailTimes = (state.recentEmailTimes || []).filter((t) => nowMs - t < HOUR).concat([nowMs]);\n}\n\nfunction prune(state, c, nowMs) {\n  const keepAfter = nowMs - c.retentionDays * 24 * HOUR;\n  for (const fp of Object.keys(state.incidents)) {\n    const i = state.incidents[fp];\n    if (i.status === \"closed\" && i.lastAt < keepAfter) delete state.incidents[fp];\n  }\n  const fps = Object.keys(state.incidents);\n  if (fps.length > c.maxTrackedIncidents) {\n    fps\n      .filter((fp) => state.incidents[fp].status === \"closed\")\n      .sort((a, b) => state.incidents[a].lastAt - state.incidents[b].lastAt)\n      .slice(0, fps.length - c.maxTrackedIncidents)\n      .forEach((fp) => delete state.incidents[fp]);\n  }\n}\n\n/**\n * Folds one event into the persistent state and decides whether it deserves an email.\n * Returns { state, decision: { email: null | { kind }, reason, incident, isNewIncident, suppressed } }.\n * `state` is mutated and returned (it is the workflow's static data).\n */\nfunction applyEvent(state, event, cfg, nowMs) {\n  const c = cfgOf(cfg);\n  if (!state || state.version !== 1) state = emptyState();\n  if (!state.processed) state.processed = {};\n\n  if (event.selfOrigin) {\n    return { state: state, decision: { email: null, reason: \"self-origin: logged only, never emailed (prevents notification loops)\", incident: null, isNewIncident: false, suppressed: false } };\n  }\n\n  const fp = fingerprint(event);\n  let inc = state.incidents[fp];\n  const t = event.occurredAtMs;\n  let isNew = false;\n\n  if (!inc || inc.status === \"closed\" || t - inc.lastAt > c.incidentGapMin * MIN) {\n    isNew = true;\n    // remember what the previous incident for this same fingerprint looked like, so it is reported\n    // in the new alert instead of being silently forgotten\n    const previous = inc ? { count: inc.count, firstAt: inc.firstAt, lastAt: inc.lastAt } : null;\n    inc = {\n      previous: previous,\n      fp: fp, workflowId: event.workflowId, workflowName: event.workflowName, node: event.nodeName, kind: event.kind, errorName: event.errorName, message: event.message ? String(event.message).slice(0, 300) : null,\n      firstAt: t, lastAt: t, count: 1, countSinceEmail: 0, lastEmailAt: 0, emails: 0, escalated: false, status: \"open\", recentTimes: [t],\n      lastExecutionId: event.executionId, lastExecutionUrl: event.executionUrl,\n    };\n  } else {\n    inc.count += 1;\n    inc.countSinceEmail += 1;\n    inc.lastAt = Math.max(inc.lastAt, t);\n    inc.recentTimes = (inc.recentTimes || []).concat([t]).slice(-100);\n    inc.lastExecutionId = event.executionId || inc.lastExecutionId;\n    inc.lastExecutionUrl = event.executionUrl || inc.lastExecutionUrl;\n  }\n  state.incidents[fp] = inc;\n\n  let kind = null;\n  let reason;\n  if (isNew) {\n    kind = \"incident_started\";\n    reason = \"new incident\";\n  } else {\n    const inWindow = inc.recentTimes.filter((x) => t - x <= c.flapWindowMin * MIN).length;\n    if (!inc.escalated && inWindow >= c.flapThreshold) {\n      inc.escalated = true;\n      kind = \"repeating\";\n      reason = inWindow + \" events within \" + c.flapWindowMin + \" min\";\n    } else if (t - inc.lastEmailAt >= c.cooldownMin * MIN) {\n      kind = \"continued\";\n      reason = \"cooldown elapsed; continued-failure summary\";\n    } else {\n      reason = \"duplicate within incident (cooldown)\";\n    }\n  }\n\n  if (kind) {\n    if (emailsInLastHour(state, nowMs) >= c.maxEmailsPerHour) {\n      state.overflow.count += 1;\n      if (state.overflow.fingerprints.indexOf(fp) === -1 && state.overflow.fingerprints.length < 50) state.overflow.fingerprints.push(fp);\n      prune(state, c, nowMs);\n      return { state: state, decision: { email: null, reason: \"flood cap reached (\" + c.maxEmailsPerHour + \"/h); rolled into the next digest\", incident: inc, isNewIncident: isNew, suppressed: true, overflow: true } };\n    }\n    recordEmail(state, nowMs);\n    inc.lastEmailAt = nowMs;\n    inc.emails += 1;\n    inc.countSinceEmail = 0;\n    prune(state, c, nowMs);\n    return { state: state, decision: { email: { kind: kind }, reason: reason, incident: inc, isNewIncident: isNew, suppressed: false } };\n  }\n  prune(state, c, nowMs);\n  return { state: state, decision: { email: null, reason: reason, incident: inc, isNewIncident: false, suppressed: true } };\n}\n\n/**\n * Periodic housekeeping (run by the notifier's schedule): closes quiet incidents, reports ones that\n * had repeated, and flushes the overflow digest. Returns { state, emails: [{ kind, incident? }] }.\n */\nfunction sweep(state, cfg, nowMs) {\n  const c = cfgOf(cfg);\n  if (!state || state.version !== 1) state = emptyState();\n  const emails = [];\n  for (const fp of Object.keys(state.incidents)) {\n    const inc = state.incidents[fp];\n    if (inc.status !== \"open\") continue;\n    if (nowMs - inc.lastAt < c.closeAfterMin * MIN) continue;\n    inc.status = \"closed\";\n    inc.closedAt = nowMs;\n    // single-occurrence incidents were already announced; only incidents that repeated get a wrap-up\n    if (inc.count > 1 || inc.escalated) emails.push({ kind: \"ended\", incident: inc });\n  }\n  if (state.overflow.count > 0) emails.push({ kind: \"digest\", overflow: { count: state.overflow.count, fingerprints: state.overflow.fingerprints.map((fp) => (state.incidents[fp] ? { fp: fp, workflowName: state.incidents[fp].workflowName, node: state.incidents[fp].node } : { fp: fp }) ) } });\n  // honour the global cap for what the sweep itself sends (keep at least the digest visible)\n  let budget = Math.max(c.maxEmailsPerHour - emailsInLastHour(state, nowMs), 1);\n  const out = [];\n  for (const e of emails) {\n    if (e.kind === \"digest\" || budget > 0) {\n      out.push(e);\n      if (e.kind !== \"digest\") budget -= 1;\n      recordEmail(state, nowMs);\n    }\n    // else: over the hourly cap. \"ended\" notes are informational (the original alert and every\n    // occurrence are already recorded), so they are dropped rather than queued.\n  }\n  if (out.some((e) => e.kind === \"digest\")) state.overflow = { count: 0, fingerprints: [] };\n  state.lastSweepAt = nowMs;\n  prune(state, c, nowMs);\n  return { state: state, emails: out };\n}\n\n// ───────────────────────── rendering ─────────────────────────\n\nfunction iso(ms) {\n  return new Date(ms).toISOString();\n}\n\nfunction mins(ms) {\n  return Math.max(1, Math.round(ms / MIN));\n}\n\nfunction link(event, cfg) {\n  if (event.executionUrl) return event.executionUrl;\n  if (event.workflowId) return String(cfg.editorBaseUrl || DEFAULT_CONFIG.editorBaseUrl).replace(/\\/+$/, \"\") + \"/workflow/\" + event.workflowId;\n  return UNAVAILABLE;\n}\n\nfunction esc(s) {\n  return String(s).replace(/&/g, \"&amp;\").replace(/</g, \"&lt;\").replace(/>/g, \"&gt;\");\n}\n\nfunction toHtml(lines) {\n  return \"<div style=\\\"font-family:Arial,sans-serif;font-size:14px;color:#172033;line-height:1.5\\\">\" + lines.map((l) => (l === \"\" ? \"<br>\" : \"<div>\" + esc(l) + \"</div>\")).join(\"\") + \"</div>\";\n}\n\nconst TITLES = {\n  incident_started: { critical: \"Critical error\", warning: \"Warning\" },\n  repeating: { critical: \"Critical: repeating failure\", warning: \"Repeating failure\" },\n  continued: { critical: \"Still failing\", warning: \"Still failing\" },\n};\n\n/**\n * Renders the alert for an incident. `event` is the latest normalised event (used for detail\n * fields); `incident` carries counts/times. Every unknown field is labelled \"unavailable\".\n */\nfunction renderEmail(kind, incident, event, cfg, nowMs) {\n  const c = cfgOf(cfg);\n  if (kind === \"ended\") {\n    const where = (incident.workflowName || UNAVAILABLE) + \" / \" + (incident.node || UNAVAILABLE);\n    const lines = [\n      \"No further occurrences reported.\",\n      \"\",\n      \"Workflow: \" + (incident.workflowName || UNAVAILABLE) + \" (\" + (incident.workflowId || UNAVAILABLE) + \")\",\n      \"Failing node: \" + (incident.node || UNAVAILABLE),\n      \"Error: \" + (incident.message || UNAVAILABLE),\n      \"Occurrences: \" + incident.count + \" between \" + iso(incident.firstAt) + \" and \" + iso(incident.lastAt),\n      \"Quiet for: \" + mins(nowMs - incident.lastAt) + \" minutes\",\n      \"\",\n      incident.kind === \"activation\"\n        ? \"Note: this is inferred from silence. n8n's reactivation retries do not raise alerts, so this cannot confirm that the trigger is currently active. If replies/events are not being processed, check the workflow in n8n.\"\n        : \"Note: this is inferred from the absence of new errors, not from a confirmed successful run.\",\n    ];\n    return { subject: \"[Biggbee alert] Quiet: \" + where, text: lines.join(\"\\n\"), html: toHtml(lines) };\n  }\n  if (kind === \"digest\") {\n    const items = (incident && incident.fingerprints) || [];\n    const lines = [\n      \"The alert flood cap (\" + c.maxEmailsPerHour + \" emails/hour) was reached and \" + incident.count + \" alert(s) were held back. Nothing was discarded: every error is also in the Errors sheet.\",\n      \"\",\n      \"Affected (up to 50 shown):\",\n    ].concat(items.map((i) => \"- \" + (i.workflowName || UNAVAILABLE) + \" / \" + (i.node || UNAVAILABLE)));\n    return { subject: \"[Biggbee alert] \" + incident.count + \" alert(s) held back by the flood cap\", text: lines.join(\"\\n\"), html: toHtml(lines) };\n  }\n\n  const severity = severityOf(event, incident);\n  const title = (TITLES[kind] || TITLES.incident_started)[severity] || \"Error\";\n  const where = (event.workflowName || incident.workflowName || UNAVAILABLE) + \" / \" + (event.nodeName || UNAVAILABLE);\n  const lines = [\n    title + \": \" + where,\n    \"\",\n    \"Workflow: \" + (event.workflowName || UNAVAILABLE) + \" (id \" + (event.workflowId || UNAVAILABLE) + \")\",\n    \"Failing node: \" + (event.nodeName || UNAVAILABLE) + \" (id \" + (event.nodeId || UNAVAILABLE) + \")\",\n    \"Execution: \" + (event.executionId\n      ? event.executionId + \" -- \" + (event.executionUrl ? event.executionUrl : \"execution link unavailable; workflow: \" + link(event, c))\n      : \"none -- \" + (event.kind === \"activation\" ? \"activation errors occur outside an execution; workflow: \" + link(event, c) : UNAVAILABLE)),\n    \"Time: \" + iso(event.occurredAtMs) + (event.timestampIsFromPayload ? \"\" : \" (alert time; the payload carried no timestamp)\"),\n    \"Error: \" + (event.message || UNAVAILABLE) + (event.httpCode ? \" (HTTP \" + event.httpCode + \")\" : \"\"),\n    \"Operation: \" + (event.operation || UNAVAILABLE),\n    \"Affected service: \" + (event.service || UNAVAILABLE),\n    \"Underlying cause: \" + causeNote(event),\n    \"Type: \" + severity + \" | \" + durabilityOf(event, incident),\n    \"Impact: \" + impactOf(event),\n    \"Retries: \" + retriesOf(event),\n    \"Next action: \" + nextActionOf(event),\n    \"\",\n    \"Incident: \" + incident.count + \" occurrence(s) since \" + iso(incident.firstAt) + (kind === \"continued\" ? \"; \" + incident.countSinceEmail + \" since the last email\" : \"\") +\n      \". Repeats of this exact error are counted, not emailed; you will get a summary every \" + mins(c.cooldownMin * MIN) + \" minutes while it continues, and a wrap-up once it has been quiet for \" + mins(c.closeAfterMin * MIN) + \" minutes.\",\n  ];\n  if (incident.previous && kind === \"incident_started\") {\n    lines.push(\"Previous incident of this same error: \" + incident.previous.count + \" occurrence(s), last at \" + iso(incident.previous.lastAt) + \".\");\n  }\n  const subjectBits = { incident_started: \"\", repeating: \" (repeating)\", continued: \" (continued)\" };\n  return { subject: \"[Biggbee alert][\" + severity.toUpperCase() + \"] \" + where + (subjectBits[kind] || \"\"), text: lines.join(\"\\n\"), html: toHtml(lines) };\n}\n\nreturn { UNAVAILABLE, DEFAULT_CONFIG, normalizeMessage, safeUrl, normalizeEvent, fingerprint, severityOf, durabilityOf, impactOf, retriesOf, nextActionOf, causeNote, MAX_REMEMBERED_EVENTS, emptyState, recallDecision, rememberDecision, buildLogRow, applyEvent, sweep, renderEmail };\n})();\n// ---- end shared core ----\n// ---- notifier settings (edit here; sent to the CRM with every request) ----\nconst CONFIG = {\n  incidentGapMin: 180,   // same error closer together than this = same incident\n  cooldownMin: 360,      // minutes between emails for one ongoing incident (continued-failure summary)\n  flapThreshold: 5,      // this many events within flapWindowMin escalates once\n  flapWindowMin: 60,\n  closeAfterMin: 180,    // quiet this long = incident closed (wrap-up sent if it repeated)\n  maxEmailsPerHour: 10,  // global flood cap; overflow is rolled into one digest\n  retentionDays: 14,\n  editorBaseUrl: \"https://n8n.srv1787796.hstgr.cloud\"\n};\n\nconst crm = $input.first().json;\n// PRIMARY: the CRM swept atomically (two concurrent sweeps can never both report the same wrap-up).\nif (crm && crm.ok === true && Array.isArray(crm.emails)) {\n  return crm.emails.filter((e) => e && e.mail && e.mail.subject).map((e) => ({ json: { mail: e.mail } }));\n}\n// FALLBACK: sweep whatever the local (fallback-era) state holds. Returns no items when nothing is due.\nconst now = Date.now();\nconst sd = $getWorkflowStaticData('global');\nif (!sd.notifier) return [];\nconst result = Core.sweep(sd.notifier, CONFIG, now);\nsd.notifier = result.state;\nreturn result.emails.map((e) => ({ json: { mail: Core.renderEmail(e.kind, e.kind === 'digest' ? e.overflow : e.incident, null, CONFIG, now) } }));"
+      },
+      "id": "7b1ccb38-277d-7d3a-dbe4-19f611109576",
+      "name": "Resolve Sweep",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        720,
+        360
+      ]
+    }
+  ],
+  "connections": {
+    "Error Trigger": {
+      "main": [
+        [
+          {
+            "node": "Prepare Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Request": {
+      "main": [
+        [
+          {
+            "node": "CRM Decide",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "CRM Decide": {
+      "main": [
+        [
+          {
+            "node": "Resolve Decision",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Resolve Decision": {
+      "main": [
+        [
+          {
+            "node": "Log Error",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Send Email?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Email?": {
+      "main": [
+        [
+          {
+            "node": "Send Alert Email",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Sweeper Schedule": {
+      "main": [
+        [
+          {
+            "node": "Prepare Sweep Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Sweep Request": {
+      "main": [
+        [
+          {
+            "node": "CRM Sweep",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "CRM Sweep": {
+      "main": [
+        [
+          {
+            "node": "Resolve Sweep",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Resolve Sweep": {
+      "main": [
+        [
+          {
+            "node": "Send Alert Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {},
+  "tags": []
+}
