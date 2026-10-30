@@ -1,0 +1,97 @@
+{
+  "columns": [
+    {
+      "key": "name",
+      "label": "Name"
+    },
+    {
+      "key": "company",
+      "label": "Company"
+    },
+    {
+      "key": "email",
+      "label": "Email"
+    },
+    {
+      "key": "website",
+      "label": "Website"
+    },
+    {
+      "key": "industry",
+      "label": "Industry"
+    },
+    {
+      "key": "businessType",
+      "label": "BusinessType"
+    },
+    {
+      "key": "leadGenerationType",
+      "label": "LeadGenerationType"
+    },
+    {
+      "key": "phone",
+      "label": "Phone"
+    },
+    {
+      "key": "country",
+      "label": "Country"
+    }
+  ],
+  "workspaceId": "biggbee",
+  "rows": [
+    {
+      "entityId": "259078f9-e41f-4308-aef1-fdf33c2602c8",
+      "updatedAt": "2026-10-01T10:00:00.000Z",
+      "row": {
+        "name": null,
+        "company": "Alpha Bakery",
+        "email": "Hello@Alpha.example.test",
+        "website": "https://alphabakery.example.test",
+        "industry": null,
+        "businessType": "Bakery",
+        "leadGenerationType": "Google Maps",
+        "phone": "+49 30 5551000",
+        "country": null
+      },
+      "workspaceId": "biggbee"
+    },
+    {
+      "entityId": "712e25f4-b76a-4a9f-8a53-e82d2934f0c0",
+      "updatedAt": "2026-10-03T10:00:00.000Z",
+      "row": {
+        "name": null,
+        "company": "Gamma Cafe",
+        "email": "gamma@example.test",
+        "website": "https://gammacafe.example.test",
+        "industry": null,
+        "businessType": "Bakery",
+        "leadGenerationType": "Google Maps",
+        "phone": "+49 30 5553000",
+        "country": null
+      },
+      "workspaceId": "biggbee"
+    }
+  ],
+  "skipped": [
+    {
+      "entityId": "a028db35-51cb-4bf2-8a6b-c40e92b53b55",
+      "keptEntityId": "259078f9-e41f-4308-aef1-fdf33c2602c8",
+      "reason": "duplicate_email"
+    }
+  ],
+  "meta": {
+    "destinations": [
+      "crm_only",
+      "both"
+    ],
+    "eligibleInBatch": 3,
+    "returned": 2,
+    "duplicateEmailSkipped": 1,
+    "skippedDetailTruncated": false,
+    "page": {
+      "limit": null,
+      "hasMore": false,
+      "nextCursor": null
+    }
+  }
+}

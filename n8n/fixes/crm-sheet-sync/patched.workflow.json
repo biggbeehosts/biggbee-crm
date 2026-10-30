@@ -1,0 +1,650 @@
+{
+  "name": "Biggbee CRM Sheet Sync",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 15
+            }
+          ]
+        }
+      },
+      "id": "d3e96a78-8862-4fe9-8480-975cc0aae9d0",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -1328,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const staticData = $getWorkflowStaticData('global');\nconst jobId = $json.body?.jobId;\nif (jobId) {\n  // On-demand, job-scoped run -- never touches the periodic checkpoint (see Summarize & Checkpoint).\n  return [{ json: { jobId, since: '' } }];\n}\nconst since = staticData.lastCrmSyncAt || '1970-01-01T00:00:00.000Z';\nstaticData._pendingCrmSyncAt = new Date().toISOString();\nreturn [{ json: { since, jobId: '' } }];"
+      },
+      "id": "3da7aa61-f64e-4120-9314-3761f76caaad",
+      "name": "Start Run",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1104,
+        96
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://scraper.biggbees.com/api/export/crm-sync",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "updatedSince",
+              "value": "={{ $json.since }}"
+            },
+            {
+              "name": "jobId",
+              "value": "={{ $json.jobId }}"
+            }
+          ]
+        },
+        "options": {},
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth"
+      },
+      "id": "1121eace-2ffe-4ea8-8333-aebac72b0ad8",
+      "name": "Fetch CRM Rows",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        -880,
+        96
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "6Vem4EZTPkevbA78",
+          "name": "Scraper Hub"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1lpW8cRAQqfsZSN1XBMBO0_BMhwg_fZ13lPxyhF1LW5Q",
+          "mode": "list",
+          "cachedResultName": "Bigggbee Email Marketing",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1lpW8cRAQqfsZSN1XBMBO0_BMhwg_fZ13lPxyhF1LW5Q/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Leads",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1lpW8cRAQqfsZSN1XBMBO0_BMhwg_fZ13lPxyhF1LW5Q/edit#gid=0"
+        },
+        "options": {}
+      },
+      "id": "b8adb48b-0906-4602-b409-99aab0faa80d",
+      "name": "Read Existing CRM Rows",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        -656,
+        96
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "7aR4JY2NB9B0uvi8",
+          "name": "Google Sheets account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "function normEmail(v) { return (v || '').toString().trim().toLowerCase() || null; }\nfunction normDomain(v) {\n  if (!v) return null;\n  try {\n    const u = new URL(v.toString().includes('://') ? v.toString() : `https://${v}`);\n    return u.hostname.replace(/^www\\./, '').toLowerCase();\n  } catch { return v.toString().trim().toLowerCase() || null; }\n}\nfunction normPhone(v) { return (v || '').toString().replace(/[^\\d+]/g, '') || null; }\n\nconst apiResponse = $('Fetch CRM Rows').first().json;\nconst incoming = apiResponse.rows || [];\n\nconst existing = $input.all().map(item => ({\n  rowNumber: item.json.row_number,\n  email: normEmail(item.json.Email),\n  domain: normDomain(item.json.Website),\n  phone: normPhone(item.json.Phone),\n  company: (item.json.Company || '').toString().trim().toLowerCase(),\n  country: (item.json.Country || '').toString().trim().toLowerCase(),\n  raw: item.json\n}));\n\n// Priority order per GOOGLE_SHEETS_MAPPING_SPEC.md / build guide §6: strongest identifier first,\n// never weak name-only matching when a stronger identifier is available.\nconst fieldMap = { name: 'Name', company: 'Company', email: 'Email', website: 'Website', industry: 'Industry', businessType: 'BusinessType', leadGenerationType: 'LeadGenerationType', phone: 'Phone', country: 'Country' };\n\nconst out = [];\nfor (const rec of incoming) {\n  const r = rec.row;\n  const email = normEmail(r.email);\n  const domain = normDomain(r.website);\n  const phone = normPhone(r.phone);\n  const company = (r.company || '').toString().trim().toLowerCase();\n  const country = (r.country || '').toString().trim().toLowerCase();\n\n  let match = null;\n  if (email) match = existing.find(e => e.email && e.email === email);\n  if (!match && domain) match = existing.find(e => e.domain && e.domain === domain);\n  if (!match && phone) match = existing.find(e => e.phone && e.phone === phone);\n  if (!match && company && country) match = existing.find(e => e.company === company && e.country === country);\n\n  if (!match) {\n    out.push({ json: {\n      _action: 'append', entityId: rec.entityId,\n      Name: r.name, Company: r.company, Email: r.email, Website: r.website,\n      Industry: r.industry, BusinessType: r.businessType, LeadGenerationType: r.leadGenerationType,\n      Phone: r.phone, Country: r.country, Status: 'New', 'Follow-upCount': 0\n    } });\n    continue;\n  }\n\n  // fill-blank-only merge -- never overwrite a populated existing value (spec §7/§12).\n  // Status and Follow-upCount are deliberately absent from fieldMap/this object entirely --\n  // structurally impossible to touch on an update, matching §12's \"n8n must never overwrite\n  // user-controlled CRM fields after the row has been created.\"\n  const merged = { row_number: match.rowNumber };\n  for (const [key, header] of Object.entries(fieldMap)) {\n    const existingVal = match.raw[header];\n    merged[header] = (existingVal !== undefined && existingVal !== null && existingVal.toString().trim() !== '') ? existingVal : r[key];\n  }\n  out.push({ json: { _action: 'update', entityId: rec.entityId, ...merged } });\n}\nreturn out;"
+      },
+      "id": "e07d277d-58af-4499-88ec-e682a6fcd422",
+      "name": "Match & Decide",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -432,
+        96
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "combinator": "and",
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "a336c7a7-5f7c-4c74-bfac-7b856078a817",
+              "leftValue": "={{ $json._action }}",
+              "rightValue": "append",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "cb9dca67-ab24-4d17-bc06-8150139198ef",
+      "name": "Is New?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -208,
+        96
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "1lpW8cRAQqfsZSN1XBMBO0_BMhwg_fZ13lPxyhF1LW5Q",
+          "mode": "list",
+          "cachedResultName": "Bigggbee Email Marketing",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1lpW8cRAQqfsZSN1XBMBO0_BMhwg_fZ13lPxyhF1LW5Q/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Leads",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1lpW8cRAQqfsZSN1XBMBO0_BMhwg_fZ13lPxyhF1LW5Q/edit#gid=0"
+        },
+        "options": {},
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Name": "={{ $json.Name }}",
+            "Company": "={{ $json.Company }}",
+            "Email": "={{ $json.Email }}",
+            "Website": "={{ $json.Website }}",
+            "Industry": "={{ $json.Industry }}",
+            "Business Type": "={{ $json.BusinessType }}",
+            "Lead Generation Type": "={{ $json.LeadGenerationType }}",
+            "Phone": "={{ $json.Phone }}",
+            "Country": "={{ $json.Country }}",
+            "Status": "={{ $json.Status }}",
+            "Follow-up Count": "={{ $json['Follow-upCount'] }}",
+            "Workspace ID": "={{ 'biggbee' }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "Name",
+              "displayName": "Name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Company",
+              "displayName": "Company",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Email",
+              "displayName": "Email",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Website",
+              "displayName": "Website",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Industry",
+              "displayName": "Industry",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Business Type",
+              "displayName": "Business Type",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Lead Generation Type",
+              "displayName": "Lead Generation Type",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Phone",
+              "displayName": "Phone",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Country",
+              "displayName": "Country",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Status",
+              "displayName": "Status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Follow-up Count",
+              "displayName": "Follow-up Count",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Workspace ID",
+              "displayName": "Workspace ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        }
+      },
+      "id": "10d5278a-6c11-4e60-b630-15e3ff238e7f",
+      "name": "Append CRM Row",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        16,
+        0
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "7aR4JY2NB9B0uvi8",
+          "name": "Google Sheets account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "1lpW8cRAQqfsZSN1XBMBO0_BMhwg_fZ13lPxyhF1LW5Q",
+          "mode": "list",
+          "cachedResultName": "Bigggbee Email Marketing",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1lpW8cRAQqfsZSN1XBMBO0_BMhwg_fZ13lPxyhF1LW5Q/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Leads",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1lpW8cRAQqfsZSN1XBMBO0_BMhwg_fZ13lPxyhF1LW5Q/edit#gid=0"
+        },
+        "options": {},
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "row_number": "={{ $json.row_number }}",
+            "Name": "={{ $json.Name }}",
+            "Company": "={{ $json.Company }}",
+            "Email": "={{ $json.Email }}",
+            "Website": "={{ $json.Website }}",
+            "Industry": "={{ $json.Industry }}",
+            "Business Type": "={{ $json.BusinessType }}",
+            "Lead Generation Type": "={{ $json.LeadGenerationType }}",
+            "Phone": "={{ $json.Phone }}",
+            "Country": "={{ $json.Country }}"
+          },
+          "matchingColumns": [
+            "row_number"
+          ],
+          "schema": [
+            {
+              "id": "row_number",
+              "displayName": "row_number",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "removed": false,
+              "readOnly": true
+            },
+            {
+              "id": "Name",
+              "displayName": "Name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Company",
+              "displayName": "Company",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Email",
+              "displayName": "Email",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Website",
+              "displayName": "Website",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Industry",
+              "displayName": "Industry",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Business Type",
+              "displayName": "Business Type",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Lead Generation Type",
+              "displayName": "Lead Generation Type",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Phone",
+              "displayName": "Phone",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Country",
+              "displayName": "Country",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        }
+      },
+      "id": "6ca7efd6-c9b2-4f7c-abcd-d4c273f03ce8",
+      "name": "Update CRM Row",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        16,
+        192
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "7aR4JY2NB9B0uvi8",
+          "name": "Google Sheets account 2"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "id": "12a6403f-e128-4fab-b87b-c7c9f06fb5d2",
+      "name": "Merge Results",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        240,
+        96
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const staticData = $getWorkflowStaticData('global');\nconst appended = $('Append CRM Row').all().length;\nconst updated = $('Update CRM Row').all().length;\nconst startRunOutput = $('Start Run').first().json;\n// An on-demand, job-scoped run (jobId set) never advances the periodic checkpoint -- it only\n// ever looked at one job's own leads, not \"everything since last checkpoint\", so treating it\n// as a checkpoint update would let the next periodic run silently skip real, unsynced rows.\nif (!startRunOutput.jobId) {\n  staticData.lastCrmSyncAt = staticData._pendingCrmSyncAt;\n}\nreturn [{ json: { inserted: appended, updated, syncedThrough: staticData.lastCrmSyncAt, jobId: startRunOutput.jobId || null } }];"
+      },
+      "id": "6eac3ef4-9a19-4075-a2dc-4530cc6cfc37",
+      "name": "Summarize & Checkpoint",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        464,
+        96
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "crm-sync-ondemand",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "id": "f3c1a9c4-2b8e-4a55-9c0d-3a8e1f7d9b21",
+      "name": "CRM Sync Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -1328,
+        192
+      ],
+      "webhookId": "crm-sync-ondemand"
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Start Run",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Start Run": {
+      "main": [
+        [
+          {
+            "node": "Fetch CRM Rows",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch CRM Rows": {
+      "main": [
+        [
+          {
+            "node": "Read Existing CRM Rows",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Existing CRM Rows": {
+      "main": [
+        [
+          {
+            "node": "Match & Decide",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Match & Decide": {
+      "main": [
+        [
+          {
+            "node": "Is New?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is New?": {
+      "main": [
+        [
+          {
+            "node": "Append CRM Row",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Update CRM Row",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Append CRM Row": {
+      "main": [
+        [
+          {
+            "node": "Merge Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update CRM Row": {
+      "main": [
+        [
+          {
+            "node": "Merge Results",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge Results": {
+      "main": [
+        [
+          {
+            "node": "Summarize & Checkpoint",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "CRM Sync Webhook": {
+      "main": [
+        [
+          {
+            "node": "Start Run",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  }
+}
