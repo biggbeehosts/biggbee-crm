@@ -26,15 +26,15 @@ Nothing in the regular campaign path was modified.
 | | Value |
 |---|---|
 | Spreadsheet | "Website Redesign Prospects" (`1VsTcaZBHp-diiEDYCWmBPmwMSJDzmVZkac28JC9KJM4`), a single tab |
-| Leads tab | **`Prospects`** (GID `2090997235`; the GID is not the tab name), 1009×26 grid, 21 data rows |
+| Leads tab | **`Prospects`** (GID `2090997235`; the GID is not the tab name), 998×26 grid, **11 data rows** (re-read live 2026-10-30; 11 valid and unique emails, 0 missing names/websites, 0 duplicate names) |
 | Headers actually present | `Name`, `Website URL`, `Email`, `Reason` |
 | Column mapping | `{"businessName":"Name","email":"Email","website":"Website URL"}` |
 | Not mapped | `Reason` (free text; it is not a verified-facts column, so it is deliberately **not** used for the preserved-details or booking-form claims). There is no ID, status, business-type or unsubscribed column, so the email address is the business key, every row with a valid address is eligible, and emails say "business" rather than a type |
-| Drive main folder | "Website Redesign" (`1owdseo2l65Vd3LTHBcQxduRKzOZGwR8v`): 21 subfolders, nothing else, no second page |
-| Matching result | 21 of 21 rows matched exactly to one folder each; 0 orphan folders, 0 duplicate keys |
-| Screenshots | every folder holds exactly 4 valid `image/png` files; one was downloaded to confirm retrieval (its type and size matched Drive's metadata) |
-| Tracking tab | **does not exist yet**; creating it needs approval. Header row to use: see "Tracking tab" below |
-| Access | n8n credentials **Google Sheets account 2** and **Google Drive account** can read both. The CRM's own service account (`biggbee-crm@red-splice-501718-g1.iam.gserviceaccount.com`) can **not** (sheet 403, folder 404), so the CRM page's "Check connections & scan" fails until both are shared with it (Viewer). The older credential "Google Sheets account" is dead ("The OAuth client was deleted") and must not be used |
+| Drive main folder | "Website Redesign" (`1owdseo2l65Vd3LTHBcQxduRKzOZGwR8v`): **11 subfolders**, nothing else, no second page |
+| Matching result | 11 of 11 rows matched exactly to one folder each; 0 orphan folders, 0 duplicate or ambiguous keys (checked live 2026-10-30) |
+| Screenshots | every folder holds exactly 4 `image/png` files (44 in total, 0 empty folders, 0 non-image files) |
+| Tracking tab | **does not exist yet. BLOCKED: the automated attempt to create it was refused by the permission layer (it modifies a shared Google Sheet), so it needs your explicit go-ahead or a manual step.** Header row to use: see "Tracking tab" below. Until it exists `REDESIGN_SHEET_TRACKING_TAB` stays empty and the CRM page reports setup incomplete |
+| Access | **Resolved 2026-10-30.** The n8n Drive account owns both items; it granted the CRM service account (`biggbee-crm@red-splice-501718-g1.iam.gserviceaccount.com`) **Viewer (reader)** on exactly this spreadsheet and this folder (no notification email; folder access is inherited by the subfolders). Verified with the service account's own token from the CRM container: sheet read 200 (header + 11 rows), folder list 200 (11 subfolders), subfolder list 200 (4 files). The older credential "Google Sheets account" is dead ("The OAuth client was deleted") and must not be used |
 
 Notes on the workflow's name: the imported workflow `Rf9hB2sJrRJGoalt` was renamed in n8n to "CRM website Redesign Marketing" and re-saved (n8n drops default-valued parameters when saving); its logic is identical to `n8n/website-redesign-outreach.workflow.json`, and it is still inactive.
 

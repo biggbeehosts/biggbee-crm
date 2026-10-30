@@ -65,19 +65,14 @@ Workflow name + id, failing node name + id, execution id and link (or "none: act
 4. Volume: replaying the 24 real alerts gives 10 incident emails + 8 wrap-ups = 18 (from 24); 96 identical failures/day collapse to 5. The remaining noise is only removable by stopping the drops, which a reconnect interval is unlikely to do (`docs/imap-force-reconnect.md`).
 5. Two overlapping *sweeps* from the fallback path are not atomic (fallback only).
 
-## State of production today
+## State of production (released and verified 2026-10-30)
 
-* The **inactive** notifier currently imported in n8n (`OWwCk77riM1yUmgT`) is the **earlier static-data version**. Do **not** attach it. It does not have the concurrency fix.
-* `https://crm.biggbees.com/api/internal/alerts` does not exist yet (not deployed).
+* CRM deployed with `POST /api/internal/alerts`. Verified: unauthenticated and wrong-key POST -> 401; valid key with a malformed body -> 400 (authenticated, nothing stored). `scripts/verify-alerts-endpoint.mjs` passes 8/8 against an isolated container of the **exact deployed image** (it is local-only by design: it fires 100+ synthetic errors, which on the production store would later be wrapped up by emails). The production alert store was left empty.
+* `OWwCk77riM1yUmgT` was re-imported over the same id (node-for-node identical to `n8n/error-notifier/error-notifier.workflow.json`), calls `https://crm.biggbees.com/api/internal/alerts` with the existing "CRM Internal API Key" credential (checked: HTTP 400 on a deliberately invalid action, not 401), retries twice with the same `eventId`, and is **active** (its only trigger is the 30-minute sweeper).
+* It is the **Error Workflow of `55q30dkVXZGwb8TR`** (outbound). That workflow is otherwise unchanged: still active, 101 nodes JSON-identical, same connections, credentials and IMAP static data. Backups of both live definitions are on the VPS (`/root/outbound-before-20261030.json`, `/root/error-notifier-before-20261030.json`).
+* The IMAP reconnect interval was not changed.
 
-## To turn it on (all production changes; not done)
-
-1. Deploy the CRM (adds `/api/internal/alerts`). Check: an unauthenticated POST returns 401.
-2. Re-import `n8n/error-notifier/error-notifier.workflow.json` over `OWwCk77riM1yUmgT` (inactive; it carries no static data).
-3. Activate it (needed only for the 30-minute sweeper).
-4. In **Biggbee AI - Outbound Cold Email System → Settings → Error Workflow** select it. n8n then runs the notifier *instead of* the workflow's inline Error Trigger (verified in `execute-error-workflow.js`), so there are no duplicate emails.
-
-Rollback: clear the Error Workflow setting; deactivate the notifier. The CRM endpoint is inert without callers.
+Rollback: clear the Error Workflow setting on the outbound workflow; deactivate the notifier. The CRM endpoint is inert without callers.
 
 ## Tests
 

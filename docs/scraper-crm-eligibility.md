@@ -1,6 +1,6 @@
-# Scraper Hub → CRM: eligibility fix (implemented locally, NOT released)
+# Scraper Hub → CRM: eligibility fix (RELEASED 2026-10-30)
 
-Date: 2026-10-30. Everything here was built and tested locally. Nothing was committed, pushed, deployed, restarted or applied to n8n, Google Sheets or the VPS. The only production contact was read-only: one SELECT-only session (write guard on, aggregate counts out) to verify the rules against the real data.
+Date: 2026-10-30. Built and tested locally, then **released the same day** (see "Release record" at the end). The rest of this document describes the rules and the release procedure.
 
 ## Where Scraper Hub lives and how it is deployed
 
@@ -118,3 +118,9 @@ Prerequisites: decide the open questions at the end; nobody else has an unreleas
 * The routing rule requires `crm_sync_status <> 'not_applicable'`. A routed job whose on-demand webhook never ran stays `not_applicable` and is not rescued by the 15-minute schedule until it is re-triggered. Say if you want the schedule to rescue those too.
 
 The Website Redesign Prospects sheet, its prospecting worker and all redesign assets were not touched.
+
+## Release record (2026-10-30)
+
+* **Scraper Hub API + worker deployed** from the four reviewed files only (`apps/api/src/crm-sync.ts`, `server.ts`, `apps/worker/src/crm-routing.ts`, `worker.ts`), taken from commit blobs, not from the working tree (which also holds someone else's unfinished diagnostics work). The VPS originals were byte-identical to the reviewed baseline before the overlay. No job was queued or running (checked immediately before the build and again before the container swap). Backups: `/docker/scraper-hub-backups/pre-crm-eligibility-20261030/`; the previous images are tagged `scraper-hub-api:pre-crm-eligibility-20261030` and `scraper-hub-worker:pre-crm-eligibility-20261030` (rollback = restore the two files and `docker tag` / `up -d --no-deps`). Both containers healthy, 0 restarts.
+* **Verified live (read-only, from inside the API container, key never printed):** no key 401; no `workspaceId` 400 `workspace_required`; `workspaceId=other` 400 `workspace_not_allowed`; `workspaceId=biggbee&updatedSince=1970` (what the schedule sends) 200 with **0 rows**; same with `requireEmail=false` 0; restricted to `das-oertliche-de` 0; 40 explicit historical German `entityIds` 0; the 11 historical `sheet_only` job ids 0 in total; `full-sync` still 200. Sheet_only, unknown, empty, mis-cased, legacy and jobless records cannot exist in production data (the schema forbids all but the first), so those classes are proven by the real-PostgreSQL tests above rather than by production rows.
+* **CRM Sheet Sync (`ZdiauTxu6K8yF42l`) edited in place** with one PUT built from a fresh GET of the live workflow plus the two reviewed transforms (`scripts/build-crm-sheet-sync-live-edit.mjs`, which refuses unless exactly 4 nodes differ). Stored result verified: only Fetch CRM Rows, Match & Decide, Append CRM Row, Summarize & Checkpoint changed; still active (2 triggers); schedule, webhook, Sheets nodes, connections, settings and static data identical. The first scheduled execution afterwards (31604, 13:00:38 UTC) succeeded: Fetch CRM Rows answered `workspaceId=biggbee`, 0 rows; neither Append nor Update ran. The two executions before it were the old 401s. Live-before backup: `/root/crm-sheet-sync-live-before-20261030.json`. No import was triggered manually.
