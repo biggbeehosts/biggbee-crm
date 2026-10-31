@@ -234,3 +234,46 @@ test("an approved preview re-renders to exactly the HTML that was composed (live
 test("signatureParts normalises the website for display and link", () => {
   assert.deepEqual(core.signatureParts({ signatureName: "Biggbee AI", signatureWebsite: "https://www.biggbees.com/" }), { name: "Biggbee AI", site: "www.biggbees.com", url: "https://www.biggbees.com" });
 });
+
+// ── fallback wording: business names that start with an article ──
+const fallbackText = (businessName, over = {}) => core.finalizeEmail(null, { ...unverifiedFacts, businessName, businessType: "", ...over }, identity).email.text;
+
+test("REGRESSION: a name starting with \"The\" does not produce \"the The ...\" in the fallback email", () => {
+  const text = fallbackText("The Property Manager UK");
+  assert.doesNotMatch(text, /the The\b/i);
+  assert.match(text, /I came across the Property Manager UK website recently and prepared a redesign concept for it\./);
+  // the subject keeps the name exactly as the sheet has it
+  assert.equal(core.finalizeEmail(null, { ...unverifiedFacts, businessName: "The Property Manager UK", businessType: "" }, identity).email.subject, "A redesign concept for The Property Manager UK");
+});
+
+test("a name that does NOT start with \"The\" is worded exactly as before", () => {
+  const text = fallbackText("Lloyds Property Services");
+  assert.match(text, /I came across the Lloyds Property Services website recently and prepared a redesign concept for it\./);
+  assert.match(fallbackText("Al Shami"), /I came across the Al Shami website recently/);
+});
+
+test("websiteReference: only a whole leading article is treated specially; everything else is left exactly alone", () => {
+  const w = core.websiteReference;
+  assert.equal(w("The Property Manager UK"), "the Property Manager UK website");
+  assert.equal(w("  the   Hair Lounge "), "the Hair Lounge website", "case-insensitive, trimmed, extra spaces after the article collapse");
+  assert.equal(w("THE Dental Studio"), "the Dental Studio website");
+  assert.equal(w("Al Shami"), "the Al Shami website");
+  assert.equal(w("Theatre Royal"), "the Theatre Royal website", "'The' inside a longer word is not an article");
+  assert.equal(w("Thebes Cafe"), "the Thebes Cafe website");
+  assert.equal(w("Elite Accountancy"), "the Elite Accountancy website");
+  assert.equal(w("Smith & The Sons"), "the Smith & The Sons website", "an inner 'The' is untouched");
+  assert.equal(w("The"), "the The website", "a name that is only the article is not mangled into an empty name");
+  assert.equal(w("A Taste of Italy"), "the website for A Taste of Italy");
+  assert.equal(w("An Lanna Thai"), "the website for An Lanna Thai");
+  assert.equal(w("A1 Plumbing"), "the A1 Plumbing website");
+  assert.equal(w("Anchor Inn"), "the Anchor Inn website");
+  assert.equal(w(""), "the  website");
+  assert.equal(w(null), "the  website");
+});
+
+test("the fallback email for a \"The ...\" business with a business type, and its claim checks, stay valid", () => {
+  const facts = { ...unverifiedFacts, businessName: "The Dental Studio", businessType: "Dental Practice" };
+  const draft = core.buildFallbackEmail(facts);
+  assert.match(draft.body, /I came across the Dental Studio website recently and prepared a redesign concept for your dental practice\./);
+  assert.equal(core.validateDraft(draft, facts).ok, true);
+});

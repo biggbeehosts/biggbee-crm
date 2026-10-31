@@ -269,14 +269,32 @@ export function validateDraft(draft, facts) {
   return { ok: violations.length === 0, violations: violations };
 }
 
+/**
+ * "the <name> website", without doubling an article the business name already starts with.
+ *   "Al Shami"                -> "the Al Shami website"
+ *   "The Property Manager UK" -> "the Property Manager UK website"   (not "the The ...")
+ *   "THE Hair Lounge"         -> "the Hair Lounge website"
+ *   "A Taste of Italy"        -> "the website for A Taste of Italy"   ("the A Taste ..." is ungrammatical)
+ * Only a whole leading word counts: "Theatre Royal", "Thebes Cafe", "A1 Plumbing" and "Anchor Inn" are untouched,
+ * and a name that is only an article ("The") is left alone. Everything after the article is kept verbatim.
+ */
+export function websiteReference(businessName) {
+  const name = String(businessName == null ? "" : businessName).trim();
+  const the = /^the\s+(?=\S)/i.exec(name);
+  if (the) return "the " + name.slice(the[0].length) + " website";
+  if (/^an?\s+(?=\S)/i.test(name)) return "the website for " + name;
+  return "the " + name + " website";
+}
+
 /** Deterministic, always-safe email used when the AI draft is missing or fails validation. */
 export function buildFallbackEmail(facts) {
   const name = facts.businessName;
   const kind = facts.businessType ? String(facts.businessType).trim() : "";
   const subject = ("A redesign concept for " + name).slice(0, 90);
+  const site = websiteReference(name);
   const para1 = kind
-    ? "I came across the " + name + " website recently and prepared a redesign concept for your " + kind.toLowerCase() + "."
-    : "I came across the " + name + " website recently and prepared a redesign concept for it.";
+    ? "I came across " + site + " recently and prepared a redesign concept for your " + kind.toLowerCase() + "."
+    : "I came across " + site + " recently and prepared a redesign concept for it.";
   const lines = ["Hi there,", "", para1, "I've attached " + (facts.attachmentCount === 1 ? "a screenshot" : "a few screenshots") + " so you can see what it could look like."];
   if (facts.preservedVerified) lines.push("", "I kept your existing " + facts.preservedVerified + " in the concept.");
   if (facts.bookingVerified) lines.push("", "It also includes a simple online booking form.");
